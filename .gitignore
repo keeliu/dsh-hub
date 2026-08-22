@@ -2,3 +2,4 @@ node_modules/
 dist/
 *.log
 spikes/.artifacts/
+dsh-hub/data/

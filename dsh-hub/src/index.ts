@@ -1,87 +1,61 @@
 #!/usr/bin/env node
 /**
- * DSH Hub · 控制面入口（M1 前置占位）
+ * DSH Hub · 控制面入口（M1：认证与用户体系）
  *
- * 当前形态：环境自检引导。跑 `pnpm run dev`（node --disable-warning=ExperimentalWarning src/index.ts）。
- * Node 24 原生跑 TS（erasable 语法）。后续里程碑在此挂载：
- *   src/auth（认证与会话）、src/users（昵称目录）、src/supervisor（实例监督器）、
- *   src/gateway（鉴权网关）、src/admin（管理面）。
+ * 跑 `pnpm run dev`（node --disable-warning=ExperimentalWarning src/index.ts，Node 24 原生跑 TS）。
+ * 环境变量：
+ *   DSH_HUB_DATA         数据根（默认 <dsh-hub>/data；未来用户目录 users/ 也在此）
+ *   DSH_HUB_HOST         监听地址（默认 127.0.0.1；公网一律走之后的 Caddy/网关，勿直接绑 0.0.0.0）
+ *   DSH_HUB_PORT         控制面端口（默认 3082；约定避开 3080/3081）
+ *   DSH_HUB_COOKIE_SECURE=1  会话 cookie 加 Secure（在 Caddy TLS 后启用）
+ *
+ * 里程碑挂载：M2 src/supervisor（实例监督器）、src/gateway（鉴权网关）、src/admin（管理 UI）。
  */
 import process from 'node:process';
-import { existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+import type http from 'node:http';
+import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { openDb } from './db.ts';
+import { startServer } from './api.ts';
+
+export { sanitizeNickname, generateSlug, shortId } from './users.ts';
 
 const BANNER = `DSH Hub · DeepSeek Harness 多租户多实例管理器
-版本 0.1.0（M0 脚手架）  文档 ../docs/00-进展日志.md`;
-
-/** 与开发计划 §3.1 一致的昵称净化规则（S5 已验证）。 */
-export function sanitizeNickname(nickname: string, id8: string): string {
-  let s = String(nickname ?? '')
-    .replace(/[/\x00-\x1f\x7f]/g, '')
-    .trim()
-    .replace(/^\.+/, '');
-  if (s === '') return `user-${id8}`;
-  const buf = Buffer.from(s, 'utf8');
-  if (buf.byteLength <= 64) return s;
-  for (let cut = 64; cut > 0; cut--) {
-    const sub = buf.subarray(0, cut).toString('utf8');
-    if (Buffer.byteLength(sub) <= 64 && !sub.endsWith('\uFFFD')) return sub;
-  }
-  return s.slice(0, 1);
-}
-
-/** 测试端口约定：永不触碰 3080/3081（主实例与现有 GUI）。 */
-const RESERVED = new Set([3080, 3081]);
-
-interface SelfCheckRow {
-  name: string;
-  ok: boolean;
-  detail: string;
-}
-
-function resolveDshBin(): string | null {
-  const fromEnv = process.env.DSH_BIN;
-  if (fromEnv && existsSync(fromEnv)) return fromEnv;
-  const guess = join(dirname(process.execPath), '..', 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
-  if (existsSync(guess)) return guess;
-  return null;
-}
-
-function selfCheck(): SelfCheckRow[] {
-  const rows: SelfCheckRow[] = [];
-  const nodeMajor = Number(process.versions.node.split('.')[0] ?? 0);
-  rows.push({
-    name: 'Node 版本 >= 24（原生 TS 直跑）',
-    ok: nodeMajor >= 24,
-    detail: `v${process.versions.node}`,
-  });
-  const dshBin = resolveDshBin();
-  let dshVer = '（缺失）';
-  if (dshBin) {
-    const r = spawnSync(process.execPath, [dshBin, '--version'], { encoding: 'utf8', timeout: 15_000 });
-    dshVer = (r.stdout || r.stderr || '').trim() || '（版本读不出）';
-  }
-  rows.push({
-    name: 'dsh 二进制可解析',
-    ok: Boolean(dshBin),
-    detail: dshBin ? `${dshVer} @ ${dshBin}` : 'PATH/默认探测路径均未找到',
-  });
-  // 测试端口约定在 supervisor 落地时实测；这里仅校验自检行本身非空。
-  rows.push({ name: '自检完整', ok: rows.length === 2, detail: '端口隔离约定：永不触碰 3080/3081' });
-  return rows;
-}
+版本 0.1.0（M1：认证与用户体系）  文档 ../docs/00-进展日志.md`;
 
 function main(): void {
+  const host = process.env.DSH_HUB_HOST ?? '127.0.0.1';
+  const port = Number(process.env.DSH_HUB_PORT ?? 3082);
+  const dataDir = process.env.DSH_HUB_DATA ?? join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
+
   console.log(BANNER);
-  console.log('\n--- 环境自检 ---');
-  let allOk = true;
-  for (const row of selfCheck()) {
-    allOk &&= row.ok;
-    console.log(`[${row.ok ? 'OK ' : 'FAIL'}] ${row.name} — ${row.detail}`);
-  }
-  console.log('\nM1 待办：认证与用户体系（docs/02 里程碑表）。');
-  process.exit(allOk ? 0 : 1);
+  console.log(`数据根: ${dataDir}`);
+  console.log(`注册开关默认 closed（管理员经 /admin/api/settings 打开）`);
+
+  const db = openDb({ dataDir });
+  const server: http.Server = startServer(db, { host, port });
+
+  let closing = false;
+  const shutdown = (): void => {
+    if (closing) return;
+    closing = true;
+    console.log('\n关闭中…');
+    server.close(() => {
+      db.close();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(0), 3000).unref();
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+
+  server.on('listening', () => {
+    const addr = server.address();
+    const actual = typeof addr === 'object' && addr ? `${addr.address}:${addr.port}` : `${host}:${port}`;
+    console.log(`控制面已就绪: http://${actual}`);
+    console.log('端点速查: POST /api/auth/setup（首启向导） · /api/auth/login · GET /api/me · /admin/api/users · /healthz');
+    console.log('M2 待办：实例监督器与昵称目录（docs/02 里程碑表）。');
+  });
 }
 
 main();

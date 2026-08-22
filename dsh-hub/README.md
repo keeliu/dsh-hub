@@ -10,8 +10,28 @@
 ## 目录
 
 ```
-src/       控制面（TypeScript）：auth/ gateway/ supervisor/ ...
+src/       控制面（TypeScript）：db/ pwd/ users/ sessions/ api/ index
 spikes/    M0 技术验证脚本（零依赖，可独立运行）
+scripts/   M1 冒烟测试（bash + curl，零依赖）
+data/      运行时数据（SQLite WAL，已 gitignore）
+```
+
+## 运行控制面（M1：认证与用户体系）
+
+```bash
+npm install          # 仅安装 devDependencies（typescript/@types/node）；运行时零依赖
+npm run dev          # 监听 127.0.0.1:3082（DSH_HUB_PORT 可改；约定避开 3080/3081）
+```
+
+环境变量：`DSH_HUB_DATA`（默认 `<dsh-hub>/data`）、`DSH_HUB_HOST`、`DSH_HUB_PORT`、`DSH_HUB_COOKIE_SECURE=1`（Caddy TLS 后启用）。
+
+端点速查：`POST /api/auth/setup`（首启向导）｜`POST /api/auth/register|login|logout`｜`GET /api/me`｜`POST /api/me/tokens`｜`GET /admin/api/users`｜`PATCH /admin/api/users/:id`｜`GET /admin/api/audit`｜`GET/PUT /admin/api/settings`｜`/healthz`。
+
+测试：
+
+```bash
+bash scripts/m1-smoke.sh http://127.0.0.1:3082   # 24 项冒烟（全新库跑）
+bash scripts/m1-first-root.sh                    # 首位注册自动 root（全新库+预置开放注册）
 ```
 
 ## Spike 运行方式

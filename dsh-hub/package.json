@@ -8,11 +8,16 @@
   "scripts": {
     "dev": "node --disable-warning=ExperimentalWarning src/index.ts",
     "build": "tsc -p .",
+    "typecheck": "tsc -p . --noEmit",
     "spike:s1": "node spikes/s1-reverse-proxy.mjs",
     "spike:s2": "node spikes/s2-trusted-host.mjs",
     "spike:s3": "bash spikes/s3-systemd-run.sh",
     "spike:s4": "node spikes/s4-npx-version.mjs",
     "spike:s5": "node spikes/s5-nickname-dir.mjs",
     "spike:all": "node spikes/run-all.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
   }
 }

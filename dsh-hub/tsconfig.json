@@ -11,8 +11,9 @@
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
-    "noEmit": false,
+    "noEmit": true,
     "sourceMap": true
   },
   "include": ["src/**/*.ts"]

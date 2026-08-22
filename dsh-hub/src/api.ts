@@ -19,6 +19,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { audit } from './db.ts';
 import { hashPassword, verifyPassword } from './pwd.ts';
 import { canManage, generateSlug, isRole, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
+import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, runningCount } from './instances.ts';
+import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
   listApiTokens, resolveApiToken, revokeApiToken, validateSession,
@@ -552,6 +554,154 @@ route('PUT', '/admin/api/settings', async ({ db, req }) => {
   for (const [key, value] of Object.entries(allowed)) setSetting(db, key, value);
   audit(db, 'user_update', actor.id, null, `settings updated by ${actor.nickname}: ${Object.keys(allowed).join(', ')}`);
   return { settings: allowed };
+});
+
+// ---------- 实例（M2） ----------
+
+function requireAuthUser(db: DatabaseSync, req: http.IncomingMessage): UserRow {
+  const auth = resolveAuth(db, req);
+  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
+  const user = getUser(db, auth.userId);
+  if (!user || user.status === 'disabled') throw new HttpError(401, 'unauthorized', 'account unavailable');
+  return user;
+}
+
+/** 取实例并校验属主（或管理员）。读操作非属主 404（不泄露存在性），写操作 403。 */
+function requireInstance(db: DatabaseSync, actor: UserRow, id: string, opts: { write?: boolean } = {}): InstanceRecord {
+  const record = getInstance(db, id);
+  if (!record) throw new HttpError(404, 'not_found', 'instance not found');
+  if (record.owner_id === actor.id) return record;
+  if (actor.role === 'admin' || actor.role === 'root') {
+    if (opts.write) audit(db, 'instance_admin', actor.id, record.owner_id, `admin ${opts.write ? 'write' : 'read'} on ${id}`);
+    return record;
+  }
+  throw new HttpError(opts.write ? 403 : 404, opts.write ? 'forbidden' : 'not_found', 'instance not found');
+}
+
+function publicInstance(r: InstanceRecord): Record<string, unknown> {
+  return {
+    id: r.id, name: r.name, port: r.port, harness_version: r.harness_version,
+    trusted_host: r.trusted_host, status: r.status, pid: r.pid,
+    auto_restart: r.auto_restart === 1, created_at: r.created_at, last_started_at: r.last_started_at,
+    owner_id: r.owner_id, owner_nickname: r.nickname ?? undefined,
+  };
+}
+
+route('GET', '/api/instances', async ({ db, req }) => {
+  const user = requireAuthUser(db, req);
+  return { instances: listInstances(db, user.id).map(publicInstance) };
+});
+
+route('POST', '/api/instances', async ({ db, req, res }) => {
+  const user = requireAuthUser(db, req);
+  const cookies = parseCookies(req);
+  const auth = resolveAuth(db, req)!; // requireAuthUser 已保证
+  if (auth.viaSession) assertCsrf(req, cookies);
+  const body = await readJson(req) as { name?: unknown; harness_version?: unknown };
+  if (typeof body.name !== 'string' && body.name !== undefined) throw new HttpError(400, 'invalid_body', 'name must be a string');
+  let record: InstanceRecord;
+  try {
+    record = await createInstance(db, user, {
+      name: typeof body.name === 'string' ? body.name : `${user.nickname}`,
+      harnessVersion: typeof body.harness_version === 'string' && body.harness_version ? body.harness_version : null,
+    });
+  } catch (e) {
+    if (e instanceof Error && /quota/.test(e.message)) throw new HttpError(403, 'quota_exceeded', e.message);
+    if (e instanceof Error && /no free port/.test(e.message)) throw new HttpError(503, 'no_free_port', e.message);
+    throw e;
+  }
+  audit(db, 'instance_create', user.id, user.id, `created ${record.id} port=${record.port} name=${record.name}`);
+  return { instance: publicInstance(record) };
+});
+
+route('GET', '/api/instances/:id', async ({ db, req }) => {
+  const user = requireAuthUser(db, req);
+  const record = requireInstance(db, user, req.params?.id ?? '');
+  return { instance: publicInstance(record) };
+});
+
+route('GET', '/api/instances/:id/logs', async ({ db, req }) => {
+  const user = requireAuthUser(db, req);
+  const record = requireInstance(db, user, req.params?.id ?? '');
+  const url = new URL(req.url ?? '/', 'http://dsh-hub.invalid');
+  const tail = Math.min(Number(url.searchParams.get('tail') ?? 200) || 200, 2000);
+  return { id: record.id, log: tailLog(record, tail) };
+});
+
+function assertOwnerCanWrite(actor: UserRow, record: InstanceRecord): void {
+  if (record.owner_id === actor.id) return;
+  if (actor.role === 'admin' || actor.role === 'root') return;
+  throw new HttpError(403, 'forbidden', 'not your instance');
+}
+
+route('POST', '/api/instances/:id/start', async ({ db, req, res }) => {
+  const user = requireAuthUser(db, req);
+  const cookies = parseCookies(req);
+  const auth = resolveAuth(db, req)!;
+  if (auth.viaSession) assertCsrf(req, cookies);
+  const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
+  assertOwnerCanWrite(user, record);
+  if (record.owner_id === user.id) {
+    const running = runningCount(db, user.id);
+    if (running >= user.max_running) throw new HttpError(403, 'quota_exceeded', `max_running quota reached (${user.max_running})`);
+  }
+  const result = await startInstance(db, record);
+  audit(db, 'instance_start', user.id, record.owner_id, `start ${record.id} -> ${result.status}${result.pid ? ` pid=${result.pid}` : ''}`);
+  if (result.status === 'failed') throw new HttpError(502, 'start_failed', result.error ?? 'start failed');
+  const fresh = getInstance(db, record.id)!;
+  return { instance: publicInstance(fresh) };
+});
+
+route('POST', '/api/instances/:id/stop', async ({ db, req }) => {
+  const user = requireAuthUser(db, req);
+  const cookies = parseCookies(req);
+  const auth = resolveAuth(db, req)!;
+  if (auth.viaSession) assertCsrf(req, cookies);
+  const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
+  assertOwnerCanWrite(user, record);
+  await stopInstance(db, record);
+  audit(db, 'instance_stop', user.id, record.owner_id, `stop ${record.id}`);
+  const fresh = getInstance(db, record.id)!;
+  return { instance: publicInstance(fresh) };
+});
+
+route('POST', '/api/instances/:id/restart', async ({ db, req }) => {
+  const user = requireAuthUser(db, req);
+  const cookies = parseCookies(req);
+  const auth = resolveAuth(db, req)!;
+  if (auth.viaSession) assertCsrf(req, cookies);
+  const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
+  assertOwnerCanWrite(user, record);
+  await stopInstance(db, record);
+  audit(db, 'instance_restart', user.id, record.owner_id, `restart ${record.id}`);
+  if (record.owner_id === user.id) {
+    const running = runningCount(db, user.id);
+    if (running >= user.max_running) throw new HttpError(403, 'quota_exceeded', `max_running quota reached (${user.max_running})`);
+  }
+  const result = await startInstance(db, getInstance(db, record.id)!);
+  if (result.status === 'failed') throw new HttpError(502, 'start_failed', result.error ?? 'restart failed');
+  const fresh = getInstance(db, record.id)!;
+  return { instance: publicInstance(fresh) };
+});
+
+route('DELETE', '/api/instances/:id', async ({ db, req }) => {
+  const user = requireAuthUser(db, req);
+  const cookies = parseCookies(req);
+  const auth = resolveAuth(db, req)!;
+  if (auth.viaSession) assertCsrf(req, cookies);
+  const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
+  assertOwnerCanWrite(user, record);
+  await stopInstance(db, record);
+  deleteInstance(db, record);
+  audit(db, 'instance_delete', user.id, record.owner_id, `deleted ${record.id} port=${record.port}`);
+  return { ok: true, id: record.id };
+});
+
+// 管理面：跨用户实例总览
+route('GET', '/admin/api/instances', async ({ db, req }) => {
+  const user = requireAuthUser(db, req);
+  requireRole(user, ['admin', 'root']);
+  return { instances: listAllInstances(db).map(publicInstance) };
 });
 
 route('GET', '/healthz', async () => ({ ok: true, ts: Date.now() }));

@@ -25,14 +25,17 @@ npm run dev          # 监听 127.0.0.1:3082（DSH_HUB_PORT 可改；约定避�
 
 环境变量：`DSH_HUB_DATA`（默认 `<dsh-hub>/data`）、`DSH_HUB_HOST`、`DSH_HUB_PORT`、`DSH_HUB_COOKIE_SECURE=1`（Caddy TLS 后启用）。
 
-端点速查：`POST /api/auth/setup`（首启向导）｜`POST /api/auth/register|login|logout`｜`GET /api/me`｜`POST /api/me/tokens`｜`GET /admin/api/users`｜`PATCH /admin/api/users/:id`｜`GET /admin/api/audit`｜`GET/PUT /admin/api/settings`｜`/healthz`。
+端点速查：`POST /api/auth/setup`（首启向导）｜`POST /api/auth/register|login|logout`｜`GET /api/me`｜`POST /api/me/tokens`｜`GET/POST /api/instances`｜`POST /api/instances/:id/start|stop|restart`｜`DELETE /api/instances/:id`｜`GET /api/instances/:id/logs?tail=`｜`GET /admin/api/users`｜`PATCH /admin/api/users/:id`｜`GET /admin/api/instances`（跨用户）｜`GET /admin/api/audit`｜`GET/PUT /admin/api/settings`｜`/healthz`。
 
 测试：
 
 ```bash
-bash scripts/m1-smoke.sh http://127.0.0.1:3082   # 24 项冒烟（全新库跑）
+bash scripts/m1-smoke.sh http://127.0.0.1:3082   # M1 认证冒烟（24 项，全新库跑）
 bash scripts/m1-first-root.sh                    # 首位注册自动 root（全新库+预置开放注册）
+bash scripts/m2-smoke.sh                         # M2 实例生命周期冒烟（29 项，真实 dsh web）
 ```
+
+实例目录（`data/users/<昵称>/instances/<id>/`）：`home`（=DSH_HOME）、`workspace`、`logs`（web.out.log + 失败快照）、`instance.pid` + `.dsh-instance.lock`。实例端口 4000–4999，trusted_host 为 `<slug>-<实例ID>.dshhub.local`（M3 网关再接入）。
 
 ## Spike 运行方式
 

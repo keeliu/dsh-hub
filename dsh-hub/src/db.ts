@@ -104,7 +104,13 @@ export type AuditAction =
   | 'user_update'
   | 'user_disable'
   | 'user_enable'
-  | 'password_reset';
+  | 'password_reset'
+  | 'instance_create'
+  | 'instance_start'
+  | 'instance_stop'
+  | 'instance_restart'
+  | 'instance_delete'
+  | 'instance_admin';
 
 /** 审计写入（骨架：M4 出管理端 UI 后再做过滤/浏览）。 */
 export function audit(db: DatabaseSync, action: AuditAction, actorId: number | null, targetUserId: number | null, detail?: string): void {

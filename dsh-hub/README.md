@@ -82,3 +82,13 @@ npm run spike:s5   # 中文昵称目录 ext4 行为
 ```
 
 > Spike 一律避开 3080/3081（主实例与现有 GUI 占用），默认使用 3971/3972。
+
+## 发布到 GitHub
+
+```bash
+# 前提：GitHub 可达（或本机代理软件已开）+ 认证（gh 已登录，或提供 PAT）
+GITHUB_USER=<你的用户名> GITHUB_TOKEN=<PAT> bash scripts/push-release.sh
+```
+
+脚本自动：探测代理（常见端口）→ 创建私有仓库（默认 `dsh-hub`，`PRIVATE=false` 可公开）→
+配置 remote → 推送 main + 全部标签 →（有 gh 时）创建 GitHub Release。

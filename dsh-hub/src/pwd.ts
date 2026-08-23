@@ -16,6 +16,12 @@ export const SCRYPT_MAXMEM = 64 * 1024 * 1024; // N*128*r ≈ 33.5MiB，留余�
 const KEYLEN = 32;
 const SALTLEN = 16;
 
+/**
+ * 恒定耗时占位哈希（M2.1）：登录时「用户不存在」路径也执行一次同参数 scrypt，
+ * 消除基于响应时间差的用户名枚举侧信道。
+ */
+export const DUMMY_HASH = hashPassword('dsh-hub-dummy-verification-key');
+
 export function hashPassword(password: string): string {
   const salt = randomBytes(SALTLEN);
   const key = scryptSync(password, salt, KEYLEN, { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, maxmem: SCRYPT_MAXMEM });

@@ -1,11 +1,29 @@
 #!/usr/bin/env bash
 # M1 冒烟测试：setup → session/CSRF → register → 角色 → 封禁 → token → 限速 → 审计
-# 用法：先起服务（默认 http://127.0.0.1:3082），再跑 ./scripts/m1-smoke.sh [BASE_URL]
+# 用法：bash scripts/m1-smoke.sh [BASE_URL]
+#   - 默认自带启动 hub（3082，临时数据根；M2.1 对齐 m2-smoke，防误跑）
+#   - 也可传 BASE_URL 指向已运行的服务（此时不启动、不清理）
 set -u
 BASE="${1:-http://127.0.0.1:3082}"
 D="$(mktemp -d)"
 J="$D/admin.jar"; Z="$D/zhang.jar"; L="$D/li.jar"
-trap 'rm -rf "$D"' EXIT
+HUB_DIR="$(mktemp -d)"
+HUB_PID=""
+trap 'rm -rf "$D" "$HUB_DIR"; [ -n "$HUB_PID" ] && kill "$HUB_PID" 2>/dev/null' EXIT
+
+start_hub() {
+  DSH_HUB_DATA="$HUB_DIR/data" DSH_HUB_PORT=3082 DSH_HUB_HOST=127.0.0.1 \
+    node --disable-warning=ExperimentalWarning src/index.ts >>"$HUB_DIR/hub.out.log" 2>&1 &
+  HUB_PID=$!
+  for _ in $(seq 1 30); do curl -sf "$BASE/healthz" >/dev/null 2>&1 && return 0; sleep 0.3; done
+  echo "  [hub 启动失败]" >&2; tail -20 "$HUB_DIR/hub.out.log" >&2; return 1
+}
+
+# 默认地址且目标未就绪 → 自动拉起 hub
+if [ "$BASE" = "http://127.0.0.1:3082" ] && ! curl -sf "$BASE/healthz" >/dev/null 2>&1; then
+  cd "$(dirname "$0")/.." || exit 1
+  start_hub || exit 1
+fi
 
 PASS=0; FAIL=0
 check() { # check <desc> <expected_code> <actual_code>
@@ -111,8 +129,8 @@ CODE=$(curl -sS -o "$D/body" -w '%{http_code}' -b "$J" "$BASE/admin/api/audit?li
 check "审计列表" 200 "$CODE"
 grep -q '"action"' "$D/body" && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "[FAIL] 审计含 action"; }
 
-# 17) 注销
-CODE=$(curl -sS -o "$D/body" -w '%{http_code}' -b "$J" -X POST "$BASE/api/auth/logout")
+# 17) 注销（写操作需 CSRF，M2.1）
+CODE=$(curl -sS -o "$D/body" -w '%{http_code}' -b "$J" -X POST "$BASE/api/auth/logout" -H "x-csrf-token: $CSRF_J")
 check "注销" 200 "$CODE"
 CODE=$(curl -sS -o "$D/body" -w '%{http_code}' -b "$J" "$BASE/api/me")
 check "注销后 /api/me 拒绝" 401 "$CODE"

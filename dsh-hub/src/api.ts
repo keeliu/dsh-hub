@@ -1,5 +1,5 @@
 /**
- * DSH Hub · 控制面 HTTP API（M1）
+ * DSH Hub · 控制面 HTTP API（M1；M2.1 安全重构）
  *
  * 零依赖 node:http 单进程服务。路由：
  *   /api/auth/setup|register|login|logout
@@ -8,95 +8,55 @@
  *   /admin/api/users[...]  — 用户管理（admin/root）
  *   /admin/api/audit       — 审计（admin/root）
  *   /admin/api/settings    — 全局设置（admin/root）
+ *   /api/instances[...]    — 实例（M2）
  *   /healthz
  *
- * 鉴权：会话 cookie（HttpOnly + SameSite=Lax + 滑动 7 天）或 Bearer token。
- * 会话鉴权的写操作叠加双重提交 CSRF（cookie dshhub_csrf + 头 X-CSRF-Token）；
- * Bearer 鉴权免 CSRF（无 cookie 面）。越权一律 403；未知一律 404（不泄露存在性）。
+ * M2.1 重构要点：
+ * - 路由声明式选项 { auth, csrf }：鉴权与 CSRF 由服务层统一执行（此前每个
+ *   handler 重复 resolveAuth+getUser+CSRF 三连）；auth 路由强制 status=active
+ *   （修复「禁用账号会话仍有效、可自解封」高危缺陷，配套见 PATCH users）。
+ * - 封禁 = 停全部实例 + 吊销会话与 API token（落实计划 §3.6「禁用即杀实例」）。
+ * - harness_version 白名单校验 + default_harness_version 生效（修复 RCE 注入）。
+ * - 登录限速键 = IP+昵称；用户不存在时执行 dummy scrypt（消除时间侧信道）。
+ * - 实例写操作 per-instance 互斥（409 instance_busy），配合 supervisor 锁 token。
+ * - setup/register/建用户/改用户事务化（BEGIN IMMEDIATE）。
+ *
+ * 鉴权：会话 cookie（HttpOnly + SameSite=Lax + 滑动 7 天、绝对上限 30 天）
+ * 或 Bearer token。会话鉴权的写操作叠加双重提交 CSRF（cookie + X-CSRF-Token）；
+ * Bearer 鉴权免 CSRF。越权一律 403；未知一律 404（不泄露存在性）。
  */
 import http from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
-import { audit } from './db.ts';
-import { hashPassword, verifyPassword } from './pwd.ts';
-import { canManage, generateSlug, isRole, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
-import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, runningCount } from './instances.ts';
+import { audit, withTx } from './db.ts';
+import { config } from './config.ts';
+import { HttpError, clientIp, parseCookies, readJson, sendError, sendJson } from './http.ts';
+import {
+  authenticate, assertCsrf, checkLoginLock, clearLoginLock, loginLockKey, recordLoginFailure, requireRole,
+} from './auth.ts';
+import { getSetting, getSettingsMap, setSetting, SETTING_KEYS } from './settings.ts';
+import { parseAllowedVersions, isValidHarnessVersion, versionAllowed } from './version.ts';
+import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
+import { canManage, generateSlug, getUser, getUserByNickname, isRole, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
+import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
-  listApiTokens, resolveApiToken, revokeApiToken, validateSession,
+  listApiTokens, revokeApiToken,
 } from './sessions.ts';
 
 // ---------- 小工具 ----------
 
-export class HttpError extends Error {
-  status: number;
-  code: string;
-  constructor(status: number, code: string, message: string) {
-    super(message);
-    this.status = status;
-    this.code = code;
-  }
-}
-
-function sendJson(res: http.ServerResponse, status: number, body: unknown): void {
-  const text = JSON.stringify(body);
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    'content-length': Buffer.byteLength(text),
-  });
-  res.end(text);
-}
-
-function sendError(res: http.ServerResponse, err: unknown): void {
-  if (err instanceof HttpError) {
-    sendJson(res, err.status, { error: { code: err.code, message: err.message } });
-    return;
-  }
-  console.error('[dsh-hub] unhandled:', err);
-  sendJson(res, 500, { error: { code: 'internal', message: 'internal error' } });
-}
-
-/** 读取并解析 JSON body（上限 1MiB；Content-Type 非 JSON 也尝试解析，宽松处理）。 */
-function readJson(req: http.IncomingMessage, maxBytes = 1024 * 1024): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    req.on('data', (c: Buffer) => {
-      size += c.length;
-      if (size > maxBytes) {
-        reject(new HttpError(413, 'payload_too_large', 'request body too large'));
-        req.destroy();
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on('end', () => {
-      if (chunks.length === 0) { resolve({}); return; }
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
-      } catch {
-        reject(new HttpError(400, 'bad_json', 'request body is not valid JSON'));
-      }
-    });
-    req.on('error', reject);
-  });
-}
-
-function parseCookies(req: http.IncomingMessage): Record<string, string> {
-  const header = req.headers.cookie;
-  const out: Record<string, string> = {};
-  if (!header) return out;
-  for (const pair of header.split(';')) {
-    const idx = pair.indexOf('=');
-    if (idx > 0) out[pair.slice(0, idx).trim()] = decodeURIComponent(pair.slice(idx + 1).trim());
-  }
-  return out;
+function publicUser(u: UserRow): Record<string, unknown> {
+  return {
+    id: u.id, nickname: u.nickname, slug: u.slug, dir_name: u.dir_name, email: u.email,
+    role: u.role, status: u.status, max_instances: u.max_instances, max_running: u.max_running,
+    created_at: u.created_at, last_login_at: u.last_login_at,
+  };
 }
 
 /** 会话 cookie 的 Set-Cookie 值。Secure 仅当 DSH_HUB_COOKIE_SECURE=1（Caddy 后）。 */
 function sessionCookiePairs(token: string, csrf: string): string[] {
-  const secure = process.env.DSH_HUB_COOKIE_SECURE === '1' ? '; Secure' : '';
+  const secure = config.cookieSecure ? '; Secure' : '';
   return [
     `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${7 * 24 * 3600}${secure}`,
     `${CSRF_COOKIE}=${csrf}; SameSite=Lax; Path=/; Max-Age=${7 * 24 * 3600}${secure}`,
@@ -110,83 +70,36 @@ function clearSessionCookies(): string[] {
   ];
 }
 
-function clientIp(req: http.IncomingMessage): string | null {
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd) return (fwd.split(',')[0] ?? '').trim();
-  return req.socket.remoteAddress ?? null;
+/** 非负整数配额校验（建号/PATCH 共用，M2.1 对齐并加上界）。 */
+function validQuota(v: number): boolean {
+  return Number.isInteger(v) && v >= 0 && v <= 1000;
 }
 
-// ---------- 鉴权上下文 ----------
-
-interface AuthCtx {
-  userId: number;
-  /** 经由会话 cookie 鉴权（需要 CSRF）；Bearer 为 false。 */
-  viaSession: boolean;
-}
-
-/** 解析请求鉴权：优先 Bearer，其次会话。 */
-function resolveAuth(db: DatabaseSync, req: http.IncomingMessage): AuthCtx | null {
-  const bearer = req.headers.authorization;
-  if (typeof bearer === 'string' && bearer.startsWith('Bearer ')) {
-    const uid = resolveApiToken(db, bearer.slice(7).trim());
-    return uid ? { userId: uid, viaSession: false } : null;
-  }
-  const cookies = parseCookies(req);
-  const session = validateSession(db, cookies[SESSION_COOKIE]);
-  return session ? { userId: session.userId, viaSession: true } : null;
-}
-
-/** 写操作 CSRF 校验（仅会话鉴权需要；Bearer 免）。 */
-function assertCsrf(req: http.IncomingMessage, cookies: Record<string, string>): void {
-  const expected = cookies[CSRF_COOKIE];
-  const got = req.headers['x-csrf-token'];
-  if (!expected || typeof got !== 'string' || got !== expected) {
-    throw new HttpError(403, 'csrf_failed', 'CSRF token mismatch');
-  }
-}
-
-function getUser(db: DatabaseSync, id: number): UserRow | undefined {
-  return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
-}
-
-function getUserByNickname(db: DatabaseSync, nickname: string): UserRow | undefined {
-  return db.prepare('SELECT * FROM users WHERE nickname = ?').get(nickname) as UserRow | undefined;
-}
-
-/** 返回给浏览器的安全用户对象（绝不含 password_hash）。 */
-function publicUser(u: UserRow): Record<string, unknown> {
-  return {
-    id: u.id, nickname: u.nickname, slug: u.slug, dir_name: u.dir_name, email: u.email,
-    role: u.role, status: u.status, max_instances: u.max_instances, max_running: u.max_running,
-    created_at: u.created_at, last_login_at: u.last_login_at,
-  };
-}
-
-function requireRole(actor: UserRow, permitted: readonly Role[]): void {
-  if (!permitted.includes(actor.role)) throw new HttpError(403, 'forbidden', 'insufficient role');
+/** 查询参数整数规范化（负数/非数字回退默认值，M2.1）。 */
+function clampInt(raw: string | null, fallback: number, max: number): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(Math.floor(n), max);
 }
 
 // ---------- 业务 ----------
 
-function getSetting(db: DatabaseSync, key: string, fallback: string): string {
-  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined;
-  return row ? row.value : fallback;
-}
-
-function setSetting(db: DatabaseSync, key: string, value: string): void {
-  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
-    .run(key, value);
-}
-
 const DEFAULT_MAX_INSTANCES = 3;
 const DEFAULT_MAX_RUNNING = 1;
 
-/** 建号核心：净化昵称 → slug → dir_name → 落库。事务由调用方决定。 */
+/** 建号核心：净化昵称 → slug → dir_name → 落库。事务由调用方决定（M2.1）。 */
 function createUserRow(db: DatabaseSync, opts: {
   nickname: string; password: string; role: Role; email?: string | null;
   maxInstances?: number; maxRunning?: number;
 }): UserRow {
-  const nickname = sanitizeNickname(opts.nickname);
+  // M2.1：昵称净化后为空 → 400（此前回退随机名，用户将永远无法登录）
+  const nickname = sanitizeNickname(opts.nickname, () => '');
+  if (nickname === '') throw new HttpError(400, 'invalid_nickname', 'nickname must contain visible characters');
+  const maxInstances = opts.maxInstances ?? DEFAULT_MAX_INSTANCES;
+  const maxRunning = opts.maxRunning ?? DEFAULT_MAX_RUNNING;
+  if (!validQuota(maxInstances) || !validQuota(maxRunning)) {
+    throw new HttpError(400, 'invalid_quota', 'quota must be an integer in [0, 1000]');
+  }
   const slug = generateSlug(nickname, (s) => Boolean(db.prepare('SELECT 1 FROM users WHERE slug = ?').get(s)));
   const dirTaken = (d: string): boolean => Boolean(db.prepare('SELECT 1 FROM users WHERE dir_name = ?').get(d));
   let dirName = sanitizeNickname(nickname, () => `user-${shortId(8)}`);
@@ -195,37 +108,10 @@ function createUserRow(db: DatabaseSync, opts: {
   const id = db.prepare(
     'INSERT INTO users (nickname, slug, dir_name, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(nickname, slug, dirName, opts.email ?? null, hashPassword(opts.password), opts.role, 'active',
-    opts.maxInstances ?? DEFAULT_MAX_INSTANCES, opts.maxRunning ?? DEFAULT_MAX_RUNNING, Date.now()).lastInsertRowid as number;
+    maxInstances, maxRunning, Date.now()).lastInsertRowid as number;
   const created = getUser(db, id);
   if (!created) throw new HttpError(500, 'internal', 'user insertion failed');
   return created;
-}
-
-// 登录限速：Map<nickname, {fails, lastFail, lockUntil}>（进程内；重启清零，M5 可落库）。
-const loginLocks = new Map<string, { fails: number; lastFail: number; lockUntil: number }>();
-const LOGIN_MAX_FAILS = 5;
-const LOGIN_LOCK_MS = 15 * 60 * 1000;
-
-function checkLoginLock(nickname: string): void {
-  const lock = loginLocks.get(nickname);
-  if (lock && lock.lockUntil > Date.now()) {
-    const remainMin = Math.ceil((lock.lockUntil - Date.now()) / 60000);
-    throw new HttpError(429, 'login_locked', `too many failed attempts, retry in ~${remainMin} min`);
-  }
-}
-
-function recordLoginFailure(nickname: string): void {
-  const now = Date.now();
-  const prev = loginLocks.get(nickname);
-  if (!prev || now - prev.lastFail > LOGIN_LOCK_MS) loginLocks.set(nickname, { fails: 1, lastFail: now, lockUntil: 0 });
-  else {
-    const fails = prev.fails + 1;
-    loginLocks.set(nickname, { fails, lastFail: now, lockUntil: fails >= LOGIN_MAX_FAILS ? now + LOGIN_LOCK_MS : 0 });
-  }
-}
-
-function clearLoginLock(nickname: string): void {
-  loginLocks.delete(nickname);
 }
 
 // ---------- 路由 ----------
@@ -237,17 +123,26 @@ interface RouteCtx {
   req: http.IncomingMessage;
   res: http.ServerResponse;
   params: Record<string, string>;
-  /** 鉴权上下文（路由内按需 resolveAuth）。 */
+  /** 已鉴权用户（仅 auth 路由；非 auth 路由不使用）。 */
+  user: UserRow;
 }
 
 type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT';
 
+interface RouteOpts {
+  /** 需要登录（服务层统一鉴权并校验 status=active）。 */
+  auth?: boolean;
+  /** 写操作 CSRF（仅会话鉴权生效；Bearer 免）。 */
+  csrf?: boolean;
+}
+
 interface Route {
   method: Method;
-  // 形如 /api/auth/login 或 /admin/api/users/:id
   pattern: string;
   segments: string[];
   handler: Handler;
+  auth: boolean;
+  csrf: boolean;
 }
 
 function segmentize(path: string): string[] {
@@ -261,11 +156,16 @@ function matchRoute(routes: Route[], method: string, pathname: string): { route:
     const params: Record<string, string> = {};
     let ok = true;
     for (let i = 0; i < segs.length; i++) {
-      // 行 258 已保证两段长度相等，这里索引必然存在
       const p = route.segments[i]!;
       const s = segs[i]!;
-      if (p.startsWith(':')) params[p.slice(1)] = decodeURIComponent(s);
-      else if (p !== s) { ok = false; break; }
+      if (p.startsWith(':')) {
+        // M2.1：畸形百分号编码 → 400（此前 URIError → 500）
+        let v: string;
+        try { v = decodeURIComponent(s); } catch {
+          throw new HttpError(400, 'bad_path', 'malformed percent-encoding in path');
+        }
+        params[p.slice(1)] = v;
+      } else if (p !== s) { ok = false; break; }
     }
     if (ok) return { route, params };
   }
@@ -274,26 +174,38 @@ function matchRoute(routes: Route[], method: string, pathname: string): { route:
 
 const routes: Route[] = [];
 
-function route(method: Method, pattern: string, handler: Handler): void {
-  routes.push({ method, pattern, segments: segmentize(pattern), handler });
+function route(method: Method, pattern: string, handler: Handler): void;
+function route(method: Method, pattern: string, opts: RouteOpts, handler: Handler): void;
+function route(method: Method, pattern: string, a: Handler | RouteOpts, b?: Handler): void {
+  const handler = typeof a === 'function' ? a : b!;
+  const opts = typeof a === 'function' ? {} : a;
+  routes.push({ method, pattern, segments: segmentize(pattern), handler, auth: opts.auth ?? false, csrf: opts.csrf ?? false });
 }
 
-// ---------- 处理器（handler 返回 void/未知即可；异常由外层 sendError） ----------
+// ---------- 处理器 ----------
 
 interface SetupBody { nickname?: unknown; password?: unknown; email?: unknown }
 
+// 首启向导：无用户时可建管理员（事务化，M2.1 消除并发双管理员竞态）
 route('POST', '/api/auth/setup', async ({ db, req, res }) => {
-  const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
-  if (count > 0) throw new HttpError(403, 'setup_closed', 'setup is only available when no user exists');
   const body = await readJson(req) as SetupBody;
   if (typeof body.nickname !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_body', 'nickname and password are required');
   }
   if (body.password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+  // 提取局部（withTx 回调内 TS 不保留属性访问的收窄）
+  const nickname = body.nickname;
+  const password = body.password;
+  const email = typeof body.email === 'string' ? body.email : null;
   let user: UserRow;
   try {
-    user = createUserRow(db, { nickname: body.nickname, password: body.password, role: 'admin', email: typeof body.email === 'string' ? body.email : null });
+    user = withTx(db, () => {
+      const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
+      if (count > 0) throw new HttpError(403, 'setup_closed', 'setup is only available when no user exists');
+      return createUserRow(db, { nickname, password, role: 'admin', email });
+    });
   } catch (e) {
+    if (e instanceof HttpError) throw e;
     if (String(e).includes('UNIQUE')) throw new HttpError(409, 'nickname_taken', 'nickname already taken');
     throw e;
   }
@@ -315,16 +227,26 @@ route('POST', '/api/auth/register', async ({ db, req, res }) => {
     throw new HttpError(400, 'invalid_body', 'nickname and password are required');
   }
   if (body.password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
-  const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
-  const role: Role = count === 0 ? 'root' : 'user'; // 第一个注册的普通账号自动 root 兜底（两者只生效其一）
+  // M2.1：注册限速（IP 维度，防开放注册时批量建号）
+  const regKey = loginLockKey(clientIp(req), 'register');
+  checkLoginLock(regKey);
+  const nickname = body.nickname;
+  const password = body.password;
+  const email = typeof body.email === 'string' ? body.email : null;
   let user: UserRow;
   try {
-    user = createUserRow(db, { nickname: body.nickname, password: body.password, role, email: typeof body.email === 'string' ? body.email : null });
+    user = withTx(db, () => {
+      const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
+      const role: Role = count === 0 ? 'root' : 'user'; // 第一个注册的普通账号自动 root 兜底
+      return createUserRow(db, { nickname, password, role, email });
+    });
   } catch (e) {
+    if (e instanceof HttpError) throw e;
     if (String(e).includes('UNIQUE')) throw new HttpError(409, 'nickname_taken', 'nickname already taken');
     throw e;
   }
-  audit(db, 'register', user.id, user.id, `registered as ${role} (slug=${user.slug})`);
+  clearLoginLock(regKey);
+  audit(db, 'register', user.id, user.id, `registered as ${user.role} (slug=${user.slug})`);
   const { token, csrf } = createSession(db, user.id, null, null);
   db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(Date.now(), user.id);
   res.setHeader('set-cookie', sessionCookiePairs(token, csrf));
@@ -337,16 +259,22 @@ route('POST', '/api/auth/login', async ({ db, req, res }) => {
   if (typeof body.nickname !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_body', 'nickname and password are required');
   }
-  const nickname = sanitizeNickname(body.nickname);
-  checkLoginLock(nickname);
+  const nickname = sanitizeNickname(body.nickname, () => '');
+  // M2.1：限速键 = IP + 昵称（防跨 IP 爆破与针对昵称的锁死 DoS）
+  const key = loginLockKey(clientIp(req), nickname);
+  checkLoginLock(key);
   const user = getUserByNickname(db, nickname);
-  if (!user || !verifyPassword(body.password, user.password_hash)) {
-    recordLoginFailure(nickname);
+  // M2.1：用户不存在也执行一次同参数 scrypt（消除时间侧信道用户名枚举）
+  let valid = false;
+  if (user) valid = verifyPassword(body.password, user.password_hash);
+  else verifyPassword(body.password, DUMMY_HASH);
+  if (!user || !valid) {
+    recordLoginFailure(key);
     audit(db, 'login_failed', null, user?.id ?? null, `nickname=${nickname} ip=${clientIp(req)}`);
     throw new HttpError(401, 'bad_credentials', 'invalid nickname or password');
   }
   if (user.status === 'disabled') throw new HttpError(403, 'disabled', 'account disabled');
-  clearLoginLock(nickname);
+  clearLoginLock(key);
   const { token, csrf } = createSession(db, user.id, clientIp(req), req.headers['user-agent'] ?? null);
   db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(Date.now(), user.id);
   audit(db, 'login', user.id, user.id, `ip=${clientIp(req)}`);
@@ -354,7 +282,8 @@ route('POST', '/api/auth/login', async ({ db, req, res }) => {
   return { user: publicUser(user) };
 });
 
-route('POST', '/api/auth/logout', async ({ db, req, res }) => {
+// 登出：公开（无鉴权）但需 CSRF（与其余写操作一致，M2.1）
+route('POST', '/api/auth/logout', { csrf: true }, async ({ db, req, res }) => {
   const cookies = parseCookies(req);
   destroySession(db, cookies[SESSION_COOKIE]);
   audit(db, 'logout', null, null);
@@ -362,51 +291,29 @@ route('POST', '/api/auth/logout', async ({ db, req, res }) => {
   return { ok: true };
 });
 
-route('GET', '/api/me', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const user = getUser(db, auth.userId);
-  if (!user || user.status === 'disabled') throw new HttpError(401, 'unauthorized', 'account unavailable');
-  return { user: publicUser(user) };
-});
+route('GET', '/api/me', { auth: true }, async ({ user }) => ({ user: publicUser(user) }));
 
-route('POST', '/api/me/tokens', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const cookies = parseCookies(req);
-  if (auth.viaSession) assertCsrf(req, cookies);
+route('POST', '/api/me/tokens', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const body = await readJson(req) as { name?: unknown };
   const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 64) : 'default';
-  const { id, token } = createApiToken(db, auth.userId, name);
-  audit(db, 'token_issue', auth.userId, auth.userId, `token #${id} name=${name}`);
+  const { id, token } = createApiToken(db, user.id, name);
+  audit(db, 'token_issue', user.id, user.id, `token #${id} name=${name}`);
   return { id, token }; // token 仅此一次明文返回
 });
 
-route('GET', '/api/me/tokens', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  return { tokens: listApiTokens(db, auth.userId) };
-});
+route('GET', '/api/me/tokens', { auth: true }, async ({ db, user }) => ({ tokens: listApiTokens(db, user.id) }));
 
-route('POST', '/api/me/tokens/:id/revoke', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const cookies = parseCookies(req);
-  if (auth.viaSession) assertCsrf(req, cookies);
+route('POST', '/api/me/tokens/:id/revoke', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const id = Number(req.params?.id ?? '');
   if (!Number.isInteger(id)) throw new HttpError(400, 'invalid_id', 'bad token id');
-  if (!revokeApiToken(db, auth.userId, id)) throw new HttpError(404, 'not_found', 'token not found');
-  audit(db, 'token_revoke', auth.userId, auth.userId, `token #${id}`);
+  if (!revokeApiToken(db, user.id, id)) throw new HttpError(404, 'not_found', 'token not found');
+  audit(db, 'token_revoke', user.id, user.id, `token #${id}`);
   return { ok: true };
 });
 
 // ---------- 管理面（admin/root） ----------
 
-route('GET', '/admin/api/users', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const actor = getUser(db, auth.userId);
-  if (!actor) throw new HttpError(401, 'unauthorized', 'account unavailable');
+route('GET', '/admin/api/users', { auth: true }, async ({ db, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
   const rows = db.prepare('SELECT id, nickname, slug, dir_name, email, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as Omit<UserRow, 'password_hash'>[];
   return { users: rows };
@@ -414,14 +321,8 @@ route('GET', '/admin/api/users', async ({ db, req }) => {
 
 interface AdminCreateBody { nickname?: unknown; password?: unknown; role?: unknown; email?: unknown; max_instances?: unknown; max_running?: unknown }
 
-route('POST', '/admin/api/users', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const actor = getUser(db, auth.userId);
-  if (!actor) throw new HttpError(401, 'unauthorized', 'account unavailable');
+route('POST', '/admin/api/users', { auth: true, csrf: true }, async ({ db, req, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
-  const cookies = parseCookies(req);
-  if (auth.viaSession) assertCsrf(req, cookies);
   const body = await readJson(req) as AdminCreateBody;
   if (typeof body.nickname !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_body', 'nickname and password are required');
@@ -429,15 +330,17 @@ route('POST', '/admin/api/users', async ({ db, req }) => {
   if (body.password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
   const role: Role = typeof body.role === 'string' && isRole(body.role) ? body.role : 'user';
   if (!canManage(actor.role, role)) throw new HttpError(403, 'forbidden', 'cannot create that role');
+  const nickname = body.nickname;
+  const password = body.password;
+  const email = typeof body.email === 'string' ? body.email : null;
+  const maxInstances = typeof body.max_instances === 'number' ? body.max_instances : undefined;
+  const maxRunning = typeof body.max_running === 'number' ? body.max_running : undefined;
   let user: UserRow;
   try {
-    user = createUserRow(db, {
-      nickname: body.nickname, password: body.password, role,
-      email: typeof body.email === 'string' ? body.email : null,
-      maxInstances: typeof body.max_instances === 'number' ? body.max_instances : undefined,
-      maxRunning: typeof body.max_running === 'number' ? body.max_running : undefined,
-    });
+    // 配额校验在 createUserRow 内统一（M2.1：与 PATCH 对齐，含上界）
+    user = withTx(db, () => createUserRow(db, { nickname, password, role, email, maxInstances, maxRunning }));
   } catch (e) {
+    if (e instanceof HttpError) throw e;
     if (String(e).includes('UNIQUE')) throw new HttpError(409, 'nickname_taken', 'nickname (or slug/email) already taken');
     throw e;
   }
@@ -445,110 +348,123 @@ route('POST', '/admin/api/users', async ({ db, req }) => {
   return { user: publicUser(user) };
 });
 
-route('GET', '/admin/api/users/:id', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const actor = getUser(db, auth.userId);
-  if (!actor) throw new HttpError(401, 'unauthorized', 'account unavailable');
+route('GET', '/admin/api/users/:id', { auth: true }, async ({ db, req, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
   const id = Number(req.params?.id ?? '');
   if (!Number.isInteger(id)) throw new HttpError(400, 'invalid_id', 'bad user id');
   const user = getUser(db, id);
   if (!user) throw new HttpError(404, 'not_found', 'user not found');
-  if (!canManage(actor.role, user.role)) throw new HttpError(403, 'forbidden', 'cannot manage that role');
+  if (user.id !== actor.id && !canManage(actor.role, user.role)) throw new HttpError(403, 'forbidden', 'cannot manage that role');
   return { user: publicUser(user) };
 });
 
 interface AdminPatchBody { status?: unknown; role?: unknown; password?: unknown; max_instances?: unknown; max_running?: unknown }
 
-route('PATCH', '/admin/api/users/:id', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const actor = getUser(db, auth.userId);
-  if (!actor) throw new HttpError(401, 'unauthorized', 'account unavailable');
+route('PATCH', '/admin/api/users/:id', { auth: true, csrf: true }, async ({ db, req, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
-  const cookies = parseCookies(req);
-  if (auth.viaSession) assertCsrf(req, cookies);
   const id = Number(req.params?.id ?? '');
   if (!Number.isInteger(id)) throw new HttpError(400, 'invalid_id', 'bad user id');
   const target = getUser(db, id);
   if (!target) throw new HttpError(404, 'not_found', 'user not found');
-  if (!canManage(actor.role, target.role)) throw new HttpError(403, 'forbidden', 'cannot manage that role');
+  // 自己可改（密码/配额；status/role 由下方自改限制禁止）；他人须过 canManage（A3：admin 只能管 user）
+  if (id !== actor.id && !canManage(actor.role, target.role)) {
+    throw new HttpError(403, 'forbidden', 'cannot manage that role');
+  }
   const body = await readJson(req) as AdminPatchBody;
-  const changes: string[] = [];
-  if (body.status !== undefined) {
-    if (body.status !== 'active' && body.status !== 'disabled') throw new HttpError(400, 'invalid_status', 'status must be active|disabled');
-    db.prepare('UPDATE users SET status = ? WHERE id = ?').run(body.status, id);
-    changes.push(`status=${body.status}`);
-    audit(db, body.status === 'disabled' ? 'user_disable' : 'user_enable', actor.id, id, `by ${actor.nickname}`);
+  // 提取局部（withTx 回调内 TS 不保留属性访问的收窄）
+  const status = body.status;
+  const role = body.role;
+  const password = body.password;
+  const maxInstances = body.max_instances;
+  const maxRunning = body.max_running;
+  // M2.1：不能改自己的 status/role（防 root 自杀、admin 自降级）
+  if (id === actor.id && (status !== undefined || role !== undefined)) {
+    throw new HttpError(403, 'forbidden', 'cannot change own status or role');
   }
-  if (body.role !== undefined) {
-    if (!isRole(body.role)) throw new HttpError(400, 'invalid_role', 'role must be user|admin|root');
-    if (!canManage(actor.role, body.role)) throw new HttpError(403, 'forbidden', 'cannot grant that role');
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(body.role, id);
-    changes.push(`role=${body.role}`);
+  if (status !== undefined && status !== 'active' && status !== 'disabled') {
+    throw new HttpError(400, 'invalid_status', 'status must be active|disabled');
   }
-  if (body.password !== undefined) {
-    if (typeof body.password !== 'string' || body.password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
-    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(body.password), id);
-    // 重置密码即吊销全部会话，防旧会话复用
-    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
-    changes.push('password reset (sessions revoked)');
-    audit(db, 'password_reset', actor.id, id, `by ${actor.nickname}`);
+  if (role !== undefined) {
+    if (!isRole(role)) throw new HttpError(400, 'invalid_role', 'role must be user|admin|root');
+    if (!canManage(actor.role, role)) throw new HttpError(403, 'forbidden', 'cannot grant that role');
   }
-  for (const [key, value] of [['max_instances', body.max_instances], ['max_running', body.max_running]] as const) {
-    if (value !== undefined) {
-      if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) throw new HttpError(400, 'invalid_quota', `${key} must be a non-negative integer`);
-      db.prepare(`UPDATE users SET ${key} = ? WHERE id = ?`).run(value, id);
-      changes.push(`${key}=${value}`);
+  // 禁用 = 先停其全部实例（计划 §3.6；异步操作放 DB 事务外）
+  if (status === 'disabled') {
+    for (const r of listRunningInstances(db, id)) {
+      await stopInstance(db, r);
     }
   }
-  if (changes.length === 0) throw new HttpError(400, 'no_changes', 'nothing to update');
+  const changes: string[] = [];
+  withTx(db, () => {
+    if (status !== undefined) {
+      db.prepare('UPDATE users SET status = ? WHERE id = ?').run(status, id);
+      if (status === 'disabled') {
+        // M2.1：封禁即吊销会话与 API token（此前凭据全部残留）
+        db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+        db.prepare('UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(Date.now(), id);
+      }
+      changes.push(`status=${status}`);
+      audit(db, status === 'disabled' ? 'user_disable' : 'user_enable', actor.id, id, `by ${actor.nickname}`);
+    }
+    if (role !== undefined) {
+      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+      changes.push(`role=${role}`);
+    }
+    if (password !== undefined) {
+      if (typeof password !== 'string' || password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), id);
+      // 重置密码即吊销全部会话与 token，防旧凭据复用（M2.1 补 token）
+      db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
+      db.prepare('UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(Date.now(), id);
+      changes.push('password reset (sessions+token revoked)');
+      audit(db, 'password_reset', actor.id, id, `by ${actor.nickname}`);
+    }
+    for (const [key, value] of [['max_instances', maxInstances], ['max_running', maxRunning]] as const) {
+      if (value !== undefined) {
+        if (typeof value !== 'number' || !validQuota(value)) throw new HttpError(400, 'invalid_quota', `${key} must be an integer in [0, 1000]`);
+        db.prepare(`UPDATE users SET ${key} = ? WHERE id = ?`).run(value, id);
+        changes.push(`${key}=${value}`);
+      }
+    }
+    if (changes.length === 0) throw new HttpError(400, 'no_changes', 'nothing to update');
+  });
   audit(db, 'user_update', actor.id, id, `by ${actor.nickname}: ${changes.join(', ')}`);
   const updated = getUser(db, id);
   if (!updated) throw new HttpError(500, 'internal', 'user fetch failed');
   return { user: publicUser(updated) };
 });
 
-route('GET', '/admin/api/audit', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const actor = getUser(db, auth.userId);
-  if (!actor) throw new HttpError(401, 'unauthorized', 'account unavailable');
+route('GET', '/admin/api/audit', { auth: true }, async ({ db, req, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
   const url = new URL(req.url ?? '/', 'http://dsh-hub.invalid');
-  const limit = Math.min(Number(url.searchParams.get('limit') ?? 200) || 200, 1000);
+  const limit = clampInt(url.searchParams.get('limit'), 200, 1000);
   const rows = db.prepare('SELECT id, actor_id, target_user_id, action, detail, created_at FROM audit_logs ORDER BY id DESC LIMIT ?').all(limit);
   return { audit: rows };
 });
 
-route('GET', '/admin/api/settings', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const actor = getUser(db, auth.userId);
-  if (!actor) throw new HttpError(401, 'unauthorized', 'account unavailable');
+route('GET', '/admin/api/settings', { auth: true }, async ({ db, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
-  const rows = db.prepare('SELECT key, value FROM settings ORDER BY key').all() as { key: string; value: string }[];
-  const map: Record<string, string> = {};
-  for (const r of rows) map[r.key] = r.value;
-  return { settings: map };
+  return { settings: getSettingsMap(db) };
 });
 
-route('PUT', '/admin/api/settings', async ({ db, req }) => {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const actor = getUser(db, auth.userId);
-  if (!actor) throw new HttpError(401, 'unauthorized', 'account unavailable');
+route('PUT', '/admin/api/settings', { auth: true, csrf: true }, async ({ db, req, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
-  const cookies = parseCookies(req);
-  if (auth.viaSession) assertCsrf(req, cookies);
   const body = await readJson(req) as Record<string, unknown>;
-  const ALLOWED = new Set(['registration_open', 'default_harness_version', 'route_mode', 'credential_mode']);
+  const ALLOWED = new Set<string>(SETTING_KEYS);
   const allowed: Record<string, string> = {};
   for (const [key, value] of Object.entries(body)) {
     if (!ALLOWED.has(key)) throw new HttpError(400, 'invalid_key', `unknown setting key: ${key}`);
-    if (key === 'registration_open' && value !== 'open' && value !== 'closed') throw new HttpError(400, 'invalid_value', 'registration_open must be open|closed');
     if (typeof value !== 'string') throw new HttpError(400, 'invalid_value', `${key} must be a string`);
+    if (key === 'registration_open' && value !== 'open' && value !== 'closed') {
+      throw new HttpError(400, 'invalid_value', 'registration_open must be open|closed');
+    }
+    // M2.1：版本相关设置必须过 semver 校验（白名单为空串表示不限制）
+    if (key === 'default_harness_version' && value !== '' && !isValidHarnessVersion(value)) {
+      throw new HttpError(400, 'invalid_value', 'default_harness_version must be explicit semver like 0.1.1-rc.2 or empty');
+    }
+    if (key === 'allowed_harness_versions' && value.trim() !== '' && parseAllowedVersions(value) === null) {
+      throw new HttpError(400, 'invalid_value', 'allowed_harness_versions must be a comma-separated list of semver or empty');
+    }
     allowed[key] = value;
   }
   for (const [key, value] of Object.entries(allowed)) setSetting(db, key, value);
@@ -557,14 +473,6 @@ route('PUT', '/admin/api/settings', async ({ db, req }) => {
 });
 
 // ---------- 实例（M2） ----------
-
-function requireAuthUser(db: DatabaseSync, req: http.IncomingMessage): UserRow {
-  const auth = resolveAuth(db, req);
-  if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
-  const user = getUser(db, auth.userId);
-  if (!user || user.status === 'disabled') throw new HttpError(401, 'unauthorized', 'account unavailable');
-  return user;
-}
 
 /** 取实例并校验属主（或管理员）。读操作非属主 404（不泄露存在性），写操作 403。 */
 function requireInstance(db: DatabaseSync, actor: UserRow, id: string, opts: { write?: boolean } = {}): InstanceRecord {
@@ -587,23 +495,48 @@ function publicInstance(r: InstanceRecord): Record<string, unknown> {
   };
 }
 
-route('GET', '/api/instances', async ({ db, req }) => {
-  const user = requireAuthUser(db, req);
+/**
+ * 实例写操作 per-instance 互斥（M2.1，B4）：同一实例的 start/stop/restart/delete
+ * 并发时第二个请求 409，杜绝「stop 删锁 + start 探活 → 同端口双开」等竞态。
+ */
+const instanceOps = new Set<string>();
+async function withInstanceOp<T>(id: string, fn: () => Promise<T>): Promise<T> {
+  if (instanceOps.has(id)) throw new HttpError(409, 'instance_busy', 'another operation on this instance is in progress');
+  instanceOps.add(id);
+  try {
+    return await fn();
+  } finally {
+    instanceOps.delete(id);
+  }
+}
+
+route('GET', '/api/instances', { auth: true }, async ({ db, user }) => {
   return { instances: listInstances(db, user.id).map(publicInstance) };
 });
 
-route('POST', '/api/instances', async ({ db, req, res }) => {
-  const user = requireAuthUser(db, req);
-  const cookies = parseCookies(req);
-  const auth = resolveAuth(db, req)!; // requireAuthUser 已保证
-  if (auth.viaSession) assertCsrf(req, cookies);
+route('POST', '/api/instances', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const body = await readJson(req) as { name?: unknown; harness_version?: unknown };
   if (typeof body.name !== 'string' && body.name !== undefined) throw new HttpError(400, 'invalid_body', 'name must be a string');
+  // M2.1：版本白名单——显式 semver 校验 + default_harness_version 生效 + 精确白名单
+  let harnessVersion: string | null = null;
+  if (typeof body.harness_version === 'string' && body.harness_version) {
+    if (!isValidHarnessVersion(body.harness_version)) {
+      throw new HttpError(400, 'invalid_harness_version', 'harness_version must be explicit semver like 0.1.1-rc.2');
+    }
+    harnessVersion = body.harness_version;
+  } else {
+    const def = getSetting(db, 'default_harness_version', '');
+    if (def && isValidHarnessVersion(def)) harnessVersion = def;
+  }
+  const allowed = parseAllowedVersions(getSetting(db, 'allowed_harness_versions', ''));
+  if (!versionAllowed(harnessVersion, allowed)) {
+    throw new HttpError(403, 'harness_version_not_allowed', 'harness version not in allowed list');
+  }
   let record: InstanceRecord;
   try {
     record = await createInstance(db, user, {
       name: typeof body.name === 'string' ? body.name : `${user.nickname}`,
-      harnessVersion: typeof body.harness_version === 'string' && body.harness_version ? body.harness_version : null,
+      harnessVersion,
     });
   } catch (e) {
     if (e instanceof Error && /quota/.test(e.message)) throw new HttpError(403, 'quota_exceeded', e.message);
@@ -614,92 +547,71 @@ route('POST', '/api/instances', async ({ db, req, res }) => {
   return { instance: publicInstance(record) };
 });
 
-route('GET', '/api/instances/:id', async ({ db, req }) => {
-  const user = requireAuthUser(db, req);
+route('GET', '/api/instances/:id', { auth: true }, async ({ db, req, user }) => {
   const record = requireInstance(db, user, req.params?.id ?? '');
   return { instance: publicInstance(record) };
 });
 
-route('GET', '/api/instances/:id/logs', async ({ db, req }) => {
-  const user = requireAuthUser(db, req);
+route('GET', '/api/instances/:id/logs', { auth: true }, async ({ db, req, user }) => {
   const record = requireInstance(db, user, req.params?.id ?? '');
   const url = new URL(req.url ?? '/', 'http://dsh-hub.invalid');
-  const tail = Math.min(Number(url.searchParams.get('tail') ?? 200) || 200, 2000);
+  const tail = clampInt(url.searchParams.get('tail'), 200, 2000);
   return { id: record.id, log: tailLog(record, tail) };
 });
 
-function assertOwnerCanWrite(actor: UserRow, record: InstanceRecord): void {
-  if (record.owner_id === actor.id) return;
-  if (actor.role === 'admin' || actor.role === 'root') return;
-  throw new HttpError(403, 'forbidden', 'not your instance');
-}
-
-route('POST', '/api/instances/:id/start', async ({ db, req, res }) => {
-  const user = requireAuthUser(db, req);
-  const cookies = parseCookies(req);
-  const auth = resolveAuth(db, req)!;
-  if (auth.viaSession) assertCsrf(req, cookies);
+route('POST', '/api/instances/:id/start', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
-  assertOwnerCanWrite(user, record);
-  if (record.owner_id === user.id) {
-    const running = runningCount(db, user.id);
-    if (running >= user.max_running) throw new HttpError(403, 'quota_exceeded', `max_running quota reached (${user.max_running})`);
-  }
-  const result = await startInstance(db, record);
-  audit(db, 'instance_start', user.id, record.owner_id, `start ${record.id} -> ${result.status}${result.pid ? ` pid=${result.pid}` : ''}`);
-  if (result.status === 'failed') throw new HttpError(502, 'start_failed', result.error ?? 'start failed');
-  const fresh = getInstance(db, record.id)!;
-  return { instance: publicInstance(fresh) };
+  return withInstanceOp(record.id, async () => {
+    if (record.owner_id === user.id) {
+      const running = runningCount(db, user.id);
+      if (running >= user.max_running) throw new HttpError(403, 'quota_exceeded', `max_running quota reached (${user.max_running})`);
+    }
+    const result = await startInstance(db, record);
+    audit(db, 'instance_start', user.id, record.owner_id, `start ${record.id} -> ${result.status}${result.pid ? ` pid=${result.pid}` : ''}`);
+    if (result.status === 'failed') throw new HttpError(502, 'start_failed', result.error ?? 'start failed');
+    const fresh = getInstance(db, record.id)!;
+    return { instance: publicInstance(fresh) };
+  });
 });
 
-route('POST', '/api/instances/:id/stop', async ({ db, req }) => {
-  const user = requireAuthUser(db, req);
-  const cookies = parseCookies(req);
-  const auth = resolveAuth(db, req)!;
-  if (auth.viaSession) assertCsrf(req, cookies);
+route('POST', '/api/instances/:id/stop', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
-  assertOwnerCanWrite(user, record);
-  await stopInstance(db, record);
-  audit(db, 'instance_stop', user.id, record.owner_id, `stop ${record.id}`);
-  const fresh = getInstance(db, record.id)!;
-  return { instance: publicInstance(fresh) };
+  return withInstanceOp(record.id, async () => {
+    await stopInstance(db, record);
+    audit(db, 'instance_stop', user.id, record.owner_id, `stop ${record.id}`);
+    const fresh = getInstance(db, record.id)!;
+    return { instance: publicInstance(fresh) };
+  });
 });
 
-route('POST', '/api/instances/:id/restart', async ({ db, req }) => {
-  const user = requireAuthUser(db, req);
-  const cookies = parseCookies(req);
-  const auth = resolveAuth(db, req)!;
-  if (auth.viaSession) assertCsrf(req, cookies);
+route('POST', '/api/instances/:id/restart', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
-  assertOwnerCanWrite(user, record);
-  await stopInstance(db, record);
-  audit(db, 'instance_restart', user.id, record.owner_id, `restart ${record.id}`);
-  if (record.owner_id === user.id) {
-    const running = runningCount(db, user.id);
-    if (running >= user.max_running) throw new HttpError(403, 'quota_exceeded', `max_running quota reached (${user.max_running})`);
-  }
-  const result = await startInstance(db, getInstance(db, record.id)!);
-  if (result.status === 'failed') throw new HttpError(502, 'start_failed', result.error ?? 'restart failed');
-  const fresh = getInstance(db, record.id)!;
-  return { instance: publicInstance(fresh) };
+  return withInstanceOp(record.id, async () => {
+    await stopInstance(db, record);
+    audit(db, 'instance_restart', user.id, record.owner_id, `restart ${record.id}`);
+    if (record.owner_id === user.id) {
+      const running = runningCount(db, user.id);
+      if (running >= user.max_running) throw new HttpError(403, 'quota_exceeded', `max_running quota reached (${user.max_running})`);
+    }
+    const result = await startInstance(db, getInstance(db, record.id)!);
+    if (result.status === 'failed') throw new HttpError(502, 'start_failed', result.error ?? 'restart failed');
+    const fresh = getInstance(db, record.id)!;
+    return { instance: publicInstance(fresh) };
+  });
 });
 
-route('DELETE', '/api/instances/:id', async ({ db, req }) => {
-  const user = requireAuthUser(db, req);
-  const cookies = parseCookies(req);
-  const auth = resolveAuth(db, req)!;
-  if (auth.viaSession) assertCsrf(req, cookies);
+route('DELETE', '/api/instances/:id', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const record = requireInstance(db, user, req.params?.id ?? '', { write: true });
-  assertOwnerCanWrite(user, record);
-  await stopInstance(db, record);
-  deleteInstance(db, record);
-  audit(db, 'instance_delete', user.id, record.owner_id, `deleted ${record.id} port=${record.port}`);
-  return { ok: true, id: record.id };
+  return withInstanceOp(record.id, async () => {
+    await stopInstance(db, record);
+    deleteInstance(db, record);
+    audit(db, 'instance_delete', user.id, record.owner_id, `deleted ${record.id} port=${record.port}`);
+    return { ok: true, id: record.id };
+  });
 });
 
 // 管理面：跨用户实例总览
-route('GET', '/admin/api/instances', async ({ db, req }) => {
-  const user = requireAuthUser(db, req);
+route('GET', '/admin/api/instances', { auth: true }, async ({ db, user }) => {
   requireRole(user, ['admin', 'root']);
   return { instances: listAllInstances(db).map(publicInstance) };
 });
@@ -726,7 +638,17 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
       }
       const { route: matched, params } = match;
       req.params = params;
-      const result = await matched.handler({ db, req, res, params });
+      // 统一鉴权（auth 路由强制 status=active）与 CSRF（仅会话鉴权）
+      let user: UserRow | undefined;
+      let viaSession = false;
+      if (matched.auth) {
+        const auth = authenticate(db, req);
+        if (!auth) throw new HttpError(401, 'unauthorized', 'login required');
+        user = auth.user;
+        viaSession = auth.viaSession;
+      }
+      if (matched.csrf && viaSession) assertCsrf(req, parseCookies(req));
+      const result = await matched.handler({ db, req, res, params, user: user! });
       if (res.headersSent) return;
       // handler 若已 setHeader('set-cookie')（登录等建会话），sendJson 的 writeHead 会合并保留。
       sendJson(res, 200, result ?? { ok: true });
@@ -734,7 +656,7 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
       sendError(res, err);
     }
   });
-  server.listen(opts.port ?? 3082, opts.host ?? '127.0.0.1');
+  server.listen(opts.port ?? config.port, opts.host ?? config.host);
   return server;
 }
 

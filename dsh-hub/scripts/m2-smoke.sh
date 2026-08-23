@@ -50,7 +50,8 @@ UPERM=$(stat -c '%a' "$HUB_DIR/data/users/"* 2>/dev/null | head -1)
 for sub in home workspace logs; do
   [ -d "$HUB_DIR/data/users/管理员/instances/$I1/$sub" ] || { FAIL=$((FAIL+1)); echo "[FAIL] 缺实例子目录 $sub"; }
 done
-[ -f "$HUB_DIR/data/users/管理员/instances/$I1/instance.pid" ] && PASS=$((PASS+1)) || PASS=$((PASS+1)) # pidfile 启动后才有
+# 未启动前不应有 pidfile（M2.1：原断言恒真，修正为真实断言）
+[ ! -f "$HUB_DIR/data/users/管理员/instances/$I1/instance.pid" ] && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "[FAIL] 未启动不应有 pidfile"; }
 say "实例1 id=$I1 port=$P1"
 
 # 3) 启动实例 1：等 TCP/HTTP 就绪

@@ -9,6 +9,7 @@
  * - 撞名冲突处理：追加 -2/-3…（S5 验证）。
  */
 import { randomBytes } from 'node:crypto';
+import type { DatabaseSync } from 'node:sqlite';
 
 /** 短随机 ID（实例 ID / slug 兜底 / 目录兜底共用）。 */
 export function shortId(n = 8): string {
@@ -69,9 +70,20 @@ export function isRole(value: unknown): value is Role {
   return typeof value === 'string' && (USER_ROLES as readonly string[]).includes(value);
 }
 
-/** 角色权限检查：target 允许的 action 是否可被 actor 执行（admin 管 user；root 管一切）。 */
+/** 角色权限检查（M2.1 收紧，对齐计划 §3.6「root 管管理员 / admin 管用户」）：
+ *  admin 只能管理 user；root 管一切；user 无管理权。 */
 export function canManage(actor: Role, targetRole: Role): boolean {
   if (actor === 'root') return true;
-  if (actor === 'admin') return targetRole === 'user' || targetRole === 'admin';
+  if (actor === 'admin') return targetRole === 'user';
   return false;
+}
+
+// ---- 数据访问（原内联于 api.ts，M2.1 归位） ----
+
+export function getUser(db: DatabaseSync, id: number): UserRow | undefined {
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
+}
+
+export function getUserByNickname(db: DatabaseSync, nickname: string): UserRow | undefined {
+  return db.prepare('SELECT * FROM users WHERE nickname = ?').get(nickname) as UserRow | undefined;
 }

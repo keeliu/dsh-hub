@@ -9,6 +9,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 export const SESSION_TTL_MS = 7 * 24 * 3600 * 1000; // 滑动过期 7 天
+/** 会话绝对上限（M2.1）：防止被窃会话靠滑动续期无限续命。 */
+export const SESSION_ABSOLUTE_TTL_MS = 30 * 24 * 3600 * 1000;
+/** 每用户会话数上限（M2.1）：超出逐出最旧，防 sessions 表无限膨胀。 */
+export const MAX_SESSIONS_PER_USER = 20;
 
 export const SESSION_COOKIE = 'dshhub_sid';
 export const CSRF_COOKIE = 'dshhub_csrf';
@@ -36,21 +40,28 @@ export function createSession(db: DatabaseSync, userId: number, ip: string | nul
   const token = newSessionToken();
   const csrf = randomBytes(24).toString('hex');
   const expiresAt = Date.now() + SESSION_TTL_MS;
+  // 会话数上限：逐出最旧，防无限膨胀（M2.1）
+  const over = (db.prepare('SELECT COUNT(*) AS c FROM sessions WHERE user_id = ?').get(userId) as { c: number }).c
+    - (MAX_SESSIONS_PER_USER - 1);
+  if (over > 0) {
+    db.prepare('DELETE FROM sessions WHERE user_id = ? AND id IN (SELECT id FROM sessions WHERE user_id = ? ORDER BY created_at LIMIT ?)')
+      .run(userId, userId, over);
+  }
   db.prepare('INSERT INTO sessions (token_hash, user_id, expires_at, created_at, ip, ua) VALUES (?, ?, ?, ?, ?, ?)')
     .run(sha256Hex(token), userId, expiresAt, Date.now(), ip ?? null, ua ?? null);
   return { token, csrf };
 }
 
-/** 校验会话；命中则滑动续期。返回 null 表示无效/过期。 */
+/** 校验会话；命中则滑动续期（受绝对上限约束）。返回 null 表示无效/过期。 */
 export function validateSession(db: DatabaseSync, cookie: string | undefined): SessionInfo | null {
   if (!cookie) return null;
   const hash = sha256Hex(cookie);
-  const row = db.prepare('SELECT user_id, expires_at FROM sessions WHERE token_hash = ?').get(hash) as
-    | { user_id: number; expires_at: number }
+  const row = db.prepare('SELECT user_id, expires_at, created_at FROM sessions WHERE token_hash = ?').get(hash) as
+    | { user_id: number; expires_at: number; created_at: number }
     | undefined;
   if (!row) return null;
   const now = Date.now();
-  if (row.expires_at <= now) {
+  if (row.expires_at <= now || now - row.created_at > SESSION_ABSOLUTE_TTL_MS) {
     db.prepare('DELETE FROM sessions WHERE token_hash = ?').run(hash);
     return null;
   }

@@ -6,7 +6,7 @@
  * 数据根由 DSH_HUB_DATA 指定（默认 <dsh-hub>/data），DB 文件 dshhub.db。
  */
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -20,11 +20,31 @@ export interface DbOptions {
 export function openDb(opts: DbOptions = {}): DatabaseSync {
   const dataDir = opts.dataDir ?? process.env.DSH_HUB_DATA ?? join(here, '..', 'data');
   if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
-  const db = new DatabaseSync(join(dataDir, 'dshhub.db'));
+  // 多用户共机时 DB 含密码哈希/token 哈希：数据根 700、DB 文件 600（M2.1）。
+  chmodSync(dataDir, 0o700);
+  const dbPath = join(dataDir, 'dshhub.db');
+  const db = new DatabaseSync(dbPath);
+  chmodSync(dbPath, 0o600);
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   migrate(db);
   return db;
+}
+
+/**
+ * 同步事务辅助（BEGIN IMMEDIATE：立即取写锁，串行化并发写者）。
+ * 注意：回调内不得出现 await（SQLite 事务不能跨事件循环让步）。
+ */
+export function withTx<T>(db: DatabaseSync, fn: () => T): T {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
 }
 
 /** 幂等建表 + 轻量迁移（当前只有 v1 schema）。 */

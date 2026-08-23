@@ -1,6 +1,6 @@
 {
   "name": "dsh-hub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "DSH Hub — 多人使用的 DeepSeek Harness 多实例管理器（单机 Linux 服务器）",
   "type": "module",

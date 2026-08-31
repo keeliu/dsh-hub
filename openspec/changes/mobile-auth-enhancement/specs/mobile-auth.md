@@ -62,6 +62,22 @@
 
 ---
 
+## Feature: 退出登录
+
+### Scenario: 普通用户退出登录
+- **Given** 普通用户已登录
+- **When** 点击退出登录
+- **Then** 会话失效
+- **And** 跳转到 `/login` 登录页
+
+### Scenario: 管理员退出登录
+- **Given** 管理员（admin/root）已登录
+- **When** 点击退出登录
+- **Then** 会话失效
+- **And** 跳转到 `/login` 登录页
+
+---
+
 ## Feature: 找回密码
 
 ### Scenario: 发送验证码

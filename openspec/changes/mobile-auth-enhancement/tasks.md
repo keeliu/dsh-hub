@@ -24,6 +24,7 @@
 - [ ] 3.2 更新 views/auth.ts：登录页改为账户/邮箱输入
 - [ ] 3.3 新增找回密码页面 /forgot-password
 - [ ] 3.4 新增重置密码页面 /reset-password
+- [ ] 3.5 更新退出登录逻辑：退出后跳转到 /login
 
 ## Phase 4: 测试与验证
 

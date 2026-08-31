@@ -29,6 +29,7 @@ import http from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { audit, withTx } from './db.ts';
 import { handlePageRequest } from './pages.ts';
+import { handleGatewayRequest, handleGatewayWebSocket } from './gateway.ts';
 import { config } from './config.ts';
 import { HttpError, clientIp, parseCookies, readJson, sendError, sendJson } from './http.ts';
 import {
@@ -708,6 +709,10 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
       const url = new URL(req.url ?? '/', 'http://dsh-hub.invalid');
       const method = (req.method ?? 'GET').toUpperCase();
 
+      // M3: 鉴权网关优先（子域名路由）
+      const gatewayHandled = await handleGatewayRequest(req, res);
+      if (gatewayHandled) return;
+
       // 页面路由优先（GET 非 /api/ 路径，POST 非 /api/ 路径）
       if (!url.pathname.startsWith('/api/') && url.pathname !== '/healthz') {
         const handled = await handlePageRequest(db, req, res);
@@ -739,6 +744,15 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
       sendError(res, err);
     }
   });
+
+  // M3: WebSocket 升级处理（鉴权网关 WS 隧道）
+  server.on('upgrade', async (req, socket, head) => {
+    const handled = await handleGatewayWebSocket(req, socket as any, head);
+    if (!handled) {
+      socket.destroy();
+    }
+  });
+
   server.listen(opts.port ?? config.port, opts.host ?? config.host);
   return server;
 }

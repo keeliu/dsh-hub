@@ -255,6 +255,18 @@ page('POST', '/register', async ({ db, req, res }) => {
     audit(db, 'register', user!.id, user!.id, `registered as ${user!.role}`);
     const { token, csrf } = createSession(db, user!.id, null, null);
     setSessionCookie(res, token, csrf);
+    
+    // M3: 注册后自动创建并启动实例
+    try {
+      const instance = await createInstance(db, user!, { name: 'default' });
+      const startResult = await startInstance(db, instance);
+      if (startResult.status === 'running') {
+        audit(db, 'instance_start', user!.id, user!.id, `auto-start after register: ${instance.id}`);
+      }
+    } catch (err) {
+      console.error('[register] auto create instance failed:', err);
+    }
+    
     redirect(res, '/');
   } catch (e) {
     const msg = e instanceof Error && e.message.includes('UNIQUE') ? '昵称或用户名已被使用' : '注册失败：' + (e instanceof Error ? e.message : String(e));

@@ -18,6 +18,7 @@ import { openDb } from './db.ts';
 import { config } from './config.ts';
 import { startServer } from './api.ts';
 import { reclaim } from './supervisor.ts';
+import { setGatewayDb } from './gateway.ts';
 
 export { sanitizeNickname, generateSlug, shortId } from './users.ts';
 
@@ -33,6 +34,7 @@ function main(): void {
   console.log(`注册开关默认 closed（管理员经 /admin/api/settings 打开）`);
 
   const db = openDb({ dataDir: config.dataDir });
+  setGatewayDb(db);
   // 监督器重启后的孤儿实例认领：先校正 DB 状态再服务请求
   const fixed = reclaim(db);
   if (fixed.length > 0) console.log(`[reclaim] ${fixed.length} 个实例状态校正:`);

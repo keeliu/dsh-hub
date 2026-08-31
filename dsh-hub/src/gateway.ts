@@ -3,8 +3,7 @@ import type { Socket } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
 import { parseInstancePath, verifyInstanceOwnership, buildInstanceUrl, type PathInfo } from './subdomain.ts';
 import { proxyHttpRequest, proxyWebSocket, type ProxyTarget } from './proxy.ts';
-import { validateSession } from './sessions.ts';
-import { resolveApiToken } from './sessions.ts';
+import { authenticate } from './auth.ts';
 import { config } from './config.ts';
 import { getUser, type UserRow } from './users.ts';
 
@@ -142,36 +141,7 @@ async function authenticateRequest(req: IncomingMessage): Promise<{
   role?: string;
 }> {
   if (!db) return { ok: false };
-  
-  const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    const token = authHeader.slice(7);
-    const tokenUserId = resolveApiToken(db, token);
-    if (tokenUserId) {
-      const user = getUser(db, tokenUserId);
-      if (user && user.status === 'active') {
-        return { ok: true, userId: user.id, role: user.role };
-      }
-    }
-    return { ok: false };
-  }
-  
-  const cookie = req.headers.cookie || '';
-  const sessionId = parseCookie(cookie, 'session_id');
-  if (sessionId) {
-    const session = validateSession(db, sessionId);
-    if (session) {
-      const user = getUser(db, session.userId);
-      if (user && user.status === 'active') {
-        return { ok: true, userId: user.id, role: user.role };
-      }
-    }
-  }
-  
-  return { ok: false, redirect: true };
-}
-
-function parseCookie(cookie: string, name: string): string | null {
-  const match = cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
-  return match?.[1] ? decodeURIComponent(match[1]) : null;
+  const auth = authenticate(db, req);
+  if (!auth) return { ok: false, redirect: true };
+  return { ok: true, userId: auth.user.id, role: auth.user.role };
 }

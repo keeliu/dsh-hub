@@ -47,7 +47,7 @@ export function withTx<T>(db: DatabaseSync, fn: () => T): T {
   }
 }
 
-/** 幂等建表 + 轻量迁移（当前只有 v1 schema）。 */
+/** 幂等建表 + 轻量迁移。 */
 export function migrate(db: DatabaseSync): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
@@ -55,6 +55,7 @@ export function migrate(db: DatabaseSync): void {
       nickname TEXT UNIQUE NOT NULL,
       slug TEXT UNIQUE NOT NULL,
       dir_name TEXT UNIQUE NOT NULL,
+      username TEXT UNIQUE,
       email TEXT UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('user','admin','root')),
@@ -109,7 +110,22 @@ export function migrate(db: DatabaseSync): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS password_reset_codes (
+      id INTEGER PRIMARY KEY,
+      email TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      used INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
   `);
+
+  // 迁移：为已存在的 users 表添加 username 列（如果不存在）
+  try {
+    db.exec('ALTER TABLE users ADD COLUMN username TEXT UNIQUE');
+  } catch {
+    // 列已存在，忽略
+  }
 }
 
 export type AuditAction =

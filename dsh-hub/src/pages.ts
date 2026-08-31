@@ -17,9 +17,11 @@ import { startInstance, stopInstance, tailLog } from './supervisor.ts';
 import { audit, withTx } from './db.ts';
 
 // 页面视图
-import { renderSetupPage, renderLoginPage, renderRegisterPage } from './views/auth.ts';
+import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
 import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage } from './views/user.ts';
 import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage } from './views/admin.ts';
+import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
+import { getUserByAccount, getUserByEmail, isValidEmail, isValidUsername, getUserByUsername } from './users.ts';
 
 /** 页面路由上下文 */
 interface PageCtx {
@@ -152,21 +154,22 @@ page('GET', '/login', ({ db, req, res }) => {
 // POST /login - 登录处理
 page('POST', '/login', async ({ db, req, res }) => {
   const form = await readForm(req);
-  const { nickname, password } = form;
+  const { account, password } = form;
 
-  if (!nickname || !password) {
+  if (!account || !password) {
     sendHtml(res, 400, renderLoginPage('请填写所有必填字段'));
     return;
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE nickname = ?').get(nickname) as UserRow | undefined;
+  // 支持 username 或 email 登录
+  const user = getUserByAccount(db, account);
   let valid = false;
   if (user) valid = verifyPassword(password, user.password_hash);
   else verifyPassword(password, DUMMY_HASH);
 
   if (!user || !valid) {
     const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
-    sendHtml(res, 401, renderLoginPage('昵称或密码错误', regOpen));
+    sendHtml(res, 401, renderLoginPage('用户名/邮箱或密码错误', regOpen));
     return;
   }
 
@@ -203,9 +206,9 @@ page('POST', '/register', async ({ db, req, res }) => {
   }
 
   const form = await readForm(req);
-  const { nickname, password, password2, email } = form;
+  const { nickname, username, email, password, password2 } = form;
 
-  if (!nickname || !password) {
+  if (!nickname || !username || !email || !password) {
     sendHtml(res, 400, renderRegisterPage('请填写所有必填字段'));
     return;
   }
@@ -217,6 +220,22 @@ page('POST', '/register', async ({ db, req, res }) => {
     sendHtml(res, 400, renderRegisterPage('密码至少 8 个字符'));
     return;
   }
+  if (!isValidUsername(username)) {
+    sendHtml(res, 400, renderRegisterPage('用户名格式不正确（3-32位字母数字下划线）'));
+    return;
+  }
+  if (!isValidEmail(email)) {
+    sendHtml(res, 400, renderRegisterPage('邮箱格式不正确'));
+    return;
+  }
+  if (getUserByUsername(db, username)) {
+    sendHtml(res, 400, renderRegisterPage('用户名已被使用'));
+    return;
+  }
+  if (getUserByEmail(db, email)) {
+    sendHtml(res, 400, renderRegisterPage('邮箱已被注册'));
+    return;
+  }
 
   try {
     let user: UserRow;
@@ -225,8 +244,8 @@ page('POST', '/register', async ({ db, req, res }) => {
       const role = count === 0 ? 'root' : 'user';
       const slug = nickname.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`;
       const id = db.prepare(
-        'INSERT INTO users (nickname, slug, dir_name, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(nickname, slug, nickname, email || null, hashPassword(password), role, 'active', 3, 1, Date.now());
+        'INSERT INTO users (nickname, slug, dir_name, username, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(nickname, slug, nickname, username, email, hashPassword(password), role, 'active', 3, 1, Date.now());
       user = getUser(db, id.lastInsertRowid as number)!;
     });
     audit(db, 'register', user!.id, user!.id, `registered as ${user!.role}`);
@@ -234,7 +253,7 @@ page('POST', '/register', async ({ db, req, res }) => {
     setSessionCookie(res, token, csrf);
     redirect(res, '/');
   } catch (e) {
-    const msg = e instanceof Error && e.message.includes('UNIQUE') ? '昵称已被使用' : '注册失败：' + (e instanceof Error ? e.message : String(e));
+    const msg = e instanceof Error && e.message.includes('UNIQUE') ? '昵称或用户名已被使用' : '注册失败：' + (e instanceof Error ? e.message : String(e));
     sendHtml(res, 400, renderRegisterPage(msg));
   }
 });
@@ -253,6 +272,85 @@ page('POST', '/api/auth/logout', ({ db, req, res }) => {
   if (token) destroySession(db, token);
   clearSessionCookie(res);
   redirect(res, '/login');
+});
+
+// GET /forgot-password - 找回密码页面
+page('GET', '/forgot-password', ({ res }) => {
+  sendHtml(res, 200, renderForgotPasswordPage());
+});
+
+// POST /forgot-password - 发送验证码
+page('POST', '/forgot-password', async ({ db, req, res }) => {
+  const form = await readForm(req);
+  const { email } = form;
+
+  if (!email || !isValidEmail(email)) {
+    sendHtml(res, 400, renderForgotPasswordPage('请输入有效的邮箱地址'));
+    return;
+  }
+
+  const user = getUserByEmail(db, email.toLowerCase());
+  if (user) {
+    const code = createResetCode(db, email.toLowerCase());
+    try {
+      await sendResetCodeEmail(email.toLowerCase(), code);
+    } catch (err) {
+      console.error('Failed to send reset email:', err);
+    }
+  }
+  // 无论邮箱是否存在，都显示成功（防枚举）
+  sendHtml(res, 200, renderForgotPasswordPage(undefined, '如果邮箱已注册，您将收到重置验证码。请检查邮箱。'));
+});
+
+// GET /reset-password - 重置密码页面
+page('GET', '/reset-password', ({ req, res }) => {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const email = url.searchParams.get('email') ?? '';
+  if (!email) {
+    redirect(res, '/forgot-password');
+    return;
+  }
+  sendHtml(res, 200, renderResetPasswordPage(email));
+});
+
+// POST /reset-password - 重置密码处理
+page('POST', '/reset-password', async ({ db, req, res }) => {
+  const form = await readForm(req);
+  const { email, code, password, password2 } = form;
+
+  if (!email || !code || !password) {
+    sendHtml(res, 400, renderResetPasswordPage(email ?? '', '请填写所有字段'));
+    return;
+  }
+  if (password !== password2) {
+    sendHtml(res, 400, renderResetPasswordPage(email, '两次密码输入不一致'));
+    return;
+  }
+  if (password.length < 8) {
+    sendHtml(res, 400, renderResetPasswordPage(email, '密码至少 8 个字符'));
+    return;
+  }
+
+  const emailLower = email.toLowerCase();
+  if (!verifyResetCode(db, emailLower, code)) {
+    sendHtml(res, 400, renderResetPasswordPage(email, '验证码无效或已过期'));
+    return;
+  }
+
+  const user = getUserByEmail(db, emailLower);
+  if (!user) {
+    sendHtml(res, 400, renderResetPasswordPage(email, '用户不存在'));
+    return;
+  }
+
+  const passwordHash = hashPassword(password);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+  // 吊销所有会话和 token
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+  db.prepare('UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(Date.now(), user.id);
+  audit(db, 'password_reset', null, user.id, `email=${emailLower}`);
+
+  redirect(res, '/login?reset=success');
 });
 
 // ========== 用户页面 ==========

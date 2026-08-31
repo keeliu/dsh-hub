@@ -37,13 +37,14 @@ import {
 import { getSetting, getSettingsMap, setSetting, SETTING_KEYS } from './settings.ts';
 import { parseAllowedVersions, isValidHarnessVersion, versionAllowed } from './version.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
-import { canManage, generateSlug, getUser, getUserByNickname, isRole, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
+import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
   listApiTokens, revokeApiToken,
 } from './sessions.ts';
+import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
 
 // ---------- 小工具 ----------
 
@@ -90,7 +91,7 @@ const DEFAULT_MAX_RUNNING = 1;
 
 /** 建号核心：净化昵称 → slug → dir_name → 落库。事务由调用方决定（M2.1）。 */
 function createUserRow(db: DatabaseSync, opts: {
-  nickname: string; password: string; role: Role; email?: string | null;
+  nickname: string; password: string; role: Role; email?: string | null; username?: string | null;
   maxInstances?: number; maxRunning?: number;
 }): UserRow {
   // M2.1：昵称净化后为空 → 400（此前回退随机名，用户将永远无法登录）
@@ -101,14 +102,30 @@ function createUserRow(db: DatabaseSync, opts: {
   if (!validQuota(maxInstances) || !validQuota(maxRunning)) {
     throw new HttpError(400, 'invalid_quota', 'quota must be an integer in [0, 1000]');
   }
+  // 验证 username
+  const username = opts.username ?? null;
+  if (username && !isValidUsername(username)) {
+    throw new HttpError(400, 'invalid_username', 'username must be 3-32 alphanumeric characters or underscores');
+  }
+  if (username && getUserByUsername(db, username)) {
+    throw new HttpError(409, 'username_taken', 'username already taken');
+  }
+  // 验证 email
+  const email = opts.email ?? null;
+  if (email && !isValidEmail(email)) {
+    throw new HttpError(400, 'invalid_email', 'invalid email format');
+  }
+  if (email && getUserByEmail(db, email)) {
+    throw new HttpError(409, 'email_taken', 'email already registered');
+  }
   const slug = generateSlug(nickname, (s) => Boolean(db.prepare('SELECT 1 FROM users WHERE slug = ?').get(s)));
   const dirTaken = (d: string): boolean => Boolean(db.prepare('SELECT 1 FROM users WHERE dir_name = ?').get(d));
   let dirName = sanitizeNickname(nickname, () => `user-${shortId(8)}`);
   let i = 2;
   while (dirTaken(dirName)) dirName = `${dirName}-${i++}`;
   const id = db.prepare(
-    'INSERT INTO users (nickname, slug, dir_name, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(nickname, slug, dirName, opts.email ?? null, hashPassword(opts.password), opts.role, 'active',
+    'INSERT INTO users (nickname, slug, dir_name, username, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(nickname, slug, dirName, username, email, hashPassword(opts.password), opts.role, 'active',
     maxInstances, maxRunning, Date.now()).lastInsertRowid as number;
   const created = getUser(db, id);
   if (!created) throw new HttpError(500, 'internal', 'user insertion failed');
@@ -185,7 +202,7 @@ function route(method: Method, pattern: string, a: Handler | RouteOpts, b?: Hand
 
 // ---------- 处理器 ----------
 
-interface SetupBody { nickname?: unknown; password?: unknown; email?: unknown }
+interface SetupBody { nickname?: unknown; password?: unknown; email?: unknown; username?: unknown }
 
 // 首启向导：无用户时可建管理员（事务化，M2.1 消除并发双管理员竞态）
 route('POST', '/api/auth/setup', async ({ db, req, res }) => {
@@ -234,12 +251,13 @@ route('POST', '/api/auth/register', async ({ db, req, res }) => {
   const nickname = body.nickname;
   const password = body.password;
   const email = typeof body.email === 'string' ? body.email : null;
+  const username = typeof body.username === 'string' ? body.username : null;
   let user: UserRow;
   try {
     user = withTx(db, () => {
       const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
       const role: Role = count === 0 ? 'root' : 'user'; // 第一个注册的普通账号自动 root 兜底
-      return createUserRow(db, { nickname, password, role, email });
+      return createUserRow(db, { nickname, password, role, email, username });
     });
   } catch (e) {
     if (e instanceof HttpError) throw e;
@@ -256,23 +274,24 @@ route('POST', '/api/auth/register', async ({ db, req, res }) => {
 });
 
 route('POST', '/api/auth/login', async ({ db, req, res }) => {
-  const body = await readJson(req) as { nickname?: unknown; password?: unknown };
-  if (typeof body.nickname !== 'string' || typeof body.password !== 'string') {
-    throw new HttpError(400, 'invalid_body', 'nickname and password are required');
+  const body = await readJson(req) as { account?: unknown; password?: unknown; nickname?: unknown };
+  // 支持 account（username/email）或 nickname（向后兼容）
+  const account = typeof body.account === 'string' ? body.account : typeof body.nickname === 'string' ? body.nickname : '';
+  if (!account || typeof body.password !== 'string') {
+    throw new HttpError(400, 'invalid_body', 'account (username/email) and password are required');
   }
-  const nickname = sanitizeNickname(body.nickname, () => '');
-  // M2.1：限速键 = IP + 昵称（防跨 IP 爆破与针对昵称的锁死 DoS）
-  const key = loginLockKey(clientIp(req), nickname);
+  // M2.1：限速键 = IP + 账户（防跨 IP 爆破与针对账户的锁死 DoS）
+  const key = loginLockKey(clientIp(req), account);
   checkLoginLock(key);
-  const user = getUserByNickname(db, nickname);
+  const user = getUserByAccount(db, account);
   // M2.1：用户不存在也执行一次同参数 scrypt（消除时间侧信道用户名枚举）
   let valid = false;
   if (user) valid = verifyPassword(body.password, user.password_hash);
   else verifyPassword(body.password, DUMMY_HASH);
   if (!user || !valid) {
     recordLoginFailure(key);
-    audit(db, 'login_failed', null, user?.id ?? null, `nickname=${nickname} ip=${clientIp(req)}`);
-    throw new HttpError(401, 'bad_credentials', 'invalid nickname or password');
+    audit(db, 'login_failed', null, user?.id ?? null, `account=${account} ip=${clientIp(req)}`);
+    throw new HttpError(401, 'bad_credentials', 'invalid account or password');
   }
   if (user.status === 'disabled') throw new HttpError(403, 'disabled', 'account disabled');
   clearLoginLock(key);
@@ -290,6 +309,54 @@ route('POST', '/api/auth/logout', { csrf: true }, async ({ db, req, res }) => {
   audit(db, 'logout', null, null);
   res.setHeader('set-cookie', clearSessionCookies());
   return { ok: true };
+});
+
+// 找回密码：发送验证码
+route('POST', '/api/auth/forgot-password', async ({ db, req }) => {
+  const body = await readJson(req) as { email?: unknown };
+  if (typeof body.email !== 'string' || !body.email) {
+    throw new HttpError(400, 'invalid_body', 'email is required');
+  }
+  const email = body.email.toLowerCase().trim();
+  // 检查用户是否存在（但不泄露存在性）
+  const user = getUserByEmail(db, email);
+  if (user) {
+    const code = createResetCode(db, email);
+    try {
+      await sendResetCodeEmail(email, code);
+    } catch (err) {
+      console.error('Failed to send reset email:', err);
+      // 不抛出错误，避免泄露邮箱是否存在
+    }
+  }
+  // 无论邮箱是否存在，都返回成功（防枚举）
+  return { ok: true, message: '如果邮箱已注册，您将收到重置验证码' };
+});
+
+// 找回密码：重置密码
+route('POST', '/api/auth/reset-password', async ({ db, req }) => {
+  const body = await readJson(req) as { email?: unknown; code?: unknown; password?: unknown };
+  if (typeof body.email !== 'string' || typeof body.code !== 'string' || typeof body.password !== 'string') {
+    throw new HttpError(400, 'invalid_body', 'email, code and password are required');
+  }
+  if (body.password.length < 8) {
+    throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+  }
+  const email = body.email.toLowerCase().trim();
+  if (!verifyResetCode(db, email, body.code)) {
+    throw new HttpError(400, 'invalid_code', '验证码无效或已过期');
+  }
+  const user = getUserByEmail(db, email);
+  if (!user) {
+    throw new HttpError(404, 'not_found', 'user not found');
+  }
+  const passwordHash = await hashPassword(body.password);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+  // 吊销该用户所有会话和 token
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(user.id);
+  db.prepare('UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(Date.now(), user.id);
+  audit(db, 'password_reset', null, user.id, `email=${email}`);
+  return { ok: true, message: '密码已重置，请重新登录' };
 });
 
 route('GET', '/api/me', { auth: true }, async ({ user }) => ({ user: publicUser(user) }));

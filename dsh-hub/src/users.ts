@@ -54,6 +54,7 @@ export interface UserRow {
   nickname: string;
   slug: string;
   dir_name: string;
+  username: string | null;
   email: string | null;
   password_hash: string;
   role: Role;
@@ -86,4 +87,27 @@ export function getUser(db: DatabaseSync, id: number): UserRow | undefined {
 
 export function getUserByNickname(db: DatabaseSync, nickname: string): UserRow | undefined {
   return db.prepare('SELECT * FROM users WHERE nickname = ?').get(nickname) as UserRow | undefined;
+}
+
+export function getUserByUsername(db: DatabaseSync, username: string): UserRow | undefined {
+  return db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined;
+}
+
+export function getUserByEmail(db: DatabaseSync, email: string): UserRow | undefined {
+  return db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined;
+}
+
+/** 根据 username 或 email 查找用户（登录用） */
+export function getUserByAccount(db: DatabaseSync, account: string): UserRow | undefined {
+  return db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(account, account) as UserRow | undefined;
+}
+
+/** 邮箱格式验证 */
+export function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/** 用户名验证（字母数字下划线，3-32 字符） */
+export function isValidUsername(username: string): boolean {
+  return /^[a-zA-Z0-9_]{3,32}$/.test(username);
 }

@@ -29,8 +29,14 @@ export function ensureUserDir(dirName: string): string {
   return dir;
 }
 
+/**
+ * 生成实例的 trusted_host（用于 dsh settings.yaml 的 trustedHosts）
+ *
+ * 注意：dsh 的 trustedHosts 只接受 host[:port] 格式，不能包含路径
+ * 网关路由使用路径方式（/i/<slug>-<id>）来区分不同实例
+ */
 export function instanceTrustedHost(slug: string, instanceId: string): string {
-  return `${config.hubDomain}/i/${slug}-${instanceId}`;
+  return config.hubDomain;
 }
 
 export interface CreateInstanceInput {

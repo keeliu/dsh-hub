@@ -623,8 +623,10 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
   const form = await readForm(req);
+  console.log('[settings] form data:', form);
   for (const [key, value] of Object.entries(form)) {
     if (['registration_open', 'default_harness_version', 'allowed_harness_versions'].includes(key)) {
+      console.log(`[settings] saving ${key} = ${value}`);
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
     }
   }
@@ -632,6 +634,7 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   const settings = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
   const map: Record<string, string> = {};
   for (const s of settings) map[s.key] = s.value;
+  console.log('[settings] current settings:', map);
   sendHtml(res, 200, renderSettingsPage(user, map, { type: 'success', message: '设置已保存' }));
 });
 

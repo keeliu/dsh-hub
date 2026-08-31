@@ -12,7 +12,8 @@ cd "$PROJECT_DIR"
 # 部署环境配置
 export DSH_HUB_HOST="${DSH_HUB_HOST:-0.0.0.0}"
 export DSH_HUB_PORT="${DSH_HUB_PORT:-5000}"
-export DSH_HUB_DATA="${DSH_HUB_DATA:-/tmp/dsh-hub-data}"
+# 使用持久化存储路径，部署平台会挂载到 /mnt/data
+export DSH_HUB_DATA="${DSH_HUB_DATA:-/mnt/data/dsh-hub}"
 
 # 确保数据目录存在
 mkdir -p "$DSH_HUB_DATA"

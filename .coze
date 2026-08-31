@@ -16,5 +16,9 @@ flavor = "web"
 build = ["bash", "scripts/deploy_build.sh"]
 run = ["bash", "scripts/deploy_run.sh"]
 
+[deploy.storage]
+enabled = true
+path = "/mnt/data"
+
 [subprojects]
 path = ["."]

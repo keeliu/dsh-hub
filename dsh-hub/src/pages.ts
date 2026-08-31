@@ -104,7 +104,7 @@ page('POST', '/setup', async ({ db, req, res }) => {
     return;
   }
   const form = await readForm(req);
-  const { nickname, password, password2, email } = form;
+  const { nickname, username, password, password2, email } = form;
 
   if (!nickname || !password) {
     sendHtml(res, 400, renderSetupPage('请填写所有必填字段'));
@@ -119,14 +119,17 @@ page('POST', '/setup', async ({ db, req, res }) => {
     return;
   }
 
+  // username 默认为 nickname
+  const finalUsername = username?.trim() || nickname;
+
   try {
     let user: UserRow;
     withTx(db, () => {
       const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
       if (count > 0) throw new Error('setup_closed');
       const id = db.prepare(
-        'INSERT INTO users (nickname, slug, dir_name, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(nickname, nickname.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`, nickname, email || null, hashPassword(password), 'admin', 'active', 3, 1, Date.now());
+        'INSERT INTO users (nickname, slug, dir_name, username, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(nickname, nickname.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`, nickname, finalUsername, email || null, hashPassword(password), 'admin', 'active', 3, 1, Date.now());
       user = getUser(db, id.lastInsertRowid as number)!;
     });
     audit(db, 'setup', user!.id, user!.id, `setup created admin ${user!.nickname}`);

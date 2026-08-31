@@ -22,8 +22,13 @@ export function renderSetupPage(error?: string): string {
         <input type="text" id="nickname" name="nickname" class="form-control" required autofocus>
       </div>
       <div class="form-group">
+        <label class="form-label" for="username">用户名（登录账号）</label>
+        <input type="text" id="username" name="username" class="form-control" required placeholder="用于登录的账号名">
+        <small style="color:var(--gray-600)">留空则使用昵称作为用户名</small>
+      </div>
+      <div class="form-group">
         <label class="form-label" for="email">邮箱（可选）</label>
-        <input type="email" id="email" name="email" class="form-control">
+        <input type="email" id="email" name="email" class="form-control" placeholder="用于找回密码">
       </div>
       <div class="form-group">
         <label class="form-label" for="password">密码</label>

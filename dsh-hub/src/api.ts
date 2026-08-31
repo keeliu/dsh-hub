@@ -308,6 +308,15 @@ route('POST', '/api/auth/logout', { csrf: true }, async ({ db, req, res }) => {
   destroySession(db, cookies[SESSION_COOKIE]);
   audit(db, 'logout', null, null);
   res.setHeader('set-cookie', clearSessionCookies());
+  
+  // 页面表单提交时重定向到登录页，API 调用返回 JSON
+  const accept = req.headers.accept || '';
+  if (accept.includes('text/html')) {
+    res.statusCode = 303;
+    res.setHeader('location', '/login');
+    res.end();
+    return null;
+  }
   return { ok: true };
 });
 

@@ -77,8 +77,11 @@ export function renderLoginPage(error?: string, registrationOpen = false): strin
 }
 
 /** 注册页面（/register） */
-export function renderRegisterPage(error?: string): string {
+export function renderRegisterPage(error?: string, form?: { nickname?: string; username?: string; email?: string }): string {
   const errorHtml = error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : '';
+  const nicknameValue = form?.nickname ? ` value="${escapeHtml(form.nickname)}"` : '';
+  const usernameValue = form?.username ? ` value="${escapeHtml(form.username)}"` : '';
+  const emailValue = form?.email ? ` value="${escapeHtml(form.email)}"` : '';
 
   const content = `
     <h2 class="auth-title">注册</h2>
@@ -86,16 +89,16 @@ export function renderRegisterPage(error?: string): string {
     <form method="POST" action="/register">
       <div class="form-group">
         <label class="form-label" for="nickname">昵称</label>
-        <input type="text" id="nickname" name="nickname" class="form-control" required autofocus placeholder="显示名称">
+        <input type="text" id="nickname" name="nickname" class="form-control" required autofocus placeholder="显示名称"${nicknameValue}>
       </div>
       <div class="form-group">
         <label class="form-label" for="username">用户名</label>
-        <input type="text" id="username" name="username" class="form-control" required placeholder="3-32位字母数字下划线">
+        <input type="text" id="username" name="username" class="form-control" required placeholder="3-32位字母数字下划线"${usernameValue}>
         <small style="color:var(--gray-600)">用于登录，3-32位字母、数字或下划线</small>
       </div>
       <div class="form-group">
         <label class="form-label" for="email">邮箱</label>
-        <input type="email" id="email" name="email" class="form-control" required placeholder="用于找回密码">
+        <input type="email" id="email" name="email" class="form-control" required placeholder="用于找回密码"${emailValue}>
       </div>
       <div class="form-group">
         <label class="form-label" for="password">密码</label>

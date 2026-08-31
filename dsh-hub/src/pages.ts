@@ -210,33 +210,34 @@ page('POST', '/register', async ({ db, req, res }) => {
 
   const form = await readForm(req);
   const { nickname, username, email, password, password2 } = form;
+  const formPreserve = { nickname, username, email };
 
   if (!nickname || !username || !email || !password) {
-    sendHtml(res, 400, renderRegisterPage('请填写所有必填字段'));
+    sendHtml(res, 400, renderRegisterPage('请填写所有必填字段', formPreserve));
     return;
   }
   if (password !== password2) {
-    sendHtml(res, 400, renderRegisterPage('两次密码输入不一致'));
+    sendHtml(res, 400, renderRegisterPage('两次密码输入不一致', formPreserve));
     return;
   }
   if (password.length < 8) {
-    sendHtml(res, 400, renderRegisterPage('密码至少 8 个字符'));
+    sendHtml(res, 400, renderRegisterPage('密码至少 8 个字符', formPreserve));
     return;
   }
   if (!isValidUsername(username)) {
-    sendHtml(res, 400, renderRegisterPage('用户名格式不正确（3-32位字母数字下划线）'));
+    sendHtml(res, 400, renderRegisterPage('用户名格式不正确（3-32位字母数字下划线）', formPreserve));
     return;
   }
   if (!isValidEmail(email)) {
-    sendHtml(res, 400, renderRegisterPage('邮箱格式不正确'));
+    sendHtml(res, 400, renderRegisterPage('邮箱格式不正确', formPreserve));
     return;
   }
   if (getUserByUsername(db, username)) {
-    sendHtml(res, 400, renderRegisterPage('用户名已被使用'));
+    sendHtml(res, 400, renderRegisterPage('用户名已被使用', formPreserve));
     return;
   }
   if (getUserByEmail(db, email)) {
-    sendHtml(res, 400, renderRegisterPage('邮箱已被注册'));
+    sendHtml(res, 400, renderRegisterPage('邮箱已被注册', formPreserve));
     return;
   }
 

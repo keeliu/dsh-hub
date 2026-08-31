@@ -9,9 +9,16 @@ export interface ProxyTarget {
 export async function proxyHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
-  target: ProxyTarget
+  target: ProxyTarget,
+  stripPrefix?: string
 ): Promise<void> {
-  const url = `http://${target.host}:${target.port}${req.url || '/'}`;
+  let targetPath = req.url || '/';
+  if (stripPrefix && targetPath.startsWith(stripPrefix)) {
+    targetPath = targetPath.slice(stripPrefix.length) || '/';
+    if (!targetPath.startsWith('/')) targetPath = '/' + targetPath;
+  }
+  
+  const url = `http://${target.host}:${target.port}${targetPath}`;
   
   const headers: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.headers)) {
@@ -50,7 +57,8 @@ export async function proxyWebSocket(
   req: IncomingMessage,
   socket: Socket,
   head: Buffer,
-  target: ProxyTarget
+  target: ProxyTarget,
+  stripPrefix?: string
 ): Promise<void> {
   const net = await import('node:net');
   
@@ -58,7 +66,14 @@ export async function proxyWebSocket(
   
   upstream.on('connect', () => {
     const hostHeader = `Host: ${target.host}:${target.port}\r\n`;
-    let requestLine = `${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`;
+    
+    let targetPath = req.url || '/';
+    if (stripPrefix && targetPath.startsWith(stripPrefix)) {
+      targetPath = targetPath.slice(stripPrefix.length) || '/';
+      if (!targetPath.startsWith('/')) targetPath = '/' + targetPath;
+    }
+    
+    let requestLine = `${req.method} ${targetPath} HTTP/${req.httpVersion}\r\n`;
     
     let headers = '';
     for (const [key, value] of Object.entries(req.headers)) {
@@ -74,7 +89,7 @@ export async function proxyWebSocket(
     if (head.length > 0) {
       upstream.write(head);
     }
-    
+  
     socket.pipe(upstream);
     upstream.pipe(socket);
   });

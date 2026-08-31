@@ -29,8 +29,8 @@ export function ensureUserDir(dirName: string): string {
   return dir;
 }
 
-export function instanceTrustedHost(slug: string, instanceId: string): string {
-  return `${slug}-${instanceId}.${config.hubDomain}`;
+export function instanceTrustedHost(_slug: string, _instanceId: string): string {
+  return config.hubDomain;
 }
 
 export interface CreateInstanceInput {

@@ -3,36 +3,45 @@ import { getInstance } from './instances.ts';
 import type { InstanceRecord } from './supervisor.ts';
 import { getUser } from './users.ts';
 
-export interface SubdomainInfo {
+export interface PathInfo {
   userSlug: string;
   instanceId: string;
 }
 
-export function parseSubdomain(host: string, domain: string): SubdomainInfo | null {
-  if (!host || !domain) return null;
+const INSTANCE_PATH_PREFIX = '/i/';
+
+export function parseInstancePath(pathname: string): PathInfo | null {
+  if (!pathname.startsWith(INSTANCE_PATH_PREFIX)) return null;
   
-  const suffix = `.${domain}`;
-  if (!host.endsWith(suffix)) return null;
+  const rest = pathname.slice(INSTANCE_PATH_PREFIX.length);
+  const slashIndex = rest.indexOf('/');
+  const segment = slashIndex === -1 ? rest : rest.slice(0, slashIndex);
   
-  const subdomain = host.slice(0, -suffix.length);
-  const lastDash = subdomain.lastIndexOf('-');
+  if (!segment) return null;
+  
+  const lastDash = segment.lastIndexOf('-');
   if (lastDash <= 0) return null;
   
-  const userSlug = subdomain.slice(0, lastDash);
-  const instanceId = subdomain.slice(lastDash + 1);
+  const userSlug = segment.slice(0, lastDash);
+  const instanceId = segment.slice(lastDash + 1);
   
   if (!userSlug || !instanceId) return null;
   
   return { userSlug, instanceId };
 }
 
-export function buildSubdomain(userSlug: string, instanceId: string, domain: string): string {
-  return `${userSlug}-${instanceId}.${domain}`;
+export function buildInstancePath(userSlug: string, instanceId: string): string {
+  return `${INSTANCE_PATH_PREFIX}${userSlug}-${instanceId}`;
+}
+
+export function buildInstanceUrl(userSlug: string, instanceId: string, domain: string): string {
+  const protocol = 'https';
+  return `${protocol}://${domain}${buildInstancePath(userSlug, instanceId)}`;
 }
 
 export function verifyInstanceOwnership(
   db: DatabaseSync,
-  info: SubdomainInfo,
+  info: PathInfo,
   userId: number,
   userRole: string
 ): InstanceRecord | null {

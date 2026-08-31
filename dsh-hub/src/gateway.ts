@@ -1,12 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import type { DatabaseSync } from 'node:sqlite';
-import { parseSubdomain, verifyInstanceOwnership, buildSubdomain, type SubdomainInfo } from './subdomain.ts';
+import { parseInstancePath, verifyInstanceOwnership, buildInstanceUrl, type PathInfo } from './subdomain.ts';
 import { proxyHttpRequest, proxyWebSocket, type ProxyTarget } from './proxy.ts';
 import { validateSession } from './sessions.ts';
 import { resolveApiToken } from './sessions.ts';
-import { getInstance } from './instances.ts';
-import type { InstanceRecord } from './supervisor.ts';
 import { config } from './config.ts';
 import { getUser, type UserRow } from './users.ts';
 
@@ -53,11 +51,9 @@ export async function handleGatewayRequest(
   req: IncomingMessage,
   res: ServerResponse
 ): Promise<boolean> {
-  const domain = config.hubDomain;
-  const host = req.headers.host || '';
-  
-  const subdomainInfo = parseSubdomain(host, domain);
-  if (!subdomainInfo) {
+  const pathname = (req.url || '/').split('?')[0] || '/';
+  const pathInfo = parseInstancePath(pathname);
+  if (!pathInfo) {
     return false;
   }
   
@@ -70,6 +66,7 @@ export async function handleGatewayRequest(
   const authResult = await authenticateRequest(req);
   if (!authResult.ok) {
     if (authResult.redirect) {
+      const host = req.headers.host || config.hubDomain;
       const redirectUrl = `/login?redirect=${encodeURIComponent(`https://${host}${req.url}`)}`;
       res.writeHead(302, { Location: redirectUrl });
       res.end();
@@ -80,7 +77,7 @@ export async function handleGatewayRequest(
     return true;
   }
   
-  const instance = verifyInstanceOwnership(db, subdomainInfo, authResult.userId!, authResult.role!);
+  const instance = verifyInstanceOwnership(db, pathInfo, authResult.userId!, authResult.role!);
   if (!instance) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Instance not found' }));
@@ -99,7 +96,8 @@ export async function handleGatewayRequest(
   }
   
   const target: ProxyTarget = { host: '127.0.0.1', port: instance.port };
-  await proxyHttpRequest(req, res, target);
+  const stripPrefix = `/i/${pathInfo.userSlug}-${pathInfo.instanceId}`;
+  await proxyHttpRequest(req, res, target, stripPrefix);
   return true;
 }
 
@@ -108,11 +106,9 @@ export async function handleGatewayWebSocket(
   socket: Socket,
   head: Buffer
 ): Promise<boolean> {
-  const domain = config.hubDomain;
-  const host = req.headers.host || '';
-  
-  const subdomainInfo = parseSubdomain(host, domain);
-  if (!subdomainInfo) {
+  const pathname = (req.url || '/').split('?')[0] || '/';
+  const pathInfo = parseInstancePath(pathname);
+  if (!pathInfo) {
     return false;
   }
   
@@ -127,14 +123,15 @@ export async function handleGatewayWebSocket(
     return true;
   }
   
-  const instance = verifyInstanceOwnership(db, subdomainInfo, authResult.userId!, authResult.role!);
+  const instance = verifyInstanceOwnership(db, pathInfo, authResult.userId!, authResult.role!);
   if (!instance || instance.status !== 'running' || !instance.port) {
     socket.destroy();
     return true;
   }
   
   const target: ProxyTarget = { host: '127.0.0.1', port: instance.port };
-  await proxyWebSocket(req, socket, head, target);
+  const stripPrefix = `/i/${pathInfo.userSlug}-${pathInfo.instanceId}`;
+  await proxyWebSocket(req, socket, head, target, stripPrefix);
   return true;
 }
 
@@ -149,24 +146,24 @@ async function authenticateRequest(req: IncomingMessage): Promise<{
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.slice(7);
-    const userId = resolveApiToken(db, token);
-    if (userId) {
-      const user = getUser(db, userId);
+    const tokenUserId = resolveApiToken(db, token);
+    if (tokenUserId) {
+      const user = getUser(db, tokenUserId);
       if (user && user.status === 'active') {
-        return { ok: true, userId, role: user.role };
+        return { ok: true, userId: user.id, role: user.role };
       }
     }
     return { ok: false };
   }
   
-  const cookieHeader = req.headers.cookie || '';
-  const sessionId = parseSessionCookie(cookieHeader);
+  const cookie = req.headers.cookie || '';
+  const sessionId = parseCookie(cookie, 'session_id');
   if (sessionId) {
     const session = validateSession(db, sessionId);
     if (session) {
       const user = getUser(db, session.userId);
       if (user && user.status === 'active') {
-        return { ok: true, userId: session.userId, role: user.role };
+        return { ok: true, userId: user.id, role: user.role };
       }
     }
   }
@@ -174,14 +171,7 @@ async function authenticateRequest(req: IncomingMessage): Promise<{
   return { ok: false, redirect: true };
 }
 
-function parseSessionCookie(cookieHeader: string): string | null {
-  const match = cookieHeader.match(/dsh_session=([^;]+)/);
-  return match ? (match[1] ?? null) : null;
-}
-
-export function getInstanceUrl(instance: InstanceRecord, domain: string): string | null {
-  if (!db) return null;
-  const user = getUser(db, instance.owner_id);
-  if (!user) return null;
-  return `https://${buildSubdomain(user.dir_name, instance.id, domain)}`;
+function parseCookie(cookie: string, name: string): string | null {
+  const match = cookie.match(new RegExp(`(?:^|;\\s*)${name}=([^;]*)`));
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
 }

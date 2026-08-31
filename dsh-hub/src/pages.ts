@@ -518,13 +518,13 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
     withTx(db, () => {
       const slug = (form.nickname || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`;
       db.prepare(
-        'INSERT INTO users (nickname, slug, dir_name, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(form.nickname ?? '', slug, form.nickname ?? '', form.email || null, hashPassword(form.password ?? ''), form.role ?? 'user', 'active', 3, 1, Date.now());
+        'INSERT INTO users (nickname, username, slug, dir_name, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(form.nickname ?? '', form.username ?? '', slug, form.nickname ?? '', form.email || null, hashPassword(form.password ?? ''), form.role ?? 'user', 'active', 3, 1, Date.now());
     });
     audit(db, 'user_create', actor.id, null, `created user ${form.nickname}`);
     redirect(res, '/admin/users');
   } catch (e) {
-    const users = db.prepare('SELECT id, nickname, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
+    const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
     sendHtml(res, 400, renderUsersPage(actor, users, { type: 'danger', message: '创建失败：' + (e instanceof Error ? e.message : String(e)) }));
   }
 });

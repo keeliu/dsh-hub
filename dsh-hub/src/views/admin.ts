@@ -131,6 +131,10 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
               <input type="text" name="nickname" class="form-control" required>
             </div>
             <div class="form-group" style="margin:0">
+              <label class="form-label">账号</label>
+              <input type="text" name="username" class="form-control" required pattern="[a-z0-9_]{3,20}" title="3-20 位小写字母、数字或下划线">
+            </div>
+            <div class="form-group" style="margin:0">
               <label class="form-label">密码</label>
               <input type="password" name="password" class="form-control" required minlength="8">
             </div>

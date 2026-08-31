@@ -1,0 +1,20 @@
+[project]
+sub_id = "a511d78b"
+name = "dsh-hub"
+requires = ["nodejs-24"]
+project_type = "backend"
+version = "0.0.35"
+
+[preview]
+preview_enable = "disabled"
+
+[deploy.profile]
+kind = "service"
+flavor = "web"
+
+[deploy]
+build = ["bash", "scripts/deploy_build.sh"]
+run = ["bash", "scripts/deploy_run.sh"]
+
+[subprojects]
+path = ["."]

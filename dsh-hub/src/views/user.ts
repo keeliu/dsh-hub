@@ -5,6 +5,8 @@
  */
 import { escapeHtml } from '../http.ts';
 import { layout } from './layout.ts';
+import { buildInstanceUrl } from '../subdomain.ts';
+import { config } from '../config.ts';
 import type { UserRow } from '../users.ts';
 
 interface InstanceInfo {
@@ -179,10 +181,7 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
     <div class="card">
       <div class="card-title">访问实例</div>
       ${instance.status === 'running'
-        ? `<p>通过网关访问：<a href="http://${escapeHtml(instance.trusted_host)}" target="_blank">${escapeHtml(instance.trusted_host)}</a></p>
-           <p style="color:var(--gray-600);font-size:0.85rem;margin-top:0.5rem">
-             注意：需要配置 DNS 将 ${escapeHtml(instance.trusted_host)} 指向服务器 IP
-           </p>`
+        ? `<p>通过网关访问：<a href="${escapeHtml(buildInstanceUrl(user.slug, instance.id, config.hubDomain))}" target="_blank">${escapeHtml(buildInstanceUrl(user.slug, instance.id, config.hubDomain))}</a></p>`
         : `<p style="color:var(--gray-600)">实例未运行，请先启动</p>`
       }
     </div>

@@ -27,6 +27,57 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
   res.end(text);
 }
 
+/** 发送 HTML 响应（Web UI 页面渲染用）。 */
+export function sendHtml(res: ServerResponse, status: number, html: string): void {
+  res.writeHead(status, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+  });
+  res.end(html);
+}
+
+/** HTML 转义（防 XSS）。 */
+export function escapeHtml(s: string): string {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** 发送重定向响应。 */
+export function redirect(res: ServerResponse, url: string, status = 302): void {
+  res.writeHead(status, { location: url });
+  res.end();
+}
+
+/** 读取表单数据（application/x-www-form-urlencoded）。 */
+export function readForm(req: IncomingMessage, maxBytes = 1024 * 1024): Promise<Record<string, string>> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (c: Buffer) => {
+      size += c.length;
+      if (size > maxBytes) {
+        reject(new HttpError(413, 'payload_too_large', 'request body too large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      if (chunks.length === 0) { resolve({}); return; }
+      const body = Buffer.concat(chunks).toString('utf8');
+      const params = new URLSearchParams(body);
+      const result: Record<string, string> = {};
+      for (const [key, value] of params) result[key] = value;
+      resolve(result);
+    });
+    req.on('error', reject);
+  });
+}
+
 export function sendError(res: ServerResponse, err: unknown): void {
   if (err instanceof HttpError) {
     sendJson(res, err.status, { error: { code: err.code, message: err.message } });

@@ -28,6 +28,7 @@
 import http from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { audit, withTx } from './db.ts';
+import { handlePageRequest } from './pages.ts';
 import { config } from './config.ts';
 import { HttpError, clientIp, parseCookies, readJson, sendError, sendJson } from './http.ts';
 import {
@@ -630,8 +631,14 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
     try {
       const url = new URL(req.url ?? '/', 'http://dsh-hub.invalid');
       const method = (req.method ?? 'GET').toUpperCase();
+
+      // 页面路由优先（GET 非 /api/ 路径，POST 非 /api/ 路径）
+      if (!url.pathname.startsWith('/api/') && url.pathname !== '/healthz') {
+        const handled = await handlePageRequest(db, req, res);
+        if (handled) return;
+      }
+
       const match = matchRoute(routes, method, url.pathname);
-      // 未知路径一律 404（管理面路径与实例流量分离；M3 才接入反代）
       if (!match) {
         sendJson(res, 404, { error: { code: 'not_found', message: 'not found' } });
         return;

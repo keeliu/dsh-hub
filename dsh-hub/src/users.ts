@@ -97,9 +97,9 @@ export function getUserByEmail(db: DatabaseSync, email: string): UserRow | undef
   return db.prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined;
 }
 
-/** 根据 username 或 email 查找用户（登录用） */
+/** 根据 username、email 或 nickname 查找用户（登录用，向后兼容 nickname） */
 export function getUserByAccount(db: DatabaseSync, account: string): UserRow | undefined {
-  return db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(account, account) as UserRow | undefined;
+  return db.prepare('SELECT * FROM users WHERE username = ? OR email = ? OR nickname = ?').get(account, account, account) as UserRow | undefined;
 }
 
 /** 邮箱格式验证 */

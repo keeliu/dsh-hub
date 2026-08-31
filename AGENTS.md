@@ -26,6 +26,7 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 │   └── 03-Spike验证记录.md
 ├── openspec/                # OpenSpec 规范驱动开发（先写规范，再写代码）
 │   ├── specs/               # 已实现的功能规范（真相之源）
+│   │   └── standards.md     # 架构与代码规范（长期约束）
 │   └── changes/             # 待实现的变更提案
 │       ├── [变更名]/        # 每个变更一个目录
 │       │   ├── proposal.md  # Why / What / Impact
@@ -105,6 +106,7 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 
 ### 目录约定
 - `openspec/specs/` — 已实现功能的最终规范（唯一真相源）
+- `openspec/specs/standards.md` — **架构与代码规范**（分层、安全、去重、工艺等长期约束，所有后续变更必须遵守）
 - `openspec/changes/` — 进行中的变更提案
 - `openspec/changes/archive/` — 已完成的变更归档
 
@@ -112,6 +114,7 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 - **禁止跳过规范直接写代码**：任何功能新增或改动，必须先在 `openspec/changes/` 下创建完整提案
 - **规范文档随代码一起提交到 git**：openspec/ 目录必须在版本控制中
 - **specs/ 是真相之源**：归档后规范合并到 specs/，后续开发以 specs/ 为准
+- **遵守架构与代码规范**：`openspec/specs/standards.md` 中的强制条目对所有后续变更生效，提案和设计中不得违反
 
 ## 常见问题和预防
 

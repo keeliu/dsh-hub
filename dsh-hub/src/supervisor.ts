@@ -265,6 +265,17 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
     spawnBin = process.execPath;
     spawnArgs = [bin, ...args];
   } else {
+    // 检查 dsh 是否在 PATH 中可用
+    const { execSync } = await import('node:child_process');
+    try {
+      execSync('which dsh', { stdio: 'ignore' });
+    } catch {
+      writeFailureSnapshot(record, 'dsh not found', 'dsh binary not found in PATH or DSH_BIN');
+      db.prepare("UPDATE instances SET status = 'failed' WHERE id = ?").run(record.id);
+      clearPidfile(record);
+      releaseLock(record, lockToken);
+      return { status: 'failed', error: 'dsh binary not found. Please install @deepseek-ai/dsh or set DSH_BIN env.' };
+    }
     spawnBin = 'dsh';
   }
 

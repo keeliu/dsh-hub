@@ -10,6 +10,8 @@ import { listInstances } from './instances.ts';
 
 // DSH 实例静态资源前缀（绝对路径，需要 fallback 代理）
 const STATIC_ASSET_PREFIXES = ['/assets/', '/plugins/'];
+// DSH 实例特定文件（精确匹配）
+const STATIC_ASSET_FILES = ['/dsh-deployment.js'];
 
 const LANDING_PAGE_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -56,8 +58,9 @@ export async function handleGatewayRequest(
 ): Promise<boolean> {
   const pathname = (req.url || '/').split('?')[0] || '/';
   
-  // 静态资源 fallback：/assets/* 和 /plugins/* 代理到用户运行中的实例
-  if (STATIC_ASSET_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+  // 静态资源 fallback：/assets/*、/plugins/* 和 /dsh-deployment.js 代理到用户运行中的实例
+  if (STATIC_ASSET_PREFIXES.some(prefix => pathname.startsWith(prefix)) ||
+      STATIC_ASSET_FILES.includes(pathname)) {
     return handleStaticAssetFallback(req, res, pathname);
   }
   

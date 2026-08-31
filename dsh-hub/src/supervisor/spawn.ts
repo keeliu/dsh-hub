@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, openSync, closeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { InstanceRecord } from './index.ts';
-import { START_TIMEOUT_MS } from './index.ts';
+import { START_TIMEOUT_MS, transitionStatus, forceStatus } from './index.ts';
 import { isAlive, procMatches, sleep, tcpConnectable } from './probe.ts';
 import { acquireLock, releaseLock } from './lock.ts';
 import { clearPidfile, readPidfile, writePidfile } from './pidfile.ts';
@@ -39,7 +39,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
     if (pid && isAlive(pid) && procMatches(pid, record.port)) {
       return { status: 'running', pid };
     }
-    db.prepare("UPDATE instances SET status = 'stopped', pid = NULL WHERE id = ?").run(record.id);
+    forceStatus(db, record.id, 'stopped', null);
     clearPidfile(record);
     releaseLock(record);
   }
@@ -57,7 +57,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
 
   if (record.harness_version && !isValidHarnessVersion(record.harness_version)) {
     writeFailureSnapshot(record, 'invalid harness_version', `版本 ${record.harness_version} 不合法（仅允许显式 semver）`);
-    db.prepare("UPDATE instances SET status = 'failed' WHERE id = ?").run(record.id);
+    transitionStatus(db, record.id, 'failed');
     clearPidfile(record);
     releaseLock(record, lockToken);
     return { status: 'failed', error: `invalid harness_version: ${record.harness_version}` };
@@ -82,7 +82,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
       execSync('which dsh', { stdio: 'ignore' });
     } catch {
       writeFailureSnapshot(record, 'dsh not found', 'dsh binary not found in PATH or DSH_BIN');
-      db.prepare("UPDATE instances SET status = 'failed' WHERE id = ?").run(record.id);
+      transitionStatus(db, record.id, 'failed');
       clearPidfile(record);
       releaseLock(record, lockToken);
       return { status: 'failed', error: 'dsh binary not found. Please install @deepseek-ai/dsh or set DSH_BIN env.' };
@@ -105,7 +105,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
   } catch (e) {
     closeSync(fd);
     writeFailureSnapshot(record, 'spawn failed', String(e));
-    db.prepare("UPDATE instances SET status = 'failed' WHERE id = ?").run(record.id);
+    transitionStatus(db, record.id, 'failed');
     clearPidfile(record);
     releaseLock(record, lockToken);
     return { status: 'failed', error: `spawn failed: ${String(e)}` };
@@ -115,7 +115,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
   const pgid = child.pid;
   if (!pgid) {
     writeFailureSnapshot(record, 'spawn produced no pid', 'child.pid is undefined');
-    db.prepare("UPDATE instances SET status = 'failed' WHERE id = ?").run(record.id);
+    transitionStatus(db, record.id, 'failed');
     clearPidfile(record);
     releaseLock(record, lockToken);
     return { status: 'failed', error: 'spawn produced no pid' };
@@ -146,6 +146,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
     db.prepare('UPDATE instances SET status = ?, pid = ?, last_started_at = ? WHERE id = ?')
       .run('running', pgid, Date.now(), record.id);
     child.once('exit', () => {
+      // 运行期崩溃：条件更新（仅当仍是 running 时），不走 transitionStatus
       db.prepare("UPDATE instances SET status = 'failed', pid = NULL WHERE id = ? AND status = 'running'").run(record.id);
       releaseLock(record);
     });
@@ -155,7 +156,8 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
   await stopProcessGroup(pgid, 1000);
   const detail = `端口 ${record.port} 探活失败；${abortReason || '进程未退出'}\n\n--- web.out.log 尾部 ---\n${readTail()}`;
   writeFailureSnapshot(record, 'TCP ready probe timeout', detail);
-  db.prepare("UPDATE instances SET status = 'failed', pid = NULL WHERE id = ?").run(record.id);
+  transitionStatus(db, record.id, 'failed');
+  db.prepare('UPDATE instances SET pid = NULL WHERE id = ?').run(record.id);
   clearPidfile(record);
   releaseLock(record, lockToken);
   return { status: 'failed', error: `not ready within ${START_TIMEOUT_MS / 1000}s; ${abortReason || '(no early exit, see log)'}` };

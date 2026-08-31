@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { InstanceRecord } from './index.ts';
-import { PORT_FREE_WAIT_MS, STOP_GRACE_MS } from './index.ts';
+import { PORT_FREE_WAIT_MS, STOP_GRACE_MS, transitionStatus } from './index.ts';
 import { groupAlive, isAlive, procMatches, sleep, tcpConnectable } from './probe.ts';
 import { releaseLock } from './lock.ts';
 import { clearPidfile, readPidfile } from './pidfile.ts';
@@ -28,7 +28,7 @@ export async function waitPortFree(port: number, timeoutMs: number): Promise<boo
 /** 停止实例：TERM 进程组 → 8s → KILL；释放锁并确认端口释放。 */
 export async function stopInstance(db: DatabaseSync, record: InstanceRecord, opts: { force?: boolean } = {}): Promise<void> {
   if (record.status === 'stopped' && !isAlive(record.pid)) return;
-  db.prepare('UPDATE instances SET status = ? WHERE id = ?').run('stopping', record.id);
+  transitionStatus(db, record.id, 'stopping');
   const pid = record.pid ?? readPidfile(record);
   if (pid && isAlive(pid) && procMatches(pid, record.port)) {
     await stopProcessGroup(pid, STOP_GRACE_MS);
@@ -36,5 +36,6 @@ export async function stopInstance(db: DatabaseSync, record: InstanceRecord, opt
   releaseLock(record);
   clearPidfile(record);
   if (record.port) await waitPortFree(record.port, PORT_FREE_WAIT_MS);
-  db.prepare('UPDATE instances SET status = ?, pid = NULL WHERE id = ?').run('stopped', record.id);
+  transitionStatus(db, record.id, 'stopped');
+  db.prepare('UPDATE instances SET pid = NULL WHERE id = ?').run(record.id);
 }

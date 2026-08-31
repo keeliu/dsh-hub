@@ -3,6 +3,7 @@ import type { InstanceRecord } from './index.ts';
 import { isAlive, procMatches } from './probe.ts';
 import { releaseLock } from './lock.ts';
 import { clearPidfile, readPidfile } from './pidfile.ts';
+import { forceStatus } from './index.ts';
 
 /** 监督器启动时的孤儿认领：按 pidfile/锁与进程活性（含身份校验）校正 DB 状态。 */
 export function reclaim(db: DatabaseSync): string[] {
@@ -12,11 +13,12 @@ export function reclaim(db: DatabaseSync): string[] {
     const pid = r.pid ?? readPidfile(r);
     if (pid && isAlive(pid) && procMatches(pid, r.port)) {
       if (r.status !== 'running') {
-        db.prepare("UPDATE instances SET status = 'running' WHERE id = ?").run(r.id);
+        // stale 状态校正（不走 transitionStatus，因为是校正而非业务转换）
+        forceStatus(db, r.id, 'running', pid);
         fixed.push(`${r.id}: stale->running (pid ${pid})`);
       }
     } else {
-      db.prepare("UPDATE instances SET status = 'stopped', pid = NULL WHERE id = ?").run(r.id);
+      forceStatus(db, r.id, 'stopped', null);
       releaseLock(r);
       clearPidfile(r);
       fixed.push(`${r.id}: stale->stopped`);

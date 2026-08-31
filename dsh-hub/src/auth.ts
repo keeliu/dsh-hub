@@ -11,8 +11,10 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { HttpError, parseCookies } from './http.ts';
-import { CSRF_COOKIE, resolveApiToken, SESSION_COOKIE, validateSession } from './sessions.ts';
-import { getUser, type Role, type UserRow } from './users.ts';
+import { CSRF_COOKIE, createSession, resolveApiToken, SESSION_COOKIE, validateSession } from './sessions.ts';
+import { getUser, getUserByAccount, type Role, type UserRow } from './users.ts';
+import { verifyPassword, DUMMY_HASH } from './pwd.ts';
+import { audit } from './db.ts';
 
 export interface AuthResult {
   user: UserRow;
@@ -90,4 +92,43 @@ export function recordLoginFailure(key: string): void {
 
 export function clearLoginLock(key: string): void {
   loginLocks.delete(key);
+}
+
+// ---------- 登录统一入口 ----------
+
+export interface LoginResult {
+  user: UserRow;
+  token: string;
+  csrf: string;
+}
+
+/** 统一登录逻辑（pages/api 共享），处理限速、密码校验、会话创建、审计。 */
+export function attemptLogin(
+  db: DatabaseSync,
+  account: string,
+  password: string,
+  ip: string | null,
+  ua: string | null
+): LoginResult {
+  const key = loginLockKey(ip, account);
+  checkLoginLock(key);
+
+  const user = getUserByAccount(db, account);
+  let valid = false;
+  if (user) valid = verifyPassword(password, user.password_hash);
+  else verifyPassword(password, DUMMY_HASH);
+
+  if (!user || !valid) {
+    recordLoginFailure(key);
+    audit(db, 'login_failed', null, user?.id ?? null, `account=${account} ip=${ip}`);
+    throw new HttpError(401, 'bad_credentials', 'invalid account or password');
+  }
+  if (user.status === 'disabled') throw new HttpError(403, 'disabled', 'account disabled');
+
+  clearLoginLock(key);
+  const session = createSession(db, user.id, ip, ua);
+  db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(Date.now(), user.id);
+  audit(db, 'login', user.id, user.id, `ip=${ip}`);
+
+  return { user, ...session };
 }

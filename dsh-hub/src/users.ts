@@ -10,6 +10,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
+import { withTx } from './db.ts';
 
 /** 短随机 ID（实例 ID / slug 兜底 / 目录兜底共用）。 */
 export function shortId(n = 8): string {
@@ -110,4 +111,25 @@ export function isValidEmail(email: string): boolean {
 /** 用户名验证（字母数字下划线，3-32 字符） */
 export function isValidUsername(username: string): boolean {
   return /^[a-zA-Z0-9_]{3,32}$/.test(username);
+}
+
+// ---------- 用户管理操作 ----------
+
+/** 封禁用户：停实例 + 吊销会话 + 吊销 token */
+export async function disableUser(
+  db: DatabaseSync,
+  userId: number,
+  stopInstanceFn: (db: DatabaseSync, inst: any) => Promise<void>,
+  listRunningFn: (db: DatabaseSync, userId: number) => any[]
+): Promise<void> {
+  // 停实例（事务外，异步）
+  for (const inst of listRunningFn(db, userId)) {
+    await stopInstanceFn(db, inst);
+  }
+  withTx(db, () => {
+    db.prepare('UPDATE users SET status = ? WHERE id = ?').run('disabled', userId);
+    db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+    db.prepare('UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL')
+      .run(Date.now(), userId);
+  });
 }

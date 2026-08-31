@@ -7,15 +7,16 @@
 import http from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { escapeHtml, readForm, redirect, sendHtml, parseCookies } from './http.ts';
-import { authenticate, assertCsrf } from './auth.ts';
+import { authenticate, assertCsrf, attemptLogin } from './auth.ts';
 import { getSetting } from './settings.ts';
 import { getUser, type UserRow } from './users.ts';
 import { createSession, destroySession, SESSION_COOKIE, CSRF_COOKIE } from './sessions.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
-import { listInstances, getInstance, createInstance, deleteInstance, listAllInstances, runningCount } from './instances.ts';
+import { listInstances, getInstance, createInstance, deleteInstance, listAllInstances, runningCount, listRunningInstances } from './instances.ts';
 import { startInstance, stopInstance, tailLog } from './supervisor.ts';
 import { audit, withTx } from './db.ts';
 import { timingSafeEqual } from 'node:crypto';
+import { disableUser } from './users.ts';
 
 // 页面视图
 import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
@@ -185,30 +186,22 @@ page('POST', '/login', async ({ db, req, res }) => {
     return;
   }
 
-  // 支持 username 或 email 登录
-  const user = getUserByAccount(db, account);
-  let valid = false;
-  if (user) valid = verifyPassword(password, user.password_hash);
-  else verifyPassword(password, DUMMY_HASH);
-
-  if (!user || !valid) {
-    const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
-    sendHtml(res, 401, renderLoginPage('用户名/邮箱或密码错误', regOpen));
-    return;
+  try {
+    const ip = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() ?? req.socket.remoteAddress ?? null;
+    const ua = req.headers['user-agent'] ?? null;
+    const result = attemptLogin(db, account, password, ip, ua);
+    setSessionCookie(res, result.token, result.csrf);
+    const isAdmin = result.user.role === 'admin' || result.user.role === 'root';
+    redirect(res, isAdmin ? '/admin' : '/');
+  } catch (e) {
+    if (e instanceof HttpError) {
+      const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
+      const msg = e.code === 'disabled' ? '账号已被禁用' : '用户名/邮箱或密码错误';
+      sendHtml(res, e.status, renderLoginPage(msg, regOpen));
+    } else {
+      sendHtml(res, 500, renderLoginPage('登录失败：' + (e instanceof Error ? e.message : String(e))));
+    }
   }
-
-  if (user.status === 'disabled') {
-    sendHtml(res, 403, renderLoginPage('账号已被禁用'));
-    return;
-  }
-
-  audit(db, 'login', user.id, user.id);
-  db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(Date.now(), user.id);
-  const { token, csrf } = createSession(db, user.id, null, req.headers['user-agent'] ?? null);
-  setSessionCookie(res, token, csrf);
-
-  const isAdmin = user.role === 'admin' || user.role === 'root';
-  redirect(res, isAdmin ? '/admin' : '/');
 });
 
 // GET /register - 注册页面
@@ -575,13 +568,12 @@ page('POST', '/admin/users/:id/disable', async ({ db, req, res, params }) => {
   const id = Number(params.id ?? 0);
   const target = getUser(db, id);
   if (!target) { redirect(res, '/admin/users'); return; }
-  // 停止该用户所有运行中实例
-  const running = db.prepare("SELECT * FROM instances WHERE owner_id = ? AND status IN ('running','starting')").all(id) as any[];
-  for (const inst of running) await stopInstance(db, inst);
-  db.prepare('UPDATE users SET status = ? WHERE id = ?').run('disabled', id);
-  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);
-  db.prepare('UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(Date.now(), id);
-  audit(db, 'user_disable', actor.id, id, `disabled ${target.nickname}`);
+  try {
+    await disableUser(db, id, stopInstance, listRunningInstances);
+    audit(db, 'user_disable', actor.id, id, `disabled ${target.nickname}`);
+  } catch (e) {
+    console.error('disableUser failed:', e);
+  }
   redirect(res, '/admin/users');
 });
 

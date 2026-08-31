@@ -9,9 +9,10 @@ import type { DatabaseSync } from 'node:sqlite';
 import { escapeHtml, readForm, redirect, sendHtml, parseCookies } from './http.ts';
 import { authenticate, assertCsrf, attemptLogin } from './auth.ts';
 import { getSetting } from './settings.ts';
-import { getUser, type UserRow } from './users.ts';
+import { getUser, createUserRow, type UserRow } from './users.ts';
 import { createSession, destroySession, SESSION_COOKIE, CSRF_COOKIE } from './sessions.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
+import { config } from './config.ts';
 import { listInstances, getInstance, createInstance, deleteInstance, listAllInstances, runningCount, listRunningInstances } from './instances.ts';
 import { startInstance, stopInstance, tailLog } from './supervisor/index.ts';
 import { audit, withTx } from './db.ts';
@@ -42,7 +43,7 @@ function hasUsers(db: DatabaseSync): boolean {
 
 /** 会话 cookie 设置 */
 function setSessionCookie(res: http.ServerResponse, token: string, csrf: string): void {
-  const secure = process.env.DSH_HUB_COOKIE_SECURE === '1' ? '; Secure' : '';
+  const secure = config.cookieSecure ? '; Secure' : '';
   res.setHeader('set-cookie', [
     `${SESSION_COOKIE}=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${7 * 24 * 3600}${secure}`,
     `${CSRF_COOKIE}=${csrf}; SameSite=Lax; Path=/; Max-Age=${7 * 24 * 3600}${secure}`,
@@ -149,10 +150,13 @@ page('POST', '/setup', async ({ db, req, res }) => {
     withTx(db, () => {
       const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
       if (count > 0) throw new Error('setup_closed');
-      const id = db.prepare(
-        'INSERT INTO users (nickname, slug, dir_name, username, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(nickname, nickname.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`, nickname, finalUsername, email || null, hashPassword(password), 'admin', 'active', 3, 1, Date.now());
-      user = getUser(db, id.lastInsertRowid as number)!;
+      user = createUserRow(db, {
+        nickname,
+        username: finalUsername,
+        email: email || null,
+        passwordHash: hashPassword(password),
+        role: 'admin',
+      });
     });
     audit(db, 'setup', user!.id, user!.id, `setup created admin ${user!.nickname}`);
     const { token, csrf } = createSession(db, user!.id, null, null);
@@ -260,11 +264,13 @@ page('POST', '/register', async ({ db, req, res }) => {
     withTx(db, () => {
       const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
       const role = count === 0 ? 'root' : 'user';
-      const slug = nickname.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`;
-      const id = db.prepare(
-        'INSERT INTO users (nickname, slug, dir_name, username, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(nickname, slug, nickname, username, email, hashPassword(password), role, 'active', 3, 1, Date.now());
-      user = getUser(db, id.lastInsertRowid as number)!;
+      user = createUserRow(db, {
+        nickname,
+        username,
+        email,
+        passwordHash: hashPassword(password),
+        role,
+      });
     });
     audit(db, 'register', user!.id, user!.id, `registered as ${user!.role}`);
     const { token, csrf } = createSession(db, user!.id, null, null);
@@ -545,10 +551,13 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
   assertPageCsrf(req, form);
   try {
     withTx(db, () => {
-      const slug = (form.nickname || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`;
-      db.prepare(
-        'INSERT INTO users (nickname, username, slug, dir_name, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-      ).run(form.nickname ?? '', form.username ?? '', slug, form.nickname ?? '', form.email || null, hashPassword(form.password ?? ''), form.role ?? 'user', 'active', 3, 1, Date.now());
+      createUserRow(db, {
+        nickname: form.nickname ?? '',
+        username: form.username ?? '',
+        email: form.email || null,
+        passwordHash: hashPassword(form.password ?? ''),
+        role: (form.role as any) ?? 'user',
+      });
     });
     audit(db, 'user_create', actor.id, null, `created user ${form.nickname}`);
     redirect(res, '/admin/users');

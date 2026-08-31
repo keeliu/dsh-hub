@@ -113,6 +113,40 @@ export function isValidUsername(username: string): boolean {
   return /^[a-zA-Z0-9_]{3,32}$/.test(username);
 }
 
+// ---------- 用户创建 ----------
+
+export interface CreateUserParams {
+  nickname: string;
+  username: string;
+  email: string | null;
+  passwordHash: string;
+  role: Role;
+  maxInstances?: number;
+  maxRunning?: number;
+}
+
+/** 创建用户行：生成 slug/dir_name，插入数据库，返回新用户。 */
+export function createUserRow(db: DatabaseSync, params: CreateUserParams): UserRow {
+  const slug = generateSlug(params.nickname, (s) => !!db.prepare('SELECT 1 FROM users WHERE slug = ?').get(s));
+  const dirName = sanitizeNickname(params.nickname);
+  const id = db.prepare(
+    'INSERT INTO users (nickname, slug, dir_name, username, email, password_hash, role, status, max_instances, max_running, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    params.nickname,
+    slug,
+    dirName,
+    params.username,
+    params.email,
+    params.passwordHash,
+    params.role,
+    'active',
+    params.maxInstances ?? 3,
+    params.maxRunning ?? 1,
+    Date.now()
+  );
+  return getUser(db, id.lastInsertRowid as number)!;
+}
+
 // ---------- 用户管理操作 ----------
 
 /** 封禁用户：停实例 + 吊销会话 + 吊销 token */

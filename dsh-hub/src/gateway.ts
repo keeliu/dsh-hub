@@ -180,3 +180,24 @@ async function handleStaticAssetFallback(
   await proxyHttpRequest(req, res, target);
   return true;
 }
+
+/**
+ * DSH API fallback：DSH 实例的 JS 代码请求 /api/host.* 等绝对路径，
+ * 这些请求直接发到 hub，需要代理到用户的 DSH 实例。
+ */
+export async function proxyToDshInstance(
+  db: DatabaseSync,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<boolean> {
+  const auth = authenticate(db, req);
+  if (!auth) return false;
+  
+  const instances = listInstances(db, auth.user.id);
+  const running = instances.find(i => i.status === 'running' && i.port);
+  if (!running || !running.port) return false;
+  
+  const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
+  await proxyHttpRequest(req, res, target);
+  return true;
+}

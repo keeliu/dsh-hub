@@ -29,7 +29,7 @@ import http from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { audit, withTx } from './db.ts';
 import { handlePageRequest } from './pages.ts';
-import { handleGatewayRequest, handleGatewayWebSocket } from './gateway.ts';
+import { handleGatewayRequest, handleGatewayWebSocket, proxyToDshInstance } from './gateway.ts';
 import { config } from './config.ts';
 import { HttpError, clientIp, parseCookies, readJson, sendError, sendJson } from './http.ts';
 import {
@@ -721,6 +721,11 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
 
       const match = matchRoute(routes, method, url.pathname);
       if (!match) {
+        // DSH API fallback：如果请求 /api/* 但 hub 没有路由，尝试代理到用户的 DSH 实例
+        if (url.pathname.startsWith('/api/')) {
+          const proxied = await proxyToDshInstance(db, req, res);
+          if (proxied) return;
+        }
         sendJson(res, 404, { error: { code: 'not_found', message: 'not found' } });
         return;
       }

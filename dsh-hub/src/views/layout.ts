@@ -323,14 +323,21 @@ function renderNav(user: UserRow | null): string {
 }
 
 /** 渲染页面布局 */
-export function layout(title: string, content: string, user: UserRow | null, flash?: { type: string; message: string }): string {
+/** CSRF 隐藏字段 */
+export function csrfField(csrf: string): string {
+  return `<input type="hidden" name="_csrf" value="${escapeHtml(csrf)}">`;
+}
+
+export function layout(title: string, content: string, user: UserRow | null, flash?: { type: string; message: string }, csrf?: string): string {
   const flashHtml = flash ? `<div class="alert alert-${flash.type}">${escapeHtml(flash.message)}</div>` : '';
+  const csrfMeta = csrf ? `<meta name="csrf-token" content="${escapeHtml(csrf)}">` : '';
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${csrfMeta}
   <title>${escapeHtml(title)} - DSH Hub</title>
   <style>${CSS}</style>
 </head>

@@ -6,8 +6,8 @@
  */
 import http from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
-import { escapeHtml, readForm, redirect, sendHtml } from './http.ts';
-import { authenticate } from './auth.ts';
+import { escapeHtml, readForm, redirect, sendHtml, parseCookies } from './http.ts';
+import { authenticate, assertCsrf } from './auth.ts';
 import { getSetting } from './settings.ts';
 import { getUser, type UserRow } from './users.ts';
 import { createSession, destroySession, SESSION_COOKIE, CSRF_COOKIE } from './sessions.ts';
@@ -15,6 +15,7 @@ import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { listInstances, getInstance, createInstance, deleteInstance, listAllInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog } from './supervisor.ts';
 import { audit, withTx } from './db.ts';
+import { timingSafeEqual } from 'node:crypto';
 
 // 页面视图
 import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
@@ -53,6 +54,26 @@ function clearSessionCookie(res: http.ServerResponse): void {
     `${SESSION_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
     `${CSRF_COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`,
   ]);
+}
+
+/** 页面表单 CSRF 校验（已登录用户的 POST 请求） */
+function assertPageCsrf(req: http.IncomingMessage, form: Record<string, string>): void {
+  const cookies = parseCookies(req);
+  const expected = cookies[CSRF_COOKIE];
+  const got = form._csrf;
+  if (!expected || !got || !timingSafeEqual(Buffer.from(expected), Buffer.from(got))) {
+    throw new HttpError(403, 'csrf_invalid', 'CSRF 校验失败');
+  }
+}
+
+class HttpError extends Error {
+  status: number;
+  code: string;
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
 }
 
 /** 路由匹配 */
@@ -376,14 +397,16 @@ page('GET', '/', ({ db, req, res }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
   const instances = listInstances(db, auth.user.id);
-  sendHtml(res, 200, renderInstancesPage(auth.user, instances));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderInstancesPage(auth.user, instances, undefined, csrf));
 });
 
 // GET /instances/new - 新建实例页面
 page('GET', '/instances/new', ({ db, req, res }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
-  sendHtml(res, 200, renderNewInstancePage(auth.user));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderNewInstancePage(auth.user, undefined, csrf));
 });
 
 // POST /instances - 创建实例
@@ -391,6 +414,7 @@ page('POST', '/instances', async ({ db, req, res }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
   const form = await readForm(req);
+  assertPageCsrf(req, form);
   try {
     await createInstance(db, auth.user, {
       name: form.name || `${auth.user.nickname} 的实例`,
@@ -399,7 +423,8 @@ page('POST', '/instances', async ({ db, req, res }) => {
     redirect(res, '/');
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    sendHtml(res, 400, renderNewInstancePage(auth.user, msg));
+    const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+    sendHtml(res, 400, renderNewInstancePage(auth.user, msg, csrf));
   }
 });
 
@@ -414,13 +439,16 @@ page('GET', '/instances/:id', ({ db, req, res, params }) => {
     return;
   }
   const logs = inst.status === 'running' ? tailLog(inst, 200) : '';
-  sendHtml(res, 200, renderInstanceDetailPage(auth.user, inst, logs));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderInstanceDetailPage(auth.user, inst, logs, csrf));
 });
 
 // POST /instances/:id/start - 启动实例
 page('POST', '/instances/:id/start', async ({ db, req, res, params }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const instId = params.id ?? '';
   const inst = getInstance(db, instId);
   if (!inst || (inst.owner_id !== auth.user.id && auth.user.role === 'user')) {
@@ -436,6 +464,8 @@ page('POST', '/instances/:id/start', async ({ db, req, res, params }) => {
 page('POST', '/instances/:id/stop', async ({ db, req, res, params }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const instId = params.id ?? '';
   const inst = getInstance(db, instId);
   if (!inst || (inst.owner_id !== auth.user.id && auth.user.role === 'user')) {
@@ -451,6 +481,8 @@ page('POST', '/instances/:id/stop', async ({ db, req, res, params }) => {
 page('POST', '/instances/:id/restart', async ({ db, req, res, params }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const instId = params.id ?? '';
   const inst = getInstance(db, instId);
   if (!inst || (inst.owner_id !== auth.user.id && auth.user.role === 'user')) {
@@ -465,9 +497,11 @@ page('POST', '/instances/:id/restart', async ({ db, req, res, params }) => {
 });
 
 // POST /instances/:id/delete - 删除实例
-page('POST', '/instances/:id/delete', ({ db, req, res, params }) => {
+page('POST', '/instances/:id/delete', async ({ db, req, res, params }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const instId = params.id ?? '';
   const inst = getInstance(db, instId);
   if (!inst || (inst.owner_id !== auth.user.id && auth.user.role === 'user')) {
@@ -506,7 +540,8 @@ page('GET', '/admin/users', ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
   const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
-  sendHtml(res, 200, renderUsersPage(user, users));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderUsersPage(user, users, undefined, csrf));
 });
 
 // POST /admin/users - 创建用户
@@ -514,6 +549,7 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
   const actor = requireAdmin(db, req, res);
   if (!actor) return;
   const form = await readForm(req);
+  assertPageCsrf(req, form);
   try {
     withTx(db, () => {
       const slug = (form.nickname || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 32) || `u-${Date.now().toString(36)}`;
@@ -525,7 +561,8 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
     redirect(res, '/admin/users');
   } catch (e) {
     const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
-    sendHtml(res, 400, renderUsersPage(actor, users, { type: 'danger', message: '创建失败：' + (e instanceof Error ? e.message : String(e)) }));
+    const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+    sendHtml(res, 400, renderUsersPage(actor, users, { type: 'danger', message: '创建失败：' + (e instanceof Error ? e.message : String(e)) }, csrf));
   }
 });
 
@@ -533,6 +570,8 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
 page('POST', '/admin/users/:id/disable', async ({ db, req, res, params }) => {
   const actor = requireAdmin(db, req, res);
   if (!actor) return;
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const id = Number(params.id ?? 0);
   const target = getUser(db, id);
   if (!target) { redirect(res, '/admin/users'); return; }
@@ -547,9 +586,11 @@ page('POST', '/admin/users/:id/disable', async ({ db, req, res, params }) => {
 });
 
 // POST /admin/users/:id/enable - 启用用户
-page('POST', '/admin/users/:id/enable', ({ db, req, res, params }) => {
+page('POST', '/admin/users/:id/enable', async ({ db, req, res, params }) => {
   const actor = requireAdmin(db, req, res);
   if (!actor) return;
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const id = Number(params.id ?? 0);
   db.prepare('UPDATE users SET status = ? WHERE id = ?').run('active', id);
   audit(db, 'user_enable', actor.id, id);
@@ -561,13 +602,16 @@ page('GET', '/admin/instances', ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
   const instances = listAllInstances(db);
-  sendHtml(res, 200, renderAdminInstancesPage(user, instances));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderAdminInstancesPage(user, instances, csrf));
 });
 
 // POST /admin/instances/:id/start - 管理员启动实例
 page('POST', '/admin/instances/:id/start', async ({ db, req, res, params }) => {
   const actor = requireAdmin(db, req, res);
   if (!actor) return;
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const instId = params.id ?? '';
   const inst = getInstance(db, instId);
   if (!inst) { redirect(res, '/admin/instances'); return; }
@@ -580,6 +624,8 @@ page('POST', '/admin/instances/:id/start', async ({ db, req, res, params }) => {
 page('POST', '/admin/instances/:id/stop', async ({ db, req, res, params }) => {
   const actor = requireAdmin(db, req, res);
   if (!actor) return;
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const instId = params.id ?? '';
   const inst = getInstance(db, instId);
   if (!inst) { redirect(res, '/admin/instances'); return; }
@@ -589,9 +635,11 @@ page('POST', '/admin/instances/:id/stop', async ({ db, req, res, params }) => {
 });
 
 // POST /admin/instances/:id/delete - 管理员删除实例
-page('POST', '/admin/instances/:id/delete', ({ db, req, res, params }) => {
+page('POST', '/admin/instances/:id/delete', async ({ db, req, res, params }) => {
   const actor = requireAdmin(db, req, res);
   if (!actor) return;
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
   const instId = params.id ?? '';
   const inst = getInstance(db, instId);
   if (!inst) { redirect(res, '/admin/instances'); return; }
@@ -615,7 +663,8 @@ page('GET', '/admin/settings', ({ db, req, res }) => {
   const settings = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
   const map: Record<string, string> = {};
   for (const s of settings) map[s.key] = s.value;
-  sendHtml(res, 200, renderSettingsPage(user, map));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderSettingsPage(user, map, undefined, csrf));
 });
 
 // POST /admin/settings - 保存设置
@@ -623,6 +672,7 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
   const form = await readForm(req);
+  assertPageCsrf(req, form);
   console.log('[settings] form data:', form);
   for (const [key, value] of Object.entries(form)) {
     if (['registration_open', 'default_harness_version', 'allowed_harness_versions'].includes(key)) {
@@ -635,7 +685,8 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   const map: Record<string, string> = {};
   for (const s of settings) map[s.key] = s.value;
   console.log('[settings] current settings:', map);
-  sendHtml(res, 200, renderSettingsPage(user, map, { type: 'success', message: '设置已保存' }));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderSettingsPage(user, map, { type: 'success', message: '设置已保存' }, csrf));
 });
 
 // ========== 路由分发 ==========

@@ -4,7 +4,7 @@
  * 实例列表 / 实例详情 页面渲染
  */
 import { escapeHtml } from '../http.ts';
-import { layout } from './layout.ts';
+import { layout, csrfField } from './layout.ts';
 import { buildInstanceUrl } from '../subdomain.ts';
 import { config } from '../config.ts';
 import type { UserRow } from '../users.ts';
@@ -34,7 +34,7 @@ function statusBadge(status: string): string {
 }
 
 /** 实例列表页（/） */
-export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], flash?: { type: string; message: string }): string {
+export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], flash?: { type: string; message: string }, csrf?: string): string {
   const instancesHtml = instances.length === 0
     ? `<div class="empty-state">
         <div class="empty-state-icon">📦</div>
@@ -61,19 +61,23 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
               <td class="actions">
                 ${inst.status === 'stopped' || inst.status === 'failed'
                   ? `<form method="POST" action="/instances/${inst.id}/start" style="display:inline">
+                      ${csrfField(csrf ?? '')}
                       <button type="submit" class="btn btn-sm btn-success">启动</button>
                      </form>`
                   : ''}
                 ${inst.status === 'running'
                   ? `<form method="POST" action="/instances/${inst.id}/stop" style="display:inline">
+                      ${csrfField(csrf ?? '')}
                       <button type="submit" class="btn btn-sm btn-secondary">停止</button>
                      </form>
                      <form method="POST" action="/instances/${inst.id}/restart" style="display:inline">
+                      ${csrfField(csrf ?? '')}
                       <button type="submit" class="btn btn-sm btn-primary">重启</button>
                      </form>`
                   : ''}
                 <form method="POST" action="/instances/${inst.id}/delete" style="display:inline"
                       onsubmit="return confirm('确定要删除实例「${escapeHtml(inst.name)}」吗？此操作不可恢复。')">
+                  ${csrfField(csrf ?? '')}
                   <button type="submit" class="btn btn-sm btn-danger">删除</button>
                 </form>
               </td>
@@ -98,11 +102,11 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
     </div>
   `;
 
-  return layout('我的实例', content, user, flash);
+  return layout('我的实例', content, user, flash, csrf);
 }
 
 /** 新建实例页面（/instances/new） */
-export function renderNewInstancePage(user: UserRow, error?: string): string {
+export function renderNewInstancePage(user: UserRow, error?: string, csrf?: string): string {
   const errorHtml = error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : '';
 
   const content = `
@@ -110,6 +114,7 @@ export function renderNewInstancePage(user: UserRow, error?: string): string {
     <div class="card" style="max-width:500px">
       ${errorHtml}
       <form method="POST" action="/instances">
+        ${csrfField(csrf ?? '')}
         <div class="form-group">
           <label class="form-label" for="name">实例名称</label>
           <input type="text" id="name" name="name" class="form-control" placeholder="我的实例" required>
@@ -127,11 +132,11 @@ export function renderNewInstancePage(user: UserRow, error?: string): string {
     </div>
   `;
 
-  return layout('新建实例', content, user);
+  return layout('新建实例', content, user, undefined, csrf);
 }
 
 /** 实例详情页（/instances/:id） */
-export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, logs: string): string {
+export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, logs: string, csrf?: string): string {
   const content = `
     <div style="margin-bottom:1rem">
       <a href="/" style="color:var(--gray-600)">← 返回列表</a>
@@ -141,14 +146,17 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
       <div class="actions">
         ${instance.status === 'stopped' || instance.status === 'failed'
           ? `<form method="POST" action="/instances/${instance.id}/start" style="display:inline">
+              ${csrfField(csrf ?? '')}
               <button type="submit" class="btn btn-success">启动</button>
              </form>`
           : ''}
         ${instance.status === 'running'
           ? `<form method="POST" action="/instances/${instance.id}/stop" style="display:inline">
+              ${csrfField(csrf ?? '')}
               <button type="submit" class="btn btn-secondary">停止</button>
              </form>
              <form method="POST" action="/instances/${instance.id}/restart" style="display:inline">
+              ${csrfField(csrf ?? '')}
               <button type="submit" class="btn btn-primary">重启</button>
              </form>`
           : ''}
@@ -187,5 +195,5 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
     </div>
   `;
 
-  return layout(instance.name, content, user);
+  return layout(instance.name, content, user, undefined, csrf);
 }

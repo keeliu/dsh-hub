@@ -4,7 +4,7 @@
  * 仪表盘 / 用户管理 / 实例总览 / 审计日志 / 全局设置
  */
 import { escapeHtml } from '../http.ts';
-import { layout } from './layout.ts';
+import { layout, csrfField } from './layout.ts';
 import type { UserRow } from '../users.ts';
 
 interface InstanceInfo {
@@ -111,7 +111,7 @@ export function renderDashboardPage(user: UserRow, stats: { users: number; insta
 }
 
 /** 用户管理页（/admin/users） */
-export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type: string; message: string }): string {
+export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type: string; message: string }, csrf?: string): string {
   const flashHtml = flash ? `<div class="alert alert-${flash.type}">${escapeHtml(flash.message)}</div>` : '';
 
   const content = `
@@ -125,6 +125,7 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
       </div>
       <div id="create-user-form" style="display:none;margin-bottom:1rem;padding:1rem;background:var(--gray-100);border-radius:4px">
         <form method="POST" action="/admin/users">
+          ${csrfField(csrf ?? '')}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
             <div class="form-group" style="margin:0">
               <label class="form-label">昵称</label>
@@ -183,9 +184,11 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
               <td class="actions">
                 ${u.status === 'active'
                   ? `<form method="POST" action="/admin/users/${u.id}/disable" style="display:inline">
+                      ${csrfField(csrf ?? '')}
                       <button type="submit" class="btn btn-sm btn-danger">封禁</button>
                      </form>`
                   : `<form method="POST" action="/admin/users/${u.id}/enable" style="display:inline">
+                      ${csrfField(csrf ?? '')}
                       <button type="submit" class="btn btn-sm btn-success">启用</button>
                      </form>`
                 }
@@ -198,11 +201,11 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
     ${adminSidebarClose()}
   `;
 
-  return layout('用户管理', content, user);
+  return layout('用户管理', content, user, flash, csrf);
 }
 
 /** 实例总览页（/admin/instances） */
-export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[]): string {
+export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[], csrf?: string): string {
   const content = `
     <h1 style="margin-bottom:1.5rem">实例总览</h1>
     ${adminSidebar('instances')}
@@ -230,16 +233,19 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
               <td class="actions">
                 ${inst.status === 'stopped' || inst.status === 'failed'
                   ? `<form method="POST" action="/admin/instances/${inst.id}/start" style="display:inline">
+                      ${csrfField(csrf ?? '')}
                       <button type="submit" class="btn btn-sm btn-success">启动</button>
                      </form>`
                   : ''}
                 ${inst.status === 'running'
                   ? `<form method="POST" action="/admin/instances/${inst.id}/stop" style="display:inline">
+                      ${csrfField(csrf ?? '')}
                       <button type="submit" class="btn btn-sm btn-secondary">停止</button>
                      </form>`
                   : ''}
                 <form method="POST" action="/admin/instances/${inst.id}/delete" style="display:inline"
                       onsubmit="return confirm('确定删除实例 ${escapeHtml(inst.id)}？')">
+                  ${csrfField(csrf ?? '')}
                   <button type="submit" class="btn btn-sm btn-danger">删除</button>
                 </form>
               </td>
@@ -251,7 +257,7 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
     ${adminSidebarClose()}
   `;
 
-  return layout('实例总览', content, user);
+  return layout('实例总览', content, user, undefined, csrf);
 }
 
 /** 审计日志页（/admin/audit） */
@@ -289,7 +295,7 @@ export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
 }
 
 /** 全局设置页（/admin/settings） */
-export function renderSettingsPage(user: UserRow, settings: Record<string, string>, flash?: { type: string; message: string }): string {
+export function renderSettingsPage(user: UserRow, settings: Record<string, string>, flash?: { type: string; message: string }, csrf?: string): string {
   const flashHtml = flash ? `<div class="alert alert-${flash.type}">${escapeHtml(flash.message)}</div>` : '';
 
   const content = `
@@ -298,6 +304,7 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
     ${flashHtml}
     <div class="card">
       <form method="POST" action="/admin/settings">
+        ${csrfField(csrf ?? '')}
         <div class="form-group">
           <label class="form-label">注册开关</label>
           <select name="registration_open" class="form-control" style="max-width:200px">
@@ -323,5 +330,5 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
     ${adminSidebarClose()}
   `;
 
-  return layout('全局设置', content, user);
+  return layout('全局设置', content, user, flash, csrf);
 }

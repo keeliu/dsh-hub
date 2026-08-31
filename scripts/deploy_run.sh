@@ -12,6 +12,7 @@ cd "$PROJECT_DIR"
 # 部署环境配置
 export DSH_HUB_HOST="${DSH_HUB_HOST:-0.0.0.0}"
 export DSH_HUB_PORT="${DSH_HUB_PORT:-5000}"
+export DSH_HUB_DOMAIN="${DSH_HUB_DOMAIN:-hub.wuyajun.cn}"
 
 # 数据目录：优先使用持久化存储，不可写则回退到 /tmp
 if [ -z "${DSH_HUB_DATA:-}" ]; then

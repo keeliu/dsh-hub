@@ -48,14 +48,15 @@ export function verifyInstanceOwnership(
   const inst = getInstance(db, info.instanceId);
   if (!inst) return null;
   
-  if (inst.owner_id !== userId && userRole !== 'root' && userRole !== 'admin') {
-    return null;
-  }
+  // 管理员/root 直接放行
+  if (userRole === 'root' || userRole === 'admin') return inst;
   
+  // 通过 user.id 校验归属
+  if (inst.owner_id !== userId) return null;
+  
+  // 校验 URL 中的 slug 与实例属主的 slug 一致
   const user = getUser(db, inst.owner_id);
-  if (!user || user.dir_name !== info.userSlug) {
-    return null;
-  }
+  if (!user || user.slug !== info.userSlug) return null;
   
   return inst;
 }

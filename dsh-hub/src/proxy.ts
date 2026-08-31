@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import http from 'node:http';
 import type { Socket } from 'node:net';
 
 export interface ProxyTarget {
@@ -17,51 +18,54 @@ export async function proxyHttpRequest(
     targetPath = targetPath.slice(stripPrefix.length) || '/';
     if (!targetPath.startsWith('/')) targetPath = '/' + targetPath;
   }
-  
-  const url = `http://${target.host}:${target.port}${targetPath}`;
-  
+
   const headers: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.headers)) {
     if (value && key.toLowerCase() !== 'host') {
       headers[key] = Array.isArray(value) ? value.join(', ') : value;
     }
   }
+  // 保留原始 Host 头（DSH 实例用 --trusted-host 校验）
+  headers['host'] = req.headers.host || `${target.host}:${target.port}`;
   headers['X-Forwarded-For'] = req.socket.remoteAddress || 'unknown';
   headers['X-Forwarded-Proto'] = 'https';
-  
-  try {
-    const response = await fetch(url, {
+
+  const body = req.method !== 'GET' && req.method !== 'HEAD' ? await readBody(req) : undefined;
+
+  return new Promise((resolve, reject) => {
+    const proxyReq = http.request({
+      host: target.host,
+      port: target.port,
+      path: targetPath,
       method: req.method,
       headers,
-      body: req.method !== 'GET' && req.method !== 'HEAD' ? await readBody(req) : undefined,
-      redirect: 'manual',
+    }, (proxyRes) => {
+      res.statusCode = proxyRes.statusCode || 200;
+      for (const [key, value] of Object.entries(proxyRes.headers)) {
+        if (key.toLowerCase() !== 'transfer-encoding') {
+          res.setHeader(key, value as string);
+        }
+      }
+      proxyRes.pipe(res);
+      proxyRes.on('end', () => resolve());
     });
 
-    res.statusCode = response.status;
-    response.headers.forEach((value, key) => {
-      if (key.toLowerCase() !== 'transfer-encoding') {
-        res.setHeader(key, value);
+    proxyReq.on('error', (err) => {
+      console.error('[proxy] HTTP proxy error:', err);
+      if (!res.headersSent) {
+        res.statusCode = 502;
+        res.end('Bad Gateway');
+      } else {
+        res.destroy();
       }
+      resolve();
     });
 
-    if (response.body) {
-      const reader = response.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(value);
-      }
+    if (body) {
+      proxyReq.write(body);
     }
-    res.end();
-  } catch (err) {
-    console.error('[proxy] HTTP proxy error:', err);
-    if (!res.headersSent) {
-      res.statusCode = 502;
-      res.end('Bad Gateway');
-    } else {
-      res.destroy();
-    }
-  }
+    proxyReq.end();
+  });
 }
 
 export async function proxyWebSocket(

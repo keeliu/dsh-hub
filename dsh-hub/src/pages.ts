@@ -13,7 +13,7 @@ import { getUser, type UserRow } from './users.ts';
 import { createSession, destroySession, SESSION_COOKIE, CSRF_COOKIE } from './sessions.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { listInstances, getInstance, createInstance, deleteInstance, listAllInstances, runningCount, listRunningInstances } from './instances.ts';
-import { startInstance, stopInstance, tailLog } from './supervisor.ts';
+import { startInstance, stopInstance, tailLog } from './supervisor/index.ts';
 import { audit, withTx } from './db.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { disableUser } from './users.ts';

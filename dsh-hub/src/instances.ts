@@ -19,7 +19,7 @@ import { config } from './config.ts';
 import { allocatePort } from './port.ts';
 import { instanceDir, instanceHome, instanceWorkspace, INSTANCE_SUBDIRS, userDir } from './paths.ts';
 import { shortId, type UserRow } from './users.ts';
-import type { InstanceRecord } from './supervisor.ts';
+import type { InstanceRecord } from './supervisor/index.ts';
 
 /** 用户昵称目录（users/<dir_name>，700）。建号时与建实例前都调用（幂等）。 */
 export function ensureUserDir(dirName: string): string {

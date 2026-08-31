@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.ts';
 import { config } from './config.ts';
 import { startServer } from './api.ts';
-import { reclaim } from './supervisor.ts';
+import { reclaim } from './supervisor/index.ts';
 import { setGatewayDb } from './gateway.ts';
 
 export { sanitizeNickname, generateSlug, shortId } from './users.ts';

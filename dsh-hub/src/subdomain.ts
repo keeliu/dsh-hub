@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { getInstance } from './instances.ts';
-import type { InstanceRecord } from './supervisor.ts';
+import type { InstanceRecord } from './supervisor/index.ts';
 import { getUser } from './users.ts';
 
 export interface PathInfo {

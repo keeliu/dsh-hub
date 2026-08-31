@@ -40,7 +40,7 @@ import { parseAllowedVersions, isValidHarnessVersion, versionAllowed } from './v
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
-import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor.ts';
+import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor/index.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
   listApiTokens, revokeApiToken,

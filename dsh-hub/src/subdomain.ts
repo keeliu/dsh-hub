@@ -9,6 +9,8 @@ export interface PathInfo {
 }
 
 const INSTANCE_PATH_PREFIX = '/i/';
+// Instance ID 格式为 i-<8位hex>，自身含 '-'，不能用 lastIndexOf('-') 拆分
+const INSTANCE_PATH_RE = /^([a-z0-9](?:[a-z0-9-]*[a-z0-9])?)-(i-[0-9a-f]{8})$/;
 
 export function parseInstancePath(pathname: string): PathInfo | null {
   if (!pathname.startsWith(INSTANCE_PATH_PREFIX)) return null;
@@ -19,15 +21,10 @@ export function parseInstancePath(pathname: string): PathInfo | null {
   
   if (!segment) return null;
   
-  const lastDash = segment.lastIndexOf('-');
-  if (lastDash <= 0) return null;
+  const m = segment.match(INSTANCE_PATH_RE);
+  if (!m?.[1] || !m[2]) return null;
   
-  const userSlug = segment.slice(0, lastDash);
-  const instanceId = segment.slice(lastDash + 1);
-  
-  if (!userSlug || !instanceId) return null;
-  
-  return { userSlug, instanceId };
+  return { userSlug: m[1], instanceId: m[2] };
 }
 
 export function buildInstancePath(userSlug: string, instanceId: string): string {

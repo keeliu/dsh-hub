@@ -6,6 +6,10 @@ import { proxyHttpRequest, proxyWebSocket, type ProxyTarget } from './proxy.ts';
 import { authenticate } from './auth.ts';
 import { config } from './config.ts';
 import { getUser, type UserRow } from './users.ts';
+import { listInstances } from './instances.ts';
+
+// DSH 实例静态资源前缀（绝对路径，需要 fallback 代理）
+const STATIC_ASSET_PREFIXES = ['/assets/', '/plugins/'];
 
 const LANDING_PAGE_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -51,6 +55,12 @@ export async function handleGatewayRequest(
   res: ServerResponse
 ): Promise<boolean> {
   const pathname = (req.url || '/').split('?')[0] || '/';
+  
+  // 静态资源 fallback：/assets/* 和 /plugins/* 代理到用户运行中的实例
+  if (STATIC_ASSET_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+    return handleStaticAssetFallback(req, res, pathname);
+  }
+  
   const pathInfo = parseInstancePath(pathname);
   if (!pathInfo) {
     return false;
@@ -144,4 +154,29 @@ async function authenticateRequest(req: IncomingMessage): Promise<{
   const auth = authenticate(db, req);
   if (!auth) return { ok: false, redirect: true };
   return { ok: true, userId: auth.user.id, role: auth.user.role };
+}
+
+/**
+ * 静态资源 fallback：DSH 实例返回的 HTML 使用绝对路径引用 /assets/* 和 /plugins/*，
+ * 这些请求不经过 /i/ 前缀，需要找到用户运行中的实例并代理。
+ */
+async function handleStaticAssetFallback(
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string
+): Promise<boolean> {
+  if (!db) return false;
+  
+  const auth = authenticate(db, req);
+  if (!auth) return false; // 未认证则不处理，让后续路由处理
+  
+  // 查找用户运行中的实例
+  const instances = listInstances(db, auth.user.id);
+  const running = instances.find(i => i.status === 'running' && i.port);
+  if (!running || !running.port) return false; // 无运行中实例则不处理
+  
+  // 代理到实例（不 strip 前缀，因为 DSH 期望 /assets/ 路径）
+  const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
+  await proxyHttpRequest(req, res, target);
+  return true;
 }

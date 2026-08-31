@@ -36,20 +36,31 @@ export async function proxyHttpRequest(
       body: req.method !== 'GET' && req.method !== 'HEAD' ? await readBody(req) : undefined,
       redirect: 'manual',
     });
-    
+
     res.statusCode = response.status;
     response.headers.forEach((value, key) => {
       if (key.toLowerCase() !== 'transfer-encoding') {
         res.setHeader(key, value);
       }
     });
-    
-    const body = await response.arrayBuffer();
-    res.end(Buffer.from(body));
+
+    if (response.body) {
+      const reader = response.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    }
+    res.end();
   } catch (err) {
     console.error('[proxy] HTTP proxy error:', err);
-    res.statusCode = 502;
-    res.end('Bad Gateway');
+    if (!res.headersSent) {
+      res.statusCode = 502;
+      res.end('Bad Gateway');
+    } else {
+      res.destroy();
+    }
   }
 }
 
@@ -96,6 +107,10 @@ export async function proxyWebSocket(
   
   upstream.on('error', (err) => {
     console.error('[proxy] WebSocket upstream error:', err);
+    // 发送 WebSocket close frame (1011 Internal Error)
+    const closeFrame = Buffer.alloc(2);
+    closeFrame.writeUInt16BE(1011, 0);
+    try { socket.write(closeFrame); } catch { /* ignore */ }
     socket.destroy();
   });
   

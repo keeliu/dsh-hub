@@ -505,7 +505,7 @@ page('GET', '/admin', ({ db, req, res }) => {
 page('GET', '/admin/users', ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
-  const users = db.prepare('SELECT id, nickname, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
+  const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
   sendHtml(res, 200, renderUsersPage(user, users));
 });
 
@@ -661,6 +661,7 @@ export async function handlePageRequest(db: DatabaseSync, req: http.IncomingMess
 interface UserInfo {
   id: number;
   nickname: string;
+  username: string;
   role: string;
   status: string;
   max_instances: number;

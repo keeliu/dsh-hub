@@ -19,6 +19,7 @@ interface InstanceInfo {
 interface UserInfo {
   id: number;
   nickname: string;
+  username: string;
   role: string;
   status: string;
   max_instances: number;
@@ -157,6 +158,7 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
           <tr>
             <th>ID</th>
             <th>昵称</th>
+            <th>账号</th>
             <th>角色</th>
             <th>状态</th>
             <th>配额</th>
@@ -169,6 +171,7 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
             <tr>
               <td>${u.id}</td>
               <td>${escapeHtml(u.nickname)}</td>
+              <td>${escapeHtml(u.username)}</td>
               <td><span class="badge badge-info">${escapeHtml(u.role)}</span></td>
               <td>${statusBadge(u.status)}</td>
               <td>${u.max_instances} / ${u.max_running}</td>

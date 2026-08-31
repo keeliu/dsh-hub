@@ -135,6 +135,18 @@ page('POST', '/setup', async ({ db, req, res }) => {
     audit(db, 'setup', user!.id, user!.id, `setup created admin ${user!.nickname}`);
     const { token, csrf } = createSession(db, user!.id, null, null);
     setSessionCookie(res, token, csrf);
+    
+    // M3: 管理员创建后自动创建并启动实例
+    try {
+      const instance = await createInstance(db, user!, { name: 'default' });
+      const startResult = await startInstance(db, instance);
+      if (startResult.status === 'running') {
+        audit(db, 'instance_start', user!.id, user!.id, `auto-start after setup: ${instance.id}`);
+      }
+    } catch (err) {
+      console.error('[setup] auto create instance failed:', err);
+    }
+    
     redirect(res, '/admin');
   } catch (e) {
     const msg = e instanceof Error && e.message === 'setup_closed' ? '已有用户，无法设置' : '创建失败：' + (e instanceof Error ? e.message : String(e));

@@ -38,19 +38,37 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
     ├── src/                 # TypeScript 源码
     │   ├── index.ts         # 入口
     │   ├── config.ts        # 配置中心（环境变量集中读取）
-    │   ├── db.ts            # SQLite 数据库
+    │   ├── db.ts            # SQLite 数据库（含 schema 版本化迁移）
     │   ├── http.ts          # HTTP 服务器
     │   ├── api.ts           # API 路由
-    │   ├── auth.ts          # 认证逻辑
-    │   ├── sessions.ts      # 会话管理
-    │   ├── users.ts         # 用户管理
+    │   ├── auth.ts          # 认证逻辑（含 attemptLogin）
+    │   ├── sessions.ts      # 会话管理（含 CSRF）
+    │   ├── users.ts         # 用户管理（含 createUserRow、disableUser）
     │   ├── instances.ts     # 实例管理
-    │   ├── supervisor.ts    # 进程监管
+    │   ├── supervisor/      # 进程监管（拆分为子模块）
+    │   │   ├── index.ts     # 公共 API + InstanceRecord + 状态机
+    │   │   ├── probe.ts     # TCP 探活 + 进程检测
+    │   │   ├── lock.ts      # 锁管理
+    │   │   ├── pidfile.ts   # pidfile 管理
+    │   │   ├── log.ts       # 日志轮转 + 尾部读取
+    │   │   ├── spawn.ts     # 启动逻辑
+    │   │   ├── stop.ts      # 停止逻辑
+    │   │   └── reclaim.ts   # 孤儿认领
+    │   ├── proxy.ts         # HTTP/WS 代理（流式转发）
+    │   ├── gateway.ts       # 鉴权网关
+    │   ├── subdomain.ts     # 子域路由
     │   ├── settings.ts      # 设置
     │   ├── paths.ts         # 路径工具
     │   ├── port.ts          # 端口分配
     │   ├── pwd.ts           # 密码工具
-    │   └── version.ts       # 版本管理
+    │   ├── version.ts       # 版本管理
+    │   ├── email.ts         # 邮件发送
+    │   └── pages.ts         # 页面路由（SSR）
+    │   └── views/           # 页面视图模板
+    │       ├── layout.ts    # 布局（含 CSRF meta）
+    │       ├── auth.ts      # 认证页面
+    │       ├── user.ts      # 用户页面
+    │       └── admin.ts     # 管理页面
     ├── scripts/             # 冒烟测试与运维脚本
     ├── spikes/              # 技术验证脚本（S1-S5）
     ├── package.json
@@ -75,7 +93,22 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 ## 当前进度
 
 - M0–M2.1 已完成（调研/脚手架/认证/生命周期/安全修复）
-- M3 鉴权网关进行中（子域路由 + 所有权校验 + WS 隧道）
+- M3 鉴权网关已完成（子域路由 + 所有权校验 + WS 隧道）
+- 代码质量优化已完成：
+  - P0 gateway-auth-fix：网关鉴权缺陷修复
+  - P1 page-csrf-protection：页面表单 CSRF 全覆盖
+  - P1 logic-dedup：提取 attemptLogin、disableUser、createUserRow
+  - P2 supervisor-modularization：supervisor 拆分为 7 个子模块
+  - P3 proxy-streaming：HTTP 代理改流式转发 + WS close frame
+  - P3 db-schema-versioning：Schema 迁移版本化（schema_version 表）
+  - P3 instance-state-machine：实例状态机形式化（transitionStatus）
+
+## 架构要点
+
+- **状态机**：实例状态转换通过 `transitionStatus(db, id, to)` 统一校验，非法转换抛错；stale 状态校正用 `forceStatus`
+- **Schema 迁移**：`db.ts` 中的 `MIGRATIONS` 数组定义版本化迁移，旧数据库自动推断版本
+- **CSRF 保护**：所有 POST 表单需携带 CSRF token（`assertPageCsrf`），通过 `<meta name="csrf-token">` 注入
+- **用户创建**：统一通过 `createUserRow()` 函数，自动生成 slug/dir_name
 
 ## 用户偏好与长期约束
 

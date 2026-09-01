@@ -16,12 +16,12 @@ DSH Hub 已完成会员系统（membership），但当前付费流程是"订单�
 3. **新增支付 API 路由**：`POST /api/payment/create`、`POST /api/payment/notify`、`GET /api/payment/query/:orderId`
 4. **改造会员购买页**：点击套餐 → 弹出二维码/跳转支付 → 轮询状态 → 成功后跳转
 5. **新增支付成功返回页**：`GET /payment/return`
-6. **新增配置项**：`XH_APPID`、`XH_APPSECRET`、`XH_GATEWAY`
+6. **管理后台配置支付密钥**：在 `/admin/settings` 新增虎皮椒 AppID / AppSecret 配置项，复用现有 settings 表
 
 ## Impact
 
 - **新增文件**：`src/payment.ts`
-- **修改文件**：`src/config.ts`、`src/membership.ts`、`src/api.ts`、`src/pages.ts`、`src/views/user.ts`
-- **数据库**：`orders` 表无需新增字段（已有 `payment_method`、`payment_id`）
-- **环境变量**：新增 `XH_APPID`、`XH_APPSECRET`（`XH_GATEWAY` 可选）
+- **修改文件**：`src/settings.ts`、`src/membership.ts`、`src/api.ts`、`src/pages.ts`、`src/views/user.ts`、`src/views/admin.ts`
+- **数据库**：`orders` 表无需新增字段（已有 `payment_method`、`payment_id`）；`settings` 表新增 `xunhupay_appid`、`xunhupay_appsecret` 两个键
+- **配置方式**：通过管理后台「全局设置」页面配置，同时兼容环境变量（数据库优先，环境变量 fallback）
 - **不影响**：管理员手动设置会员（`adminSetMembership`）、体验会员领取、到期检查逻辑

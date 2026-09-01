@@ -6,13 +6,15 @@
 - [ ] 1.2 新增 `src/payment.ts`：createPayment 函数（调用虎皮椒 do.html）
 - [ ] 1.3 新增 `src/payment.ts`：queryPayment 函数（调用 query.html）
 - [ ] 1.4 新增 `src/payment.ts`：refundPayment 函数（调用 refund.html）
-- [ ] 1.5 `config.ts` 新增 xunhupay 配置（appid/secret/gateway）
+- [ ] 1.5 新增 `src/payment.ts`：`getXunhupayConfig(db)` 从 settings 表读取配置，fallback 到环境变量
 
-## Phase 2：业务逻辑改造
+## Phase 2：配置与业务逻辑改造
 
-- [ ] 2.1 改造 `membership.ts`：`createOrder` 移除立即激活逻辑，只创建 pending 订单
-- [ ] 2.2 新增 `membership.ts`：`handlePaymentCallback` 函数（签名已在外层验证）
-- [ ] 2.3 确保 `activateMembership` 可被 `handlePaymentCallback` 正确调用
+- [ ] 2.1 `settings.ts` 的 `SETTING_KEYS` 新增 `xunhupay_appid`、`xunhupay_appsecret`
+- [ ] 2.2 `views/admin.ts` 的 `renderSettingsPage` 新增支付配置输入框（AppSecret 脱敏显示，不填保留原值）
+- [ ] 2.3 改造 `membership.ts`：`createOrder` 移除立即激活逻辑，只创建 pending 订单
+- [ ] 2.4 新增 `membership.ts`：`handlePaymentCallback` 函数（签名已在外层验证）
+- [ ] 2.5 确保 `activateMembership` 可被 `handlePaymentCallback` 正确调用
 
 ## Phase 3：API 路由
 

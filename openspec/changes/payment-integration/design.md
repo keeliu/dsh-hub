@@ -95,10 +95,26 @@ export function refundPayment(config, tradeOrderId, reason?): Promise<RefundResp
 
 **理由**：虎皮椒可能重复回调（最多 7 次），必须保证幂等。
 
-## 环境变量
+### 5. 支付配置方式：管理后台优先，环境变量 fallback
+
+**决策**：虎皮椒 AppID / AppSecret 通过管理后台「全局设置」页面配置，存入 `settings` 表。同时保留环境变量作为 fallback。
+
+**读取优先级**：`settings` 表 > 环境变量 > 默认值
+
+**理由**：
+- 个人开发者部署时不一定方便配置环境变量，管理后台配置更直观
+- 复用现有 `settings` 表和 `/admin/settings` 页面，改动量小
+- 环境变量仍可作为初始化默认值或 CI/CD 场景使用
+
+**实现**：
+- `settings.ts` 的 `SETTING_KEYS` 新增 `xunhupay_appid`、`xunhupay_appsecret`
+- `views/admin.ts` 的 `renderSettingsPage` 新增两个输入框（AppSecret 显示时脱敏为 `••••••••`，不填则保留原值）
+- `payment.ts` 的 `getXunhupayConfig(db)` 从 settings 表读取，fallback 到 `process.env`
+
+## 环境变量（可选 fallback）
 
 ```bash
-XH_APPID=你的虎皮椒APPID                # 必填
-XH_APPSECRET=你的虎皮椒APPSECRET         # 必填
+XH_APPID=你的虎皮椒APPID                # 可选，管理后台未配置时使用
+XH_APPSECRET=你的虎皮椒APPSECRET         # 可选，管理后台未配置时使用
 XH_GATEWAY=https://api.xunhupay.com     # 可选，默认值
 ```

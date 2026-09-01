@@ -12,6 +12,8 @@ ENV NODE_ENV=production \
     DSH_HUB_DATA=/data \
     DSH_HUB_HOST=0.0.0.0 \
     DSH_HUB_PORT=3082 \
+    DSH_HUB_TRUST_PROXY=1 \
+    DSH_HUB_COOKIE_SECURE=1 \
     DSH_BIN=/usr/local/bin/dsh
 
 VOLUME ["/data"]

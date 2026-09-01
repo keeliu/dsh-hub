@@ -312,6 +312,7 @@ function renderNav(user: UserRow | null): string {
         ${isAdmin ? '<a href="/admin">管理后台</a>' : ''}
         ${!isAdmin ? '<a href="/">我的实例</a>' : ''}
         <div class="navbar-user">
+          ${!isAdmin ? '<a href="/profile">个人中心</a>' : ''}
           <span>${escapeHtml(user.nickname)} (${user.role})</span>
           <form method="POST" action="/api/auth/logout" style="display:inline">
             <input type="hidden" name="csrf" value="">

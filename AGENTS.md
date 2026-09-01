@@ -126,6 +126,13 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - API 路由（/api/membership/plans、/api/me/membership、/api/me/orders、/admin/api/orders）
   - 管理员用户管理页面显示会员标识 + 设置会员
   - 管理员创建用户时可选会员身份
+- **UI 视觉风格重设计已完成**（openspec/changes/ui-redesign/）：
+  - CSS 变量与设计系统重写（主色 #0066cc，圆角输入框，卡片阴影）
+  - 导航栏更新（黑色背景，"乌鸦 work" 品牌名，用户头像）
+  - 认证页面重设计（登录/注册/忘记密码/重置密码，居中卡片布局）
+  - 会员购买页重设计（三栏定价卡片，推荐高亮）
+  - 个人中心页重设计（会员状态卡片，订单表格）
+  - 管理后台页面重设计（侧边栏导航，表格布局）
 
 ## 架构要点
 

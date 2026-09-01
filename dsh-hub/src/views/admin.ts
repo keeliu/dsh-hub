@@ -63,22 +63,24 @@ function statusBadge(status: string): string {
 /** 管理后台侧边栏 */
 function adminSidebar(active: string): string {
   const items = [
-    { key: 'dashboard', href: '/admin', label: '仪表盘' },
-    { key: 'users', href: '/admin/users', label: '用户管理' },
-    { key: 'instances', href: '/admin/instances', label: '实例总览' },
-    { key: 'membership', href: '/admin/membership', label: '会员管理' },
-    { key: 'audit', href: '/admin/audit', label: '审计日志' },
-    { key: 'settings', href: '/admin/settings', label: '全局设置' },
+    { key: 'dashboard', href: '/admin', label: '仪表盘', icon: '📊' },
+    { key: 'users', href: '/admin/users', label: '用户管理', icon: '👥' },
+    { key: 'instances', href: '/admin/instances', label: '实例总览', icon: '📦' },
+    { key: 'membership', href: '/admin/membership', label: '会员管理', icon: '💎' },
+    { key: 'audit', href: '/admin/audit', label: '审计日志', icon: '📋' },
+    { key: 'settings', href: '/admin/settings', label: '全局设置', icon: '⚙️' },
   ];
 
   return `
-    <div style="display:flex;gap:1.5rem">
-      <nav style="width:180px;flex-shrink:0">
+    <div class="admin-layout">
+      <nav class="admin-sidebar">
         ${items.map(item => `
-          <a href="${item.href}" style="display:block;padding:0.5rem 0.75rem;margin-bottom:0.25rem;border-radius:4px;text-decoration:none;${active === item.key ? 'background:var(--primary);color:white;' : 'color:var(--gray-900);'}">${item.label}</a>
+          <a href="${item.href}" class="${active === item.key ? 'active' : ''}">
+            <span style="margin-right:0.5rem">${item.icon}</span>${item.label}
+          </a>
         `).join('')}
       </nav>
-      <div style="flex:1;min-width:0">
+      <div class="admin-content">
   `;
 }
 
@@ -89,7 +91,9 @@ function adminSidebarClose(): string {
 /** 仪表盘（/admin） */
 export function renderDashboardPage(user: UserRow, stats: { users: number; instances: number; running: number }): string {
   const content = `
-    <h1 style="margin-bottom:1.5rem">管理后台</h1>
+    <div class="page-header">
+      <h1 class="page-title">管理后台</h1>
+    </div>
     ${adminSidebar('dashboard')}
     <div class="stats-grid">
       <div class="stat-card">
@@ -124,7 +128,9 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
   const flashHtml = flash ? `<div class="alert alert-${flash.type}">${escapeHtml(flash.message)}</div>` : '';
 
   const content = `
-    <h1 style="margin-bottom:1.5rem">用户管理</h1>
+    <div class="page-header">
+      <h1 class="page-title">用户管理</h1>
+    </div>
     ${adminSidebar('users')}
     ${flashHtml}
     <div class="card">
@@ -132,7 +138,7 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
         <span>用户列表</span>
         <button onclick="document.getElementById('create-user-form').style.display='block'" class="btn btn-sm btn-primary">+ 创建用户</button>
       </div>
-      <div id="create-user-form" style="display:none;margin-bottom:1rem;padding:1rem;background:var(--gray-100);border-radius:4px">
+      <div id="create-user-form" style="display:none;margin-bottom:1rem;padding:1rem;background:var(--bg-page);border-radius:var(--radius-md)">
         <form method="POST" action="/admin/users">
           ${csrfField(csrf ?? '')}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
@@ -198,18 +204,18 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
               <td>${escapeHtml(u.username)}</td>
               <td><span class="badge badge-info">${escapeHtml(u.role)}</span></td>
               <td>${statusBadge(u.status)}</td>
-              <td>${u.membership_type ? `<span class="badge badge-success">${MEMBERSHIP_LABELS[u.membership_type] || u.membership_type}</span><br><small style="color:var(--gray-600)">${u.membership_expires_at ? new Date(u.membership_expires_at).toLocaleDateString('zh-CN') + ' 到期' : ''}</small>` : '<span class="badge badge-secondary">无</span>'}</td>
+              <td>${u.membership_type ? `<span class="badge badge-success">${MEMBERSHIP_LABELS[u.membership_type] || u.membership_type}</span><br><small style="color:var(--text-secondary)">${u.membership_expires_at ? new Date(u.membership_expires_at).toLocaleDateString('zh-CN') + ' 到期' : ''}</small>` : '<span class="badge badge-secondary">无</span>'}</td>
               <td>${u.max_instances} / ${u.max_running}</td>
               <td>${new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
               <td class="actions">
                 <form method="POST" action="/admin/users/${u.id}/membership" style="display:inline">
                   ${csrfField(csrf ?? '')}
-                  <select name="type" style="font-size:12px;padding:2px 4px">
+                  <select name="type" style="font-size:12px;padding:4px;border-radius:var(--radius-sm);border:1px solid var(--border)">
                     <option value="monthly">月度</option>
                     <option value="yearly">年度</option>
                     <option value="trial">体验</option>
                   </select>
-                  <input type="number" name="days" value="30" min="1" max="365" style="width:50px;font-size:12px;padding:2px 4px">
+                  <input type="number" name="days" value="30" min="1" max="365" style="width:50px;font-size:12px;padding:4px;border-radius:var(--radius-sm);border:1px solid var(--border)">
                   <button type="submit" class="btn btn-sm btn-primary">设置</button>
                 </form>
                 ${u.status === 'active'
@@ -237,7 +243,9 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
 /** 实例总览页（/admin/instances） */
 export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[], csrf?: string): string {
   const content = `
-    <h1 style="margin-bottom:1.5rem">实例总览</h1>
+    <div class="page-header">
+      <h1 class="page-title">实例总览</h1>
+    </div>
     ${adminSidebar('instances')}
     <div class="card">
       <table class="table">
@@ -252,7 +260,7 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
           </tr>
         </thead>
         <tbody>
-          ${instances.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--gray-600)">暂无实例</td></tr>' : ''}
+          ${instances.length === 0 ? '<tr><td colspan="6" style="text-align:center;color:var(--text-secondary)">暂无实例</td></tr>' : ''}
           ${instances.map(inst => `
             <tr>
               <td><code>${escapeHtml(inst.id)}</code></td>
@@ -293,7 +301,9 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
 /** 审计日志页（/admin/audit） */
 export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
   const content = `
-    <h1 style="margin-bottom:1.5rem">审计日志</h1>
+    <div class="page-header">
+      <h1 class="page-title">审计日志</h1>
+    </div>
     ${adminSidebar('audit')}
     <div class="card">
       <table class="table">
@@ -306,7 +316,7 @@ export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
           </tr>
         </thead>
         <tbody>
-          ${logs.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--gray-600)">暂无日志</td></tr>' : ''}
+          ${logs.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary)">暂无日志</td></tr>' : ''}
           ${logs.map(log => `
             <tr>
               <td style="white-space:nowrap">${new Date(log.created_at).toLocaleString('zh-CN')}</td>
@@ -329,7 +339,9 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
   const flashHtml = flash ? `<div class="alert alert-${flash.type}">${escapeHtml(flash.message)}</div>` : '';
 
   const content = `
-    <h1 style="margin-bottom:1.5rem">全局设置</h1>
+    <div class="page-header">
+      <h1 class="page-title">全局设置</h1>
+    </div>
     ${adminSidebar('settings')}
     ${flashHtml}
     <div class="card">
@@ -346,13 +358,11 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
           <label class="form-label">默认 DSH 版本</label>
           <input type="text" name="default_harness_version" class="form-control" style="max-width:300px"
                  value="${escapeHtml(settings.default_harness_version ?? '')}" placeholder="留空不限制">
-          <small style="color:var(--gray-600)">格式如 0.1.1-rc.2，留空表示不设置默认版本</small>
         </div>
         <div class="form-group">
           <label class="form-label">允许的版本列表</label>
           <input type="text" name="allowed_harness_versions" class="form-control" style="max-width:400px"
                  value="${escapeHtml(settings.allowed_harness_versions ?? '')}" placeholder="留空不限制">
-          <small style="color:var(--gray-600)">逗号分隔，如 0.1.0,0.1.1-rc.2。留空表示不限制</small>
         </div>
         <button type="submit" class="btn btn-primary">保存设置</button>
       </form>
@@ -379,7 +389,7 @@ interface OrderInfo {
 /** 管理员会员管理页（/admin/membership） */
 export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], csrf?: string): string {
   const ordersHtml = orders.length === 0
-    ? '<p style="color:var(--gray-600)">暂无订单记录</p>'
+    ? '<div class="empty-state"><p>暂无订单记录</p></div>'
     : `<table class="table">
         <thead>
           <tr>
@@ -410,7 +420,9 @@ export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], cs
        </table>`;
 
   const content = `
-    <h1 style="margin-bottom:1.5rem">会员管理</h1>
+    <div class="page-header">
+      <h1 class="page-title">会员管理</h1>
+    </div>
     ${adminSidebar('membership')}
     <div class="card">
       <div class="card-title">订单记录</div>

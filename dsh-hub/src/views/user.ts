@@ -234,65 +234,96 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
   
   // 当前会员状态展示
   const statusHtml = membership.isActive
-    ? `<div class="alert alert-success">
+    ? `<div class="alert alert-success" style="text-align:center;margin-bottom:1.5rem">
         <strong>当前会员：</strong>${MEMBERSHIP_LABELS[membership.type!] || membership.type}
         <br><small>到期时间：${new Date(membership.expiresAt!).toLocaleString('zh-CN')}</small>
        </div>`
     : membership.trialUsed
-      ? `<div class="alert alert-warning">您的会员已过期，请续费以继续使用</div>`
+      ? `<div class="alert alert-warning" style="text-align:center;margin-bottom:1.5rem">您的会员已过期，请续费以继续使用</div>`
       : '';
 
-  // 套餐卡片
+  // 套餐卡片 - 按照设计稿的三列布局
   const plansHtml = `
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;margin-top:1.5rem">
+    <div class="pricing-grid">
+      <!-- 体验会员 -->
       ${!membership.trialUsed ? `
-      <div class="card" style="text-align:center;border:2px solid var(--primary-color,#007bff)">
-        <div style="font-size:1.5rem;font-weight:600;margin-bottom:0.5rem">🎁 体验会员</div>
-        <div style="font-size:2rem;font-weight:700;color:var(--primary-color,#007bff)">免费</div>
-        <p style="color:var(--gray-600);margin:1rem 0">1天体验，仅限首次使用</p>
+      <div class="pricing-card">
+        <div class="pricing-header">
+          <div class="pricing-name">体验会员</div>
+          <div class="pricing-price">
+            <span class="pricing-amount">免费</span>
+          </div>
+          <p class="pricing-desc">1天体验，仅限首次使用</p>
+        </div>
+        <ul class="pricing-features">
+          <li>完整功能体验</li>
+          <li>1天有效期</li>
+          <li>仅限新用户</li>
+        </ul>
         <form method="POST" action="/membership/purchase">
           ${csrfField(csrf ?? '')}
           <input type="hidden" name="type" value="trial">
-          <button type="submit" class="btn btn-primary" style="width:100%">立即体验</button>
+          <button type="submit" class="btn btn-outline-primary btn-block">立即体验</button>
         </form>
       </div>
       ` : ''}
       
-      <div class="card" style="text-align:center">
-        <div style="font-size:1.5rem;font-weight:600;margin-bottom:0.5rem">📅 月度会员</div>
-        <div style="font-size:2rem;font-weight:700;color:var(--success-color,#28a745)">¥19.9</div>
-        <p style="color:var(--gray-600);margin:1rem 0">30天有效期</p>
+      <!-- 月度会员 -->
+      <div class="pricing-card">
+        <div class="pricing-header">
+          <div class="pricing-name">月度会员</div>
+          <div class="pricing-price">
+            <span class="pricing-currency">¥</span>
+            <span class="pricing-amount">19.9</span>
+          </div>
+          <p class="pricing-desc">30天有效期</p>
+        </div>
+        <ul class="pricing-features">
+          <li>完整功能使用</li>
+          <li>30天有效期</li>
+          <li>随时续费</li>
+        </ul>
         <form method="POST" action="/membership/purchase">
           ${csrfField(csrf ?? '')}
           <input type="hidden" name="type" value="monthly">
-          <button type="submit" class="btn btn-success" style="width:100%">立即购买</button>
+          <button type="submit" class="btn btn-outline-primary btn-block">立即购买</button>
         </form>
       </div>
       
-      <div class="card" style="text-align:center;border:2px solid var(--warning-color,#ffc107)">
-        <div style="font-size:1.5rem;font-weight:600;margin-bottom:0.5rem">⭐ 年度会员</div>
-        <div style="font-size:2rem;font-weight:700;color:var(--warning-color,#ffc107)">¥198</div>
-        <p style="color:var(--gray-600);margin:1rem 0">365天有效期，更划算</p>
+      <!-- 年度会员 - 推荐 -->
+      <div class="pricing-card pricing-card-featured">
+        <div class="pricing-badge">推荐</div>
+        <div class="pricing-header">
+          <div class="pricing-name">年度会员</div>
+          <div class="pricing-price">
+            <span class="pricing-currency">¥</span>
+            <span class="pricing-amount">198</span>
+          </div>
+          <p class="pricing-desc">365天有效期，更划算</p>
+        </div>
+        <ul class="pricing-features">
+          <li>完整功能使用</li>
+          <li>365天有效期</li>
+          <li>节省 45%</li>
+          <li>优先技术支持</li>
+        </ul>
         <form method="POST" action="/membership/purchase">
           ${csrfField(csrf ?? '')}
           <input type="hidden" name="type" value="yearly">
-          <button type="submit" class="btn btn-warning" style="width:100%">立即购买</button>
+          <button type="submit" class="btn btn-primary btn-block">立即购买</button>
         </form>
       </div>
     </div>
   `;
 
   const content = `
-    <h1 style="margin-bottom:1rem">会员购买</h1>
+    <div class="page-header">
+      <h1 class="page-title">选择会员套餐</h1>
+      <p class="page-subtitle">会员可使用 <strong>乌鸦Work</strong> 平台功能。大模型 API Key 需要您自行准备并维护到系统中。</p>
+    </div>
     ${statusHtml}
     ${errorHtml}
-    <div class="card">
-      <div class="card-title">选择会员套餐</div>
-      <p style="color:var(--gray-600)">
-        会员可使用 <strong>乌鸦Work</strong> 平台功能。大模型 API Key 需要您自行准备并维护到系统中。
-      </p>
-      ${plansHtml}
-    </div>
+    ${plansHtml}
   `;
 
   return layout('会员购买', content, user, undefined, csrf);
@@ -301,13 +332,25 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
 /** 用户个人中心（/profile） */
 export function renderProfilePage(user: UserRow, membership: MembershipInfo, orders: OrderInfo[], csrf?: string): string {
   const membershipStatusHtml = membership.isActive
-    ? `<span class="badge badge-success">有效会员</span> ${MEMBERSHIP_LABELS[membership.type!] || membership.type}
-       <br><small style="color:var(--gray-600)">到期时间：${new Date(membership.expiresAt!).toLocaleString('zh-CN')}</small>`
-    : `<span class="badge badge-secondary">无有效会员</span>
-       <br><a href="/membership" class="btn btn-sm btn-primary" style="margin-top:0.5rem">立即购买</a>`;
+    ? `<div class="membership-status membership-active">
+        <div class="membership-icon">✓</div>
+        <div class="membership-info">
+          <div class="membership-type">${MEMBERSHIP_LABELS[membership.type!] || membership.type}</div>
+          <div class="membership-expires">到期时间：${new Date(membership.expiresAt!).toLocaleString('zh-CN')}</div>
+        </div>
+        <a href="/membership" class="btn btn-sm btn-secondary">续费</a>
+       </div>`
+    : `<div class="membership-status membership-inactive">
+        <div class="membership-icon">!</div>
+        <div class="membership-info">
+          <div class="membership-type">无有效会员</div>
+          <div class="membership-expires">购买会员以使用完整功能</div>
+        </div>
+        <a href="/membership" class="btn btn-sm btn-primary">立即购买</a>
+       </div>`;
 
   const ordersHtml = orders.length === 0
-    ? '<p style="color:var(--gray-600)">暂无订单记录</p>'
+    ? '<div class="empty-state"><p>暂无订单记录</p></div>'
     : `<table class="table">
         <thead>
           <tr>
@@ -334,27 +377,38 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
        </table>`;
 
   const content = `
-    <h1 style="margin-bottom:1.5rem">个人中心</h1>
+    <div class="page-header">
+      <h1 class="page-title">个人中心</h1>
+    </div>
     
     <div class="card">
       <div class="card-title">会员信息</div>
-      <div style="padding:1rem 0">
-        ${membershipStatusHtml}
-      </div>
-      ${membership.isActive ? `<a href="/membership" class="btn btn-sm btn-secondary">续费</a>` : ''}
+      ${membershipStatusHtml}
     </div>
     
-    <div class="card" style="margin-top:1rem">
+    <div class="card">
       <div class="card-title">账户信息</div>
-      <table class="table" style="margin:0">
-        <tr><td style="width:150px;font-weight:500">昵称</td><td>${escapeHtml(user.nickname)}</td></tr>
-        <tr><td style="font-weight:500">用户名</td><td>${escapeHtml(user.username || '-')}</td></tr>
-        <tr><td style="font-weight:500">邮箱</td><td>${escapeHtml(user.email || '-')}</td></tr>
-        <tr><td style="font-weight:500">角色</td><td>${escapeHtml(user.role)}</td></tr>
-      </table>
+      <div class="profile-info">
+        <div class="profile-row">
+          <span class="profile-label">昵称</span>
+          <span class="profile-value">${escapeHtml(user.nickname)}</span>
+        </div>
+        <div class="profile-row">
+          <span class="profile-label">用户名</span>
+          <span class="profile-value">${escapeHtml(user.username || '-')}</span>
+        </div>
+        <div class="profile-row">
+          <span class="profile-label">邮箱</span>
+          <span class="profile-value">${escapeHtml(user.email || '-')}</span>
+        </div>
+        <div class="profile-row">
+          <span class="profile-label">角色</span>
+          <span class="profile-value">${escapeHtml(user.role)}</span>
+        </div>
+      </div>
     </div>
     
-    <div class="card" style="margin-top:1rem">
+    <div class="card">
       <div class="card-title">订单记录</div>
       ${ordersHtml}
     </div>

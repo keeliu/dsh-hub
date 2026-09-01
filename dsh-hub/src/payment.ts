@@ -114,12 +114,24 @@ function nonceStr(): string {
 // ─── HTTP 请求 ───────────────────────────────────────────────────────────────
 
 async function postJson(url: string, body: Record<string, string>): Promise<Record<string, unknown>> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  return res.json() as Promise<Record<string, unknown>>;
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new Error(`网络请求失败: ${err instanceof Error ? err.message : '未知错误'}`);
+  }
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+  }
+  try {
+    return await res.json() as Record<string, unknown>;
+  } catch {
+    throw new Error('响应解析失败，非有效 JSON');
+  }
 }
 
 // ─── 发起支付 ────────────────────────────────────────────────────────────────

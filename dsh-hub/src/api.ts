@@ -31,7 +31,7 @@ import { audit, withTx } from './db.ts';
 import { handlePageRequest } from './pages.ts';
 import { handleGatewayRequest, handleGatewayWebSocket, proxyToDshInstance, proxyWebSocketToDshInstance } from './gateway.ts';
 import { config } from './config.ts';
-import { getXunhupayConfig, createPayment, verifyHash, type NotifyParams } from './payment.ts';
+import { getXunhupayConfig, createPayment, verifyHash, type NotifyParams, type CreatePaymentResponse } from './payment.ts';
 import { HttpError, clientIp, parseCookies, readForm, readJson, sendError, sendJson } from './http.ts';
 import {
   authenticate, assertCsrf, checkLoginLock, clearLoginLock, loginLockKey, recordLoginFailure, requireRole,
@@ -625,13 +625,18 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
   const notifyUrl = `${baseUrl}/api/payment/notify`;
   const returnUrl = `${baseUrl}/payment/return?order_id=${order.id}`;
 
-  const result = await createPayment(payConfig, {
-    trade_order_id: String(order.id),
-    total_fee: cfg.price.toFixed(2),
-    title: `乌鸦Work - ${cfg.label}`,
-    notify_url: notifyUrl,
-    return_url: returnUrl,
-  });
+  let result: CreatePaymentResponse;
+  try {
+    result = await createPayment(payConfig, {
+      trade_order_id: String(order.id),
+      total_fee: cfg.price.toFixed(2),
+      title: `乌鸦Work - ${cfg.label}`,
+      notify_url: notifyUrl,
+      return_url: returnUrl,
+    });
+  } catch (err) {
+    throw new HttpError(502, 'payment_request_failed', `支付网关请求失败: ${err instanceof Error ? err.message : '未知错误'}`);
+  }
 
   if (result.errcode !== 0) {
     throw new HttpError(502, 'payment_create_failed', result.errmsg || '支付创建失败');

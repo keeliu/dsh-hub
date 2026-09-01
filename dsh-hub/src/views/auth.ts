@@ -43,17 +43,19 @@ export function renderSetupPage(error?: string): string {
 }
 
 /** 登录页面（/login） */
-export function renderLoginPage(error?: string, registrationOpen = false): string {
+export function renderLoginPage(error?: string, registrationOpen = false, csrf?: string): string {
   const errorHtml = error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : '';
   const registerLink = registrationOpen
     ? '<div class="auth-footer">没有账号？<a href="/register">立即注册</a></div>'
     : '';
+  const csrfInput = csrf ? `<input type="hidden" name="_csrf" value="${escapeHtml(csrf)}">` : '';
 
   const content = `
     <h1 class="auth-title">欢迎回来</h1>
     <p class="auth-subtitle">登录乌鸦 work 个人 AI 工作台</p>
     ${errorHtml}
     <form method="POST" action="/login">
+      ${csrfInput}
       <div class="form-group">
         <label class="form-label" for="account">用户名 / 邮箱</label>
         <input type="text" id="account" name="account" class="form-control" required autofocus placeholder="输入用户名或邮箱">

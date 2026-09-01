@@ -178,16 +178,18 @@ page('GET', '/login', ({ db, req, res }) => {
     return;
   }
   const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
-  sendHtml(res, 200, renderLoginPage(undefined, regOpen));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderLoginPage(undefined, regOpen, csrf));
 });
 
 // POST /login - 登录处理
 page('POST', '/login', async ({ db, req, res }) => {
   const form = await readForm(req);
   const { account, password } = form;
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
 
   if (!account || !password) {
-    sendHtml(res, 400, renderLoginPage('请填写所有必填字段'));
+    sendHtml(res, 400, renderLoginPage('请填写所有必填字段', false, csrf));
     return;
   }
 
@@ -208,9 +210,9 @@ page('POST', '/login', async ({ db, req, res }) => {
     if (e instanceof HttpError) {
       const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
       const msg = e.code === 'disabled' ? '账号已被禁用' : '用户名/邮箱或密码错误';
-      sendHtml(res, e.status, renderLoginPage(msg, regOpen));
+      sendHtml(res, e.status, renderLoginPage(msg, regOpen, csrf));
     } else {
-      sendHtml(res, 500, renderLoginPage('登录失败：' + (e instanceof Error ? e.message : String(e))));
+      sendHtml(res, 500, renderLoginPage('登录失败：' + (e instanceof Error ? e.message : String(e)), false, csrf));
     }
   }
 });

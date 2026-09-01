@@ -261,11 +261,7 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           <li>1天有效期</li>
           <li>仅限新用户</li>
         </ul>
-        <form method="POST" action="/membership/purchase">
-          ${csrfField(csrf ?? '')}
-          <input type="hidden" name="type" value="trial">
-          <button type="submit" class="btn btn-outline-primary btn-block">立即体验</button>
-        </form>
+        <button type="button" class="btn btn-outline-primary btn-block" onclick="startPayment('trial')">立即体验</button>
       </div>
       ` : ''}
       

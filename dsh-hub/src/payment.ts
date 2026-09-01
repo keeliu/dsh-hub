@@ -83,7 +83,7 @@ const API_VERSION = '1.1';
 export function getXunhupayConfig(db: DatabaseSync): XunhupayConfig | null {
   const appid = getSetting(db, 'xunhupay_appid', process.env.XH_APPID ?? '');
   const appsecret = getSetting(db, 'xunhupay_appsecret', process.env.XH_APPSECRET ?? '');
-  const gateway = getSetting(db, 'xunhupay_gateway', process.env.XH_GATEWAY ?? DEFAULT_GATEWAY);
+  const gateway = getSetting(db, 'xunhupay_gateway', '') || process.env.XH_GATEWAY || DEFAULT_GATEWAY;
 
   if (!appid || !appsecret) return null;
   return { appid, appsecret, gateway };

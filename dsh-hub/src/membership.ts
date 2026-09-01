@@ -1,7 +1,7 @@
 // src/membership.ts — 会员系统核心逻辑
 import type { DatabaseSync } from 'node:sqlite';
-import { audit } from './db.js';
-import { ensureInstanceForUser } from './instances.js';
+import { audit } from './db.ts';
+import { ensureInstanceForUser } from './instances.ts';
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
 

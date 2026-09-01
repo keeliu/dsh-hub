@@ -1,0 +1,741 @@
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: UxIf4Vp/o6Cx2/qbp/m5sA==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" -X ^"^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"8872c44c-cf68-4505-acaa-5707842d647e^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: RsTkjUz304KCkRDdC044+w==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" -X ^"^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"b682c04e-743a-4216-9f41-a665ca1d96c1^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/llm.providers^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"5f43e152-1567-47d1-a5a6-07b63a345b79^\^",^\^"method^\^":^\^"llm.providers^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/llm.providers^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"0e079598-d8e7-4e6a-bd38-9037bb0b19df^\^",^\^"method^\^":^\^"llm.providers^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" -X ^"^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: jUH/LShY72SbEdZE2zwpNA==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"a125a37e-7329-4b52-98d9-ad1e9cf56322^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/session.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"956d39d5-39f6-4055-bef5-bede52fb4ded^\^",^\^"method^\^":^\^"session.list^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/subagent.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"402a79c8-493c-459c-adc5-231a41386a42^\^",^\^"method^\^":^\^"subagent.list^\^",^\^"payload^\^":^{^\^"parentSessionId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^"^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/workspace.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"8292de76-cc2b-4e82-be67-ef80e9c03703^\^",^\^"method^\^":^\^"workspace.list^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/llm.providers^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"fea8e667-33ad-4e7c-bd52-78455fe34d4f^\^",^\^"method^\^":^\^"llm.providers^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/dynamicCordisRunner/inventory^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"0b948e99-78fa-4a56-a1fe-a9e3c56506b4^\^",^\^"method^\^":^\^"dynamicCordisRunner/inventory^\^",^\^"payload^\^":^{^\^"args^\^":^{^}^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/agentPreset.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"f42eb906-8230-44b6-a686-2df184a70713^\^",^\^"method^\^":^\^"agentPreset.list^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/dynamicCordisRunner/syncInspectManifest^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"7ff73608-b623-4104-ad79-45e6fdc26ce9^\^",^\^"method^\^":^\^"dynamicCordisRunner/syncInspectManifest^\^",^\^"payload^\^":^{^\^"args^\^":^{^\^"providers^\^":^[^{^\^"id^\^":^\^"Service^\^",^\^"description^\^":^\^"Progressive Client Service discovery: compact capability/signature directory, then one exact coding contract.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listService^\^",^\^"description^\^":^\^"Progressive Client Service discovery: compact capability/signature directory, then one exact coding contract.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^\^"service^\^":^{^\^"type^\^":^\^"string^\^",^\^"description^\^":^\^"Exact Service key. Omit it for the compact Service and method-signature directory.^\^"^}^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"Compact Service directory, or one exact Service contract with only its referenced type declarations.^\^"^}^}^]^},^{^\^"id^\^":^\^"Event^\^",^\^"description^\^":^\^"Progressive Client Event discovery: compact listener directory, then one exact event contract.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listEvents^\^",^\^"description^\^":^\^"Progressive Client Event discovery: compact listener directory, then one exact event contract.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^\^"event^\^":^{^\^"type^\^":^\^"string^\^",^\^"description^\^":^\^"Exact Event name. Omit it for the compact Event and listener-signature directory.^\^"^}^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"Compact Event directory, or one exact Event contract with only its referenced type declarations.^\^"^}^}^]^},^{^\^"id^\^":^\^"Builtin^\^",^\^"description^\^":^\^"Plain-JavaScript symbols available to a dynamic Client half.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listBuiltins^\^",^\^"description^\^":^\^"Plain-JavaScript symbols available to a dynamic Client half.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"JSON data owned by this inspect provider.^\^"^}^}^]^},^{^\^"id^\^":^\^"Slots^\^",^\^"description^\^":^\^"Progressive live Slot inspection: compact purpose/topology trees plus one exact Slot contract.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listSubTree^\^",^\^"description^\^":^\^"Return compact live Slot trees for navigation. With root, also return the selected Slot's full contract and occupants.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^\^"root^\^":^{^\^"type^\^":^\^"string^\^",^\^"description^\^":^\^"Exact live Slot key. When supplied, selected contains the full contract for this Slot.^\^"^}^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"Compact purpose/topology trees. With root, selected also contains that Slot's full contract and live occupants.^\^"^}^}^]^},^{^\^"id^\^":^\^"Theme^\^",^\^"description^\^":^\^"Current theme token names and light/dark override requirements.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listTokens^\^",^\^"description^\^":^\^"Current theme token names and light/dark override requirements.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"JSON data owned by this inspect provider.^\^"^}^}^]^}^]^}^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/session.history^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"16ec46b5-5e97-4c99-85b5-910a8d1012f7^\^",^\^"method^\^":^\^"session.history^\^",^\^"payload^\^":^{^\^"sessionId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^",^\^"maxMessages^\^":50^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/dynamicCordisRunner/inventory^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"dc2f2d70-8c1d-4d63-b35d-2929f7712f4f^\^",^\^"method^\^":^\^"dynamicCordisRunner/inventory^\^",^\^"payload^\^":^{^\^"args^\^":^{^}^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/commands/list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"0a4e139f-537b-429f-a97b-3a1e94a72cef^\^",^\^"method^\^":^\^"commands/list^\^",^\^"payload^\^":^{^\^"args^\^":^{^\^"agentId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^"^}^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/skill.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"ff7de636-e310-4ad7-851c-8a7e6e079170^\^",^\^"method^\^":^\^"skill.list^\^",^\^"payload^\^":^{^\^"sessionId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^"^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/agentPreset.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"8a654126-e522-4c96-93ab-4d8952e2e208^\^",^\^"method^\^":^\^"agentPreset.list^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/session.models^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"3ea779ea-325f-40a5-a110-037d67ba7cc4^\^",^\^"method^\^":^\^"session.models^\^",^\^"payload^\^":^{^\^"sessionId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^"^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/plugins/events^" ^
+  -H ^"accept: text/event-stream^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"cache-control: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"pragma: no-cache^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" -X ^"^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: yfRoT+eqQWVyVrkI3lHKsg==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"5bb0a919-30c9-4dca-b93c-0f2bb9f58582^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" -X ^"^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: H/EtyYIUcAK/k5d95d4IPQ==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"fc72b39b-fbdf-4307-886f-be09efef5ad5^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" -X ^"^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: udBV32mSnewPHZ5V23pgfg==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"4f6b123f-ef06-45e0-be71-056b2aab896c^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" -X ^"^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: yclqi4ohjY4xchZ+90Ca+g==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"e2024c33-e27d-4c09-a428-e0714c207ef1^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/session.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"6d0ff6eb-3010-4c89-80a0-ff9c3b218b0f^\^",^\^"method^\^":^\^"session.list^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/subagent.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"f577d856-51f5-49f1-9a49-42b913f0120f^\^",^\^"method^\^":^\^"subagent.list^\^",^\^"payload^\^":^{^\^"parentSessionId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^"^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/session.history^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"418ed1f0-af43-422b-8079-138571fb17c0^\^",^\^"method^\^":^\^"session.history^\^",^\^"payload^\^":^{^\^"sessionId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^",^\^"maxMessages^\^":50^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/workspace.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"52612c64-efc8-4ec5-8b6a-01392773f767^\^",^\^"method^\^":^\^"workspace.list^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/llm.providers^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"242eb316-b2f5-4cec-923c-b4c71bdd9898^\^",^\^"method^\^":^\^"llm.providers^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/dynamicCordisRunner/inventory^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"d4780aa1-fad5-4b8d-8837-318a36e63756^\^",^\^"method^\^":^\^"dynamicCordisRunner/inventory^\^",^\^"payload^\^":^{^\^"args^\^":^{^}^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/commands/list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"439be707-fc32-46e3-a3ee-795e1c4e2950^\^",^\^"method^\^":^\^"commands/list^\^",^\^"payload^\^":^{^\^"args^\^":^{^\^"agentId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^"^}^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/session.models^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"e867cac7-2947-4efd-8e59-a177c75c63bf^\^",^\^"method^\^":^\^"session.models^\^",^\^"payload^\^":^{^\^"sessionId^\^":^\^"session-45a15b51-c938-43b6-b7db-3c9bc3000882^\^"^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/agentPreset.list^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"3467d043-0787-4af9-8627-e5cf70ad0d55^\^",^\^"method^\^":^\^"agentPreset.list^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"https://hub.wuyajun.cn/api/dynamicCordisRunner/syncInspectManifest^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"05a73b15-0f32-44e0-95d5-bc570e1a8b8f^\^",^\^"method^\^":^\^"dynamicCordisRunner/syncInspectManifest^\^",^\^"payload^\^":^{^\^"args^\^":^{^\^"providers^\^":^[^{^\^"id^\^":^\^"Service^\^",^\^"description^\^":^\^"Progressive Client Service discovery: compact capability/signature directory, then one exact coding contract.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listService^\^",^\^"description^\^":^\^"Progressive Client Service discovery: compact capability/signature directory, then one exact coding contract.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^\^"service^\^":^{^\^"type^\^":^\^"string^\^",^\^"description^\^":^\^"Exact Service key. Omit it for the compact Service and method-signature directory.^\^"^}^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"Compact Service directory, or one exact Service contract with only its referenced type declarations.^\^"^}^}^]^},^{^\^"id^\^":^\^"Event^\^",^\^"description^\^":^\^"Progressive Client Event discovery: compact listener directory, then one exact event contract.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listEvents^\^",^\^"description^\^":^\^"Progressive Client Event discovery: compact listener directory, then one exact event contract.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^\^"event^\^":^{^\^"type^\^":^\^"string^\^",^\^"description^\^":^\^"Exact Event name. Omit it for the compact Event and listener-signature directory.^\^"^}^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"Compact Event directory, or one exact Event contract with only its referenced type declarations.^\^"^}^}^]^},^{^\^"id^\^":^\^"Builtin^\^",^\^"description^\^":^\^"Plain-JavaScript symbols available to a dynamic Client half.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listBuiltins^\^",^\^"description^\^":^\^"Plain-JavaScript symbols available to a dynamic Client half.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"JSON data owned by this inspect provider.^\^"^}^}^]^},^{^\^"id^\^":^\^"Slots^\^",^\^"description^\^":^\^"Progressive live Slot inspection: compact purpose/topology trees plus one exact Slot contract.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listSubTree^\^",^\^"description^\^":^\^"Return compact live Slot trees for navigation. With root, also return the selected Slot's full contract and occupants.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^\^"root^\^":^{^\^"type^\^":^\^"string^\^",^\^"description^\^":^\^"Exact live Slot key. When supplied, selected contains the full contract for this Slot.^\^"^}^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"Compact purpose/topology trees. With root, selected also contains that Slot's full contract and live occupants.^\^"^}^}^]^},^{^\^"id^\^":^\^"Theme^\^",^\^"description^\^":^\^"Current theme token names and light/dark override requirements.^\^",^\^"methods^\^":^[^{^\^"name^\^":^\^"listTokens^\^",^\^"description^\^":^\^"Current theme token names and light/dark override requirements.^\^",^\^"inputSchema^\^":^{^\^"type^\^":^\^"object^\^",^\^"properties^\^":^{^},^\^"additionalProperties^\^":false^},^\^"outputSchema^\^":^{^\^"description^\^":^\^"JSON data owned by this inspect provider.^\^"^}^}^]^}^]^}^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: uJ01Z0ZTcodPK2oKFQCBEw==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" -X ^"^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"96dacb6d-f471-47fb-b9c5-8cfa48fa337b^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: jUPr+0+fr8gLI1t4Vn8x8Q==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" -X ^"^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"1df556c2-bd53-42ae-8118-618ee5e560c6^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure &
+curl --url ^"wss://hub.wuyajun.cn/api/events.mux^" ^
+  -H ^"Upgrade: websocket^" ^
+  -H ^"Origin: https://hub.wuyajun.cn^" ^
+  -H ^"Cache-Control: no-cache^" ^
+  -H ^"Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"Pragma: no-cache^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"Connection: Upgrade^" ^
+  -H ^"Sec-WebSocket-Key: osizG3MZ0oldKPMpkfnRrA==^" ^
+  -H ^"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  -H ^"Sec-WebSocket-Version: 13^" ^
+  -H ^"Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits^" &
+curl --url ^"wss://hub.wuyajun.cn/api/events.host^" -X ^"^" &
+curl --url ^"https://hub.wuyajun.cn/api/host.describe^" ^
+  -H ^"accept: */*^" ^
+  -H ^"accept-language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6^" ^
+  -H ^"content-type: application/json^" ^
+  -b ^"dshhub_sid=4402b2888c0012f8f292d7784931a69bfb8d82b6fbc3835e0ea85eaa7c38bf71; dshhub_csrf=6759d9d0ff18aaaae10704a4ce09a5a01a6cd47e26a08a37^" ^
+  -H ^"origin: https://hub.wuyajun.cn^" ^
+  -H ^"priority: u=1, i^" ^
+  -H ^"referer: https://hub.wuyajun.cn/i/05-i-6711b3b4^" ^
+  -H ^"sec-ch-ua: ^\^"Not=A?Brand^\^";v=^\^"99^\^", ^\^"Microsoft Edge^\^";v=^\^"151^\^", ^\^"Chromium^\^";v=^\^"151^\^"^" ^
+  -H ^"sec-ch-ua-mobile: ?0^" ^
+  -H ^"sec-ch-ua-platform: ^\^"Windows^\^"^" ^
+  -H ^"sec-fetch-dest: empty^" ^
+  -H ^"sec-fetch-mode: cors^" ^
+  -H ^"sec-fetch-site: same-origin^" ^
+  -H ^"user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0^" ^
+  --data-raw ^"^{^\^"type^\^":^\^"client-request^\^",^\^"rpcId^\^":^\^"937c49d6-7d4f-4d05-9bd2-222eab2fa02e^\^",^\^"method^\^":^\^"host.describe^\^",^\^"payload^\^":^{^}^}^" ^
+  --insecure

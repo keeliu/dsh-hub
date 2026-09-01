@@ -71,6 +71,12 @@ function setSchemaVersion(db: DatabaseSync, version: number): void {
 
 /** 推断旧数据库的 schema 版本（用于没有 schema_version 表的已有数据库） */
 function inferSchemaVersion(db: DatabaseSync): number {
+  // 检查 orders 表是否存在 → 至少 version 4
+  try {
+    db.prepare('SELECT 1 FROM orders LIMIT 1').get();
+    return 4;
+  } catch { /* 表不存在 */ }
+
   // 检查 password_reset_codes 表是否存在 → 至少 version 3
   try {
     db.prepare('SELECT 1 FROM password_reset_codes LIMIT 1').get();
@@ -187,6 +193,55 @@ const MIGRATIONS: Migration[] = [
         );
       `);
     }
+  },
+  {
+    version: 4,
+    description: 'add membership system (memberships, orders tables + users fields)',
+    up: (db) => {
+      // users 表新增会员相关字段
+      try {
+        db.exec(`ALTER TABLE users ADD COLUMN membership_type TEXT CHECK(membership_type IN ('trial','monthly','yearly'))`);
+      } catch { /* 列已存在 */ }
+      try {
+        db.exec(`ALTER TABLE users ADD COLUMN membership_expires_at INTEGER`);
+      } catch { /* 列已存在 */ }
+      try {
+        db.exec(`ALTER TABLE users ADD COLUMN trial_used INTEGER NOT NULL DEFAULT 0 CHECK(trial_used IN (0,1))`);
+      } catch { /* 列已存在 */ }
+
+      // 创建 memberships 表
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS memberships (
+          id INTEGER PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          type TEXT NOT NULL CHECK(type IN ('trial','monthly','yearly')),
+          starts_at INTEGER NOT NULL,
+          expires_at INTEGER NOT NULL,
+          order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_memberships_user_id ON memberships(user_id);
+        CREATE INDEX IF NOT EXISTS idx_memberships_expires_at ON memberships(expires_at);
+      `);
+
+      // 创建 orders 表
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS orders (
+          id INTEGER PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          membership_type TEXT NOT NULL CHECK(membership_type IN ('trial','monthly','yearly')),
+          amount REAL NOT NULL CHECK(amount >= 0),
+          status TEXT NOT NULL CHECK(status IN ('pending','paid','cancelled','refunded')),
+          payment_method TEXT,
+          payment_id TEXT,
+          created_at INTEGER NOT NULL,
+          paid_at INTEGER
+        );
+        CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+        CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+        CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+      `);
+    }
   }
 ];
 
@@ -237,7 +292,13 @@ export type AuditAction =
   | 'instance_stop'
   | 'instance_restart'
   | 'instance_delete'
-  | 'instance_admin';
+  | 'instance_admin'
+  | 'membership_create'
+  | 'membership_renew'
+  | 'membership_expire'
+  | 'order_create'
+  | 'order_pay'
+  | 'order_cancel';
 
 /** 审计写入（骨架：M4 出管理端 UI 后再做过滤/浏览）。 */
 export function audit(db: DatabaseSync, action: AuditAction, actorId: number | null, targetUserId: number | null, detail?: string): void {

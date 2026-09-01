@@ -18,11 +18,12 @@ import { startInstance, stopInstance, tailLog } from './supervisor/index.ts';
 import { audit, withTx } from './db.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { disableUser } from './users.ts';
+import { hasActiveMembership, getUserOrders, createOrder, getUserMembership, MEMBERSHIP_CONFIG, adminSetMembership, getAllOrders, expireMemberships, type MembershipType } from './membership.ts';
 
 // 页面视图
 import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
-import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage } from './views/user.ts';
-import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage } from './views/admin.ts';
+import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage, renderMembershipPage, renderProfilePage } from './views/user.ts';
+import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage, renderAdminMembershipPage } from './views/admin.ts';
 import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
 import { getUserByAccount, getUserByEmail, isValidEmail, isValidUsername, getUserByUsername } from './users.ts';
 
@@ -196,7 +197,13 @@ page('POST', '/login', async ({ db, req, res }) => {
     const result = attemptLogin(db, account, password, ip, ua);
     setSessionCookie(res, result.token, result.csrf);
     const isAdmin = result.user.role === 'admin' || result.user.role === 'root';
-    redirect(res, isAdmin ? '/admin' : '/');
+    if (isAdmin) {
+      redirect(res, '/admin');
+    } else {
+      // 会员系统：无有效会员的用户重定向到会员购买页面
+      const hasMembership = hasActiveMembership(db, result.user.id);
+      redirect(res, hasMembership ? '/' : '/membership');
+    }
   } catch (e) {
     if (e instanceof HttpError) {
       const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
@@ -276,18 +283,8 @@ page('POST', '/register', async ({ db, req, res }) => {
     const { token, csrf } = createSession(db, user!.id, null, null);
     setSessionCookie(res, token, csrf);
     
-    // M3: 注册后自动创建并启动实例
-    try {
-      const instance = await createInstance(db, user!, { name: 'default' });
-      const startResult = await startInstance(db, instance);
-      if (startResult.status === 'running') {
-        audit(db, 'instance_start', user!.id, user!.id, `auto-start after register: ${instance.id}`);
-      }
-    } catch (err) {
-      console.error('[register] auto create instance failed:', err);
-    }
-    
-    redirect(res, '/');
+    // 会员系统：注册后不再自动创建实例，重定向到会员购买页面
+    redirect(res, '/membership');
   } catch (e) {
     const msg = e instanceof Error && e.message.includes('UNIQUE') ? '昵称或用户名已被使用' : '注册失败：' + (e instanceof Error ? e.message : String(e));
     sendHtml(res, 400, renderRegisterPage(msg));
@@ -395,6 +392,8 @@ page('POST', '/reset-password', async ({ db, req, res }) => {
 page('GET', '/', ({ db, req, res }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
+  // 会员系统：无有效会员重定向到购买页面
+  if (!hasActiveMembership(db, auth.user.id)) { redirect(res, '/membership'); return; }
   const instances = listInstances(db, auth.user.id);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
   sendHtml(res, 200, renderInstancesPage(auth.user, instances, undefined, csrf));
@@ -688,6 +687,75 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   console.log('[settings] current settings:', map);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
   sendHtml(res, 200, renderSettingsPage(user, map, { type: 'success', message: '设置已保存' }, csrf));
+});
+
+// ========== 会员系统页面 ==========
+
+// GET /membership - 会员购买页面
+page('GET', '/membership', ({ db, req, res }) => {
+  const auth = authenticate(db, req);
+  if (!auth) { redirect(res, '/login'); return; }
+  const membership = getUserMembership(db, auth.user.id);
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderMembershipPage(auth.user, membership, null, csrf));
+});
+
+// POST /membership/purchase - 购买会员
+page('POST', '/membership/purchase', async ({ db, req, res }) => {
+  const auth = authenticate(db, req);
+  if (!auth) { redirect(res, '/login'); return; }
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
+  const type = form.type as MembershipType;
+  if (!['trial', 'monthly', 'yearly'].includes(type)) {
+    sendHtml(res, 400, renderMembershipPage(auth.user, getUserMembership(db, auth.user.id), '无效的会员类型', parseCookies(req)[CSRF_COOKIE] ?? ''));
+    return;
+  }
+  try {
+    createOrder(db, auth.user.id, type);
+    redirect(res, '/membership?success=1');
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '购买失败';
+    sendHtml(res, 400, renderMembershipPage(auth.user, getUserMembership(db, auth.user.id), msg, parseCookies(req)[CSRF_COOKIE] ?? ''));
+  }
+});
+
+// GET /profile - 用户个人中心
+page('GET', '/profile', ({ db, req, res }) => {
+  const auth = authenticate(db, req);
+  if (!auth) { redirect(res, '/login'); return; }
+  const membership = getUserMembership(db, auth.user.id);
+  const orders = getUserOrders(db, auth.user.id);
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderProfilePage(auth.user, membership, orders, csrf));
+});
+
+// ========== 管理员会员管理 ==========
+
+// GET /admin/membership - 管理员会员管理
+page('GET', '/admin/membership', ({ db, req, res }) => {
+  const user = requireAdmin(db, req, res);
+  if (!user) return;
+  const orders = getAllOrders(db);
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderAdminMembershipPage(user, orders, csrf));
+});
+
+// POST /admin/users/:id/membership - 管理员设置会员
+page('POST', '/admin/users/:id/membership', async ({ db, req, res, params }) => {
+  const actor = requireAdmin(db, req, res);
+  if (!actor) return;
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
+  const targetId = Number(params.id);
+  const type = form.type as MembershipType;
+  const days = Number(form.days) || 30;
+  if (!['trial', 'monthly', 'yearly'].includes(type)) {
+    redirect(res, '/admin/users');
+    return;
+  }
+  adminSetMembership(db, actor.id, targetId, type, days);
+  redirect(res, '/admin/users');
 });
 
 // ========== 路由分发 ==========

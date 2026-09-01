@@ -19,6 +19,7 @@ import { config } from './config.ts';
 import { startServer } from './api.ts';
 import { reclaim } from './supervisor/index.ts';
 import { setGatewayDb } from './gateway.ts';
+import { startScheduler, stopScheduler } from './scheduler.ts';
 
 export { sanitizeNickname, generateSlug, shortId } from './users.ts';
 
@@ -35,6 +36,8 @@ function main(): void {
 
   const db = openDb({ dataDir: config.dataDir });
   setGatewayDb(db);
+  // 启动定时任务（会员到期检查）
+  startScheduler(db);
   // 监督器重启后的孤儿实例认领：先校正 DB 状态再服务请求
   const fixed = reclaim(db);
   if (fixed.length > 0) console.log(`[reclaim] ${fixed.length} 个实例状态校正:`);
@@ -46,6 +49,7 @@ function main(): void {
     if (closing) return;
     closing = true;
     console.log('\n关闭中…');
+    stopScheduler();
     server.close(() => {
       db.close();
       process.exit(0);

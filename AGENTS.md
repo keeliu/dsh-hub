@@ -63,12 +63,14 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
     │   ├── pwd.ts           # 密码工具
     │   ├── version.ts       # 版本管理
     │   ├── email.ts         # 邮件发送
+    │   ├── membership.ts    # 会员系统（会员/订单/到期检查）
+    │   ├── scheduler.ts     # 定时任务调度器
     │   └── pages.ts         # 页面路由（SSR）
     │   └── views/           # 页面视图模板
     │       ├── layout.ts    # 布局（含 CSRF meta）
     │       ├── auth.ts      # 认证页面
-    │       ├── user.ts      # 用户页面
-    │       └── admin.ts     # 管理页面
+    │       ├── user.ts      # 用户页面（含会员购买/个人中心）
+    │       └── admin.ts     # 管理页面（含会员管理）
     ├── scripts/             # 冒烟测试与运维脚本
     ├── spikes/              # 技术验证脚本（S1-S5）
     ├── package.json
@@ -112,6 +114,14 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 实例链接不完整（buildInstanceUrl 剥离协议前缀）
   - WebSocket 事件通道断裂（/api/events.mux、/api/events.host 未代理到 DSH 实例）
   - WebSocket 代理 Host/Origin 头不一致（与 HTTP 代理统一修复）
+- **会员系统已完成**（openspec/changes/membership-system/）：
+  - 数据库 Migration v4（users 新增会员字段 + memberships/orders 表）
+  - 会员核心逻辑（membership.ts：激活/到期检查/管理员设置）
+  - 订单逻辑（创建订单即激活会员，预留支付接口）
+  - 定时任务（scheduler.ts：每日 0 点检查会员到期）
+  - 页面路由（/membership 购买页、/profile 个人中心、/admin/membership 管理）
+  - 注册/登录流程调整（无会员重定向到购买页）
+  - 会员激活后自动创建 DSH 实例
 
 ## 架构要点
 

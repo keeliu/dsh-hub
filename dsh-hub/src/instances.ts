@@ -127,3 +127,18 @@ export function deleteInstance(db: DatabaseSync, record: InstanceRecord): void {
     }
   }
 }
+
+/** 会员激活后自动创建实例（幂等：已有实例则跳过）。 */
+export async function ensureInstanceForUser(db: DatabaseSync, userId: number): Promise<void> {
+  const existing = listInstances(db, userId);
+  if (existing.length > 0) return;
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as UserRow | undefined;
+  if (!user) return;
+
+  try {
+    await createInstance(db, user, { name: `${user.nickname} 的工作空间` });
+  } catch (e) {
+    console.error(`[dsh-hub] ensureInstanceForUser: 自动创建实例失败 (user=${userId}):`, e);
+  }
+}

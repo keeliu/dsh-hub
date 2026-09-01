@@ -197,3 +197,168 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
 
   return layout(instance.name, content, user, undefined, csrf);
 }
+
+// ========== 会员系统页面 ==========
+
+interface MembershipInfo {
+  type: string | null;
+  expiresAt: number | null;
+  isActive: boolean;
+  trialUsed: boolean;
+}
+
+interface OrderInfo {
+  id: number;
+  membership_type: string;
+  amount: number;
+  status: string;
+  created_at: number;
+  paid_at: number | null;
+}
+
+const MEMBERSHIP_LABELS: Record<string, string> = {
+  trial: '1天体验会员',
+  monthly: '1个月会员',
+  yearly: '1年会员',
+};
+
+const MEMBERSHIP_PRICES: Record<string, string> = {
+  trial: '免费',
+  monthly: '¥19.9',
+  yearly: '¥198',
+};
+
+/** 会员购买页面（/membership） */
+export function renderMembershipPage(user: UserRow, membership: MembershipInfo, error?: string | null, csrf?: string): string {
+  const errorHtml = error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : '';
+  
+  // 当前会员状态展示
+  const statusHtml = membership.isActive
+    ? `<div class="alert alert-success">
+        <strong>当前会员：</strong>${MEMBERSHIP_LABELS[membership.type!] || membership.type}
+        <br><small>到期时间：${new Date(membership.expiresAt!).toLocaleString('zh-CN')}</small>
+       </div>`
+    : membership.trialUsed
+      ? `<div class="alert alert-warning">您的会员已过期，请续费以继续使用</div>`
+      : '';
+
+  // 套餐卡片
+  const plansHtml = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;margin-top:1.5rem">
+      ${!membership.trialUsed ? `
+      <div class="card" style="text-align:center;border:2px solid var(--primary-color,#007bff)">
+        <div style="font-size:1.5rem;font-weight:600;margin-bottom:0.5rem">🎁 体验会员</div>
+        <div style="font-size:2rem;font-weight:700;color:var(--primary-color,#007bff)">免费</div>
+        <p style="color:var(--gray-600);margin:1rem 0">1天体验，仅限首次使用</p>
+        <form method="POST" action="/membership/purchase">
+          ${csrfField(csrf ?? '')}
+          <input type="hidden" name="type" value="trial">
+          <button type="submit" class="btn btn-primary" style="width:100%">立即体验</button>
+        </form>
+      </div>
+      ` : ''}
+      
+      <div class="card" style="text-align:center">
+        <div style="font-size:1.5rem;font-weight:600;margin-bottom:0.5rem">📅 月度会员</div>
+        <div style="font-size:2rem;font-weight:700;color:var(--success-color,#28a745)">¥19.9</div>
+        <p style="color:var(--gray-600);margin:1rem 0">30天有效期</p>
+        <form method="POST" action="/membership/purchase">
+          ${csrfField(csrf ?? '')}
+          <input type="hidden" name="type" value="monthly">
+          <button type="submit" class="btn btn-success" style="width:100%">立即购买</button>
+        </form>
+      </div>
+      
+      <div class="card" style="text-align:center;border:2px solid var(--warning-color,#ffc107)">
+        <div style="font-size:1.5rem;font-weight:600;margin-bottom:0.5rem">⭐ 年度会员</div>
+        <div style="font-size:2rem;font-weight:700;color:var(--warning-color,#ffc107)">¥198</div>
+        <p style="color:var(--gray-600);margin:1rem 0">365天有效期，更划算</p>
+        <form method="POST" action="/membership/purchase">
+          ${csrfField(csrf ?? '')}
+          <input type="hidden" name="type" value="yearly">
+          <button type="submit" class="btn btn-warning" style="width:100%">立即购买</button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  const content = `
+    <h1 style="margin-bottom:1rem">会员购买</h1>
+    ${statusHtml}
+    ${errorHtml}
+    <div class="card">
+      <div class="card-title">选择会员套餐</div>
+      <p style="color:var(--gray-600)">
+        会员可使用 <strong>乌鸦Work</strong> 平台功能。大模型 API Key 需要您自行准备并维护到系统中。
+      </p>
+      ${plansHtml}
+    </div>
+  `;
+
+  return layout('会员购买', content, user, undefined, csrf);
+}
+
+/** 用户个人中心（/profile） */
+export function renderProfilePage(user: UserRow, membership: MembershipInfo, orders: OrderInfo[], csrf?: string): string {
+  const membershipStatusHtml = membership.isActive
+    ? `<span class="badge badge-success">有效会员</span> ${MEMBERSHIP_LABELS[membership.type!] || membership.type}
+       <br><small style="color:var(--gray-600)">到期时间：${new Date(membership.expiresAt!).toLocaleString('zh-CN')}</small>`
+    : `<span class="badge badge-secondary">无有效会员</span>
+       <br><a href="/membership" class="btn btn-sm btn-primary" style="margin-top:0.5rem">立即购买</a>`;
+
+  const ordersHtml = orders.length === 0
+    ? '<p style="color:var(--gray-600)">暂无订单记录</p>'
+    : `<table class="table">
+        <thead>
+          <tr>
+            <th>订单号</th>
+            <th>会员类型</th>
+            <th>金额</th>
+            <th>状态</th>
+            <th>创建时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${orders.map(order => `
+            <tr>
+              <td><code>#${order.id}</code></td>
+              <td>${MEMBERSHIP_LABELS[order.membership_type] || order.membership_type}</td>
+              <td>¥${order.amount.toFixed(2)}</td>
+              <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
+                   order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
+                   `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>
+              <td>${new Date(order.created_at).toLocaleString('zh-CN')}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+       </table>`;
+
+  const content = `
+    <h1 style="margin-bottom:1.5rem">个人中心</h1>
+    
+    <div class="card">
+      <div class="card-title">会员信息</div>
+      <div style="padding:1rem 0">
+        ${membershipStatusHtml}
+      </div>
+      ${membership.isActive ? `<a href="/membership" class="btn btn-sm btn-secondary">续费</a>` : ''}
+    </div>
+    
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">账户信息</div>
+      <table class="table" style="margin:0">
+        <tr><td style="width:150px;font-weight:500">昵称</td><td>${escapeHtml(user.nickname)}</td></tr>
+        <tr><td style="font-weight:500">用户名</td><td>${escapeHtml(user.username || '-')}</td></tr>
+        <tr><td style="font-weight:500">邮箱</td><td>${escapeHtml(user.email || '-')}</td></tr>
+        <tr><td style="font-weight:500">角色</td><td>${escapeHtml(user.role)}</td></tr>
+      </table>
+    </div>
+    
+    <div class="card" style="margin-top:1rem">
+      <div class="card-title">订单记录</div>
+      ${ordersHtml}
+    </div>
+  `;
+
+  return layout('个人中心', content, user, undefined, csrf);
+}

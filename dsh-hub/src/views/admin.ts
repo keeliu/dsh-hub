@@ -58,6 +58,7 @@ function adminSidebar(active: string): string {
     { key: 'dashboard', href: '/admin', label: '仪表盘' },
     { key: 'users', href: '/admin/users', label: '用户管理' },
     { key: 'instances', href: '/admin/instances', label: '实例总览' },
+    { key: 'membership', href: '/admin/membership', label: '会员管理' },
     { key: 'audit', href: '/admin/audit', label: '审计日志' },
     { key: 'settings', href: '/admin/settings', label: '全局设置' },
   ];
@@ -331,4 +332,69 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
   `;
 
   return layout('全局设置', content, user, flash, csrf);
+}
+
+// ========== 会员管理页面 ==========
+
+interface OrderInfo {
+  id: number;
+  user_id: number;
+  membership_type: string;
+  amount: number;
+  status: string;
+  payment_method: string | null;
+  created_at: number;
+  paid_at: number | null;
+}
+
+const MEMBERSHIP_LABELS: Record<string, string> = {
+  trial: '体验会员',
+  monthly: '月度会员',
+  yearly: '年度会员',
+};
+
+/** 管理员会员管理页（/admin/membership） */
+export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], csrf?: string): string {
+  const ordersHtml = orders.length === 0
+    ? '<p style="color:var(--gray-600)">暂无订单记录</p>'
+    : `<table class="table">
+        <thead>
+          <tr>
+            <th>订单号</th>
+            <th>用户ID</th>
+            <th>会员类型</th>
+            <th>金额</th>
+            <th>状态</th>
+            <th>创建时间</th>
+            <th>支付时间</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${orders.map(order => `
+            <tr>
+              <td><code>#${order.id}</code></td>
+              <td>${order.user_id}</td>
+              <td>${MEMBERSHIP_LABELS[order.membership_type] || order.membership_type}</td>
+              <td>¥${order.amount.toFixed(2)}</td>
+              <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
+                   order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
+                   `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>
+              <td>${new Date(order.created_at).toLocaleString('zh-CN')}</td>
+              <td>${order.paid_at ? new Date(order.paid_at).toLocaleString('zh-CN') : '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+       </table>`;
+
+  const content = `
+    <h1 style="margin-bottom:1.5rem">会员管理</h1>
+    ${adminSidebar('membership')}
+    <div class="card">
+      <div class="card-title">订单记录</div>
+      ${ordersHtml}
+    </div>
+    ${adminSidebarClose()}
+  `;
+
+  return layout('会员管理', content, user, undefined, csrf);
 }

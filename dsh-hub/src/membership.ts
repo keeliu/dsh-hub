@@ -80,7 +80,6 @@ export function createOrder(db: DatabaseSync, userId: number, type: MembershipTy
   const config = MEMBERSHIP_CONFIG[type];
   const now = Date.now();
 
-  // 体验会员：检查是否已使用过
   if (type === 'trial') {
     const membership = getUserMembership(db, userId);
     if (membership.trialUsed) {
@@ -95,21 +94,22 @@ export function createOrder(db: DatabaseSync, userId: number, type: MembershipTy
 
   const orderId = Number(result.lastInsertRowid);
 
-  // 立即激活会员（当前阶段：订单创建即激活）
-  activateMembership(db, userId, type, orderId, now);
-
-  // 标记订单为已支付（后续接入支付后改为回调更新）
-  db.prepare(`UPDATE orders SET status = 'paid', paid_at = ? WHERE id = ?`).run(now, orderId);
-
-  audit(db, 'order_create', userId, userId, `type=${type},order_id=${orderId}`);
-  audit(db, 'order_pay', userId, userId, `order_id=${orderId}`);
+  // 体验会员免费，直接激活
+  if (type === 'trial') {
+    activateMembership(db, userId, type, orderId, now);
+    db.prepare(`UPDATE orders SET status = 'paid', paid_at = ? WHERE id = ?`).run(now, orderId);
+    audit(db, 'order_create', userId, userId, `type=${type},order_id=${orderId}`);
+    audit(db, 'order_pay', userId, userId, `order_id=${orderId}`);
+  } else {
+    audit(db, 'order_create', userId, userId, `type=${type},order_id=${orderId}`);
+  }
 
   return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as unknown as OrderRow;
 }
 
 // ─── 会员激活 ────────────────────────────────────────────────────────────────
 
-function activateMembership(
+export function activateMembership(
   db: DatabaseSync,
   userId: number,
   type: MembershipType,
@@ -201,4 +201,55 @@ export function getAllOrders(db: DatabaseSync, limit = 50, offset = 0): OrderRow
 
 export function getOrderById(db: DatabaseSync, orderId: number): OrderRow | undefined {
   return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as unknown as OrderRow | undefined;
+}
+
+// ─── 支付回调处理 ────────────────────────────────────────────────────────────
+
+export function handlePaymentCallback(
+  db: DatabaseSync,
+  tradeOrderId: string,
+  totalFee: string,
+  transactionId: string,
+  status: string,
+): { ok: boolean; message: string } {
+  const orderId = Number(tradeOrderId);
+  const order = getOrderById(db, orderId);
+
+  if (!order) {
+    return { ok: false, message: 'order not found' };
+  }
+
+  // 幂等：已支付直接返回成功
+  if (order.status === 'paid') {
+    return { ok: true, message: 'already paid' };
+  }
+
+  // 金额校验
+  const expectedFee = order.amount.toFixed(2);
+  const actualFee = Number(totalFee).toFixed(2);
+  if (expectedFee !== actualFee) {
+    audit(db, 'order_pay', null, order.user_id,
+      `fee_mismatch,order_id=${orderId},expected=${expectedFee},actual=${actualFee}`);
+    return { ok: false, message: 'fee mismatch' };
+  }
+
+  if (status !== 'OD') {
+    return { ok: false, message: `unexpected status: ${status}` };
+  }
+
+  const now = Date.now();
+
+  // 更新订单状态
+  db.prepare(`
+    UPDATE orders SET status = 'paid', paid_at = ?, payment_id = ?, payment_method = 'xunhupay'
+    WHERE id = ?
+  `).run(now, transactionId, orderId);
+
+  // 激活会员
+  activateMembership(db, order.user_id, order.membership_type, orderId, now);
+
+  audit(db, 'order_pay', order.user_id, order.user_id,
+    `order_id=${orderId},transaction_id=${transactionId}`);
+
+  return { ok: true, message: 'success' };
 }

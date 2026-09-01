@@ -8,6 +8,7 @@ import { layout, csrfField } from './layout.ts';
 import { buildInstanceUrl } from '../subdomain.ts';
 import { config } from '../config.ts';
 import type { UserRow } from '../users.ts';
+import type { MembershipType } from '../membership.ts';
 
 interface InstanceInfo {
   id: string;
@@ -283,11 +284,7 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           <li>30天有效期</li>
           <li>随时续费</li>
         </ul>
-        <form method="POST" action="/membership/purchase">
-          ${csrfField(csrf ?? '')}
-          <input type="hidden" name="type" value="monthly">
-          <button type="submit" class="btn btn-outline-primary btn-block">立即购买</button>
-        </form>
+        <button type="button" class="btn btn-outline-primary btn-block" onclick="startPayment('monthly')">立即购买</button>
       </div>
       
       <!-- 年度会员 - 推荐 -->
@@ -307,13 +304,128 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           <li>节省 45%</li>
           <li>优先技术支持</li>
         </ul>
-        <form method="POST" action="/membership/purchase">
-          ${csrfField(csrf ?? '')}
-          <input type="hidden" name="type" value="yearly">
-          <button type="submit" class="btn btn-primary btn-block">立即购买</button>
-        </form>
+        <button type="button" class="btn btn-primary btn-block" onclick="startPayment('yearly')">立即购买</button>
       </div>
     </div>
+  `;
+
+  // 支付弹窗
+  const paymentModal = `
+    <div id="payment-modal" class="payment-modal" style="display:none">
+      <div class="payment-modal-overlay" onclick="closePaymentModal()"></div>
+      <div class="payment-modal-content">
+        <div class="payment-modal-header">
+          <h3>扫码支付</h3>
+          <button class="payment-modal-close" onclick="closePaymentModal()">&times;</button>
+        </div>
+        <div id="payment-loading" class="payment-loading">
+          <div class="spinner"></div>
+          <p>正在创建订单...</p>
+        </div>
+        <div id="payment-qrcode" class="payment-qrcode" style="display:none">
+          <p class="payment-amount">请支付 <strong id="payment-amount"></strong></p>
+          <div id="qrcode-container" class="qrcode-img"></div>
+          <p class="payment-hint">请使用微信或支付宝扫码支付</p>
+          <div class="payment-status">
+            <span id="payment-waiting">等待支付中...</span>
+            <a id="payment-link" href="#" target="_blank" class="btn btn-sm btn-secondary" style="display:none">点击跳转支付</a>
+          </div>
+        </div>
+        <div id="payment-error" class="payment-error" style="display:none">
+          <p class="error-text" id="error-message"></p>
+          <button class="btn btn-secondary" onclick="closePaymentModal()">关闭</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // 支付 JavaScript
+  const paymentScript = `
+    <script>
+    const CSRF_TOKEN = ${JSON.stringify(csrf ?? '')};
+    let pollTimer = null;
+    let currentOrderId = null;
+
+    async function startPayment(type) {
+      const modal = document.getElementById('payment-modal');
+      const loading = document.getElementById('payment-loading');
+      const qrcode = document.getElementById('payment-qrcode');
+      const error = document.getElementById('payment-error');
+      
+      modal.style.display = 'flex';
+      loading.style.display = 'block';
+      qrcode.style.display = 'none';
+      error.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/payment/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+          body: JSON.stringify({ type }),
+        });
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.message || '创建订单失败');
+        }
+
+        currentOrderId = data.orderId;
+        document.getElementById('payment-amount').textContent = '¥' + data.amount.toFixed(2);
+        
+        loading.style.display = 'none';
+        qrcode.style.display = 'block';
+
+        // 显示二维码
+        if (data.urlQrcode) {
+          document.getElementById('qrcode-container').innerHTML = 
+            '<img src="' + data.urlQrcode + '" alt="支付二维码" style="width:200px;height:200px">';
+        }
+        if (data.url) {
+          document.getElementById('payment-link').href = data.url;
+          document.getElementById('payment-link').style.display = 'inline-block';
+        }
+
+        // 开始轮询订单状态
+        startPolling(data.orderId);
+      } catch (e) {
+        loading.style.display = 'none';
+        error.style.display = 'block';
+        document.getElementById('error-message').textContent = e.message || '支付创建失败';
+      }
+    }
+
+    function startPolling(orderId) {
+      let attempts = 0;
+      const maxAttempts = 100; // 5 minutes at 3s interval
+      
+      pollTimer = setInterval(async () => {
+        attempts++;
+        if (attempts > maxAttempts) {
+          clearInterval(pollTimer);
+          document.getElementById('payment-waiting').textContent = '支付超时，请刷新页面重试';
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/payment/query/' + orderId);
+          const data = await res.json();
+          
+          if (data.paid) {
+            clearInterval(pollTimer);
+            document.getElementById('payment-waiting').textContent = '支付成功！正在跳转...';
+            setTimeout(() => { window.location.href = '/payment/return?order_id=' + orderId; }, 1000);
+          }
+        } catch (e) {
+          // ignore polling errors
+        }
+      }, 3000);
+    }
+
+    function closePaymentModal() {
+      if (pollTimer) clearInterval(pollTimer);
+      document.getElementById('payment-modal').style.display = 'none';
+    }
+    </script>
   `;
 
   const content = `
@@ -324,6 +436,8 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
     ${statusHtml}
     ${errorHtml}
     ${plansHtml}
+    ${paymentModal}
+    ${paymentScript}
   `;
 
   return layout('会员购买', content, user, undefined, csrf);
@@ -415,4 +529,41 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
   `;
 
   return layout('个人中心', content, user, undefined, csrf);
+}
+
+export function renderPaymentReturnPage(
+  user: UserRow,
+  membership: { type: MembershipType | null; expiresAt: number | null; isActive: boolean; trialUsed: boolean },
+  csrf: string | null
+): string {
+  const MEMBERSHIP_LABELS: Record<string, string> = {
+    trial: '体验版',
+    monthly: '月度会员',
+    yearly: '年度会员',
+  };
+
+  const content = `
+    <div class="payment-return">
+      <div class="payment-return-icon">✓</div>
+      <h2>支付成功</h2>
+      <p class="payment-return-desc">您的会员已激活，现在可以开始使用所有功能</p>
+      
+      <div class="card" style="margin-top: 2rem; text-align: left;">
+        <div class="card-title">当前会员</div>
+        <div class="membership-status">
+          <span class="membership-badge ${membership.isActive ? membership.type : 'expired'}">
+            ${membership.isActive && membership.type ? (MEMBERSHIP_LABELS[membership.type] ?? '会员') : '未激活'}
+          </span>
+          ${membership.expiresAt ? `<span class="membership-expire">到期时间：${new Date(membership.expiresAt).toLocaleString('zh-CN')}</span>` : ''}
+        </div>
+      </div>
+      
+      <div class="payment-return-actions">
+        <a href="/" class="btn btn-primary">进入首页</a>
+        <a href="/profile" class="btn btn-secondary">查看个人中心</a>
+      </div>
+    </div>
+  `;
+
+  return layout('支付成功', content, user, undefined, csrf ?? undefined);
 }

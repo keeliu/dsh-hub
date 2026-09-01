@@ -31,7 +31,8 @@ import { audit, withTx } from './db.ts';
 import { handlePageRequest } from './pages.ts';
 import { handleGatewayRequest, handleGatewayWebSocket, proxyToDshInstance, proxyWebSocketToDshInstance } from './gateway.ts';
 import { config } from './config.ts';
-import { HttpError, clientIp, parseCookies, readJson, sendError, sendJson } from './http.ts';
+import { getXunhupayConfig, createPayment, verifyHash, type NotifyParams } from './payment.ts';
+import { HttpError, clientIp, parseCookies, readForm, readJson, sendError, sendJson } from './http.ts';
 import {
   authenticate, assertCsrf, checkLoginLock, clearLoginLock, loginLockKey, recordLoginFailure, requireRole,
 } from './auth.ts';
@@ -41,7 +42,7 @@ import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor/index.ts';
-import { getUserMembership, getUserOrders, getAllOrders, createOrder, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
+import { getUserMembership, getUserOrders, getAllOrders, createOrder, getOrderById, handlePaymentCallback, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
   listApiTokens, revokeApiToken,
@@ -597,6 +598,102 @@ route('GET', '/admin/api/orders', { auth: true }, async ({ db, req, user: actor 
   const offset = Number(url.searchParams.get('offset') ?? 0);
   const orders = getAllOrders(db, limit, offset);
   return { orders: orders.map(o => ({ id: o.id, userId: o.user_id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
+});
+
+// ---------- 支付 ----------
+
+route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, req, user }) => {
+  const payConfig = getXunhupayConfig(db);
+  if (!payConfig) {
+    throw new HttpError(503, 'payment_not_configured', '支付功能尚未配置');
+  }
+
+  const body = await readJson(req) as { type?: string };
+  const type = body.type as MembershipType;
+  if (!type || !['monthly', 'yearly'].includes(type)) {
+    throw new HttpError(400, 'invalid_type', '请选择有效的会员套餐');
+  }
+
+  // 创建 pending 订单
+  const order = createOrder(db, user.id, type);
+  const cfg = MEMBERSHIP_CONFIG[type];
+
+  // 构造回调和返回 URL
+  const hubHost = req.headers.host ?? 'localhost';
+  const protocol = req.headers['x-forwarded-proto'] ?? 'http';
+  const baseUrl = `${protocol}://${hubHost}`;
+  const notifyUrl = `${baseUrl}/api/payment/notify`;
+  const returnUrl = `${baseUrl}/payment/return?order_id=${order.id}`;
+
+  const result = await createPayment(payConfig, {
+    trade_order_id: String(order.id),
+    total_fee: cfg.price.toFixed(2),
+    title: `乌鸦Work - ${cfg.label}`,
+    notify_url: notifyUrl,
+    return_url: returnUrl,
+  });
+
+  if (result.errcode !== 0) {
+    throw new HttpError(502, 'payment_create_failed', result.errmsg || '支付创建失败');
+  }
+
+  return {
+    orderId: order.id,
+    urlQrcode: result.url_qrcode ?? '',
+    url: result.url ?? '',
+    amount: cfg.price,
+  };
+});
+
+// 支付回调（无需鉴权，签名验证）
+route('POST', '/api/payment/notify', { auth: false, csrf: false }, async ({ db, req, res }) => {
+  const form = await readForm(req);
+  const params = form as unknown as NotifyParams;
+
+  const payConfig = getXunhupayConfig(db);
+  if (!payConfig) {
+    throw new HttpError(503, 'payment_not_configured', '支付未配置');
+  }
+
+  // 验证签名
+  const hashValue = params.hash;
+  if (!hashValue || !verifyHash(params as unknown as Record<string, string>, hashValue, payConfig.appsecret)) {
+    audit(db, 'payment_notify', null, null, 'hash_verify_failed');
+    throw new HttpError(400, 'invalid_hash', '签名验证失败');
+  }
+
+  // 处理回调
+  const result = handlePaymentCallback(
+    db,
+    params.trade_order_id,
+    params.total_fee,
+    params.transaction_id,
+    params.status,
+  );
+
+  if (!result.ok && result.message !== 'already paid') {
+    audit(db, 'payment_notify', null, null, `callback_failed: ${result.message}`);
+    throw new HttpError(400, 'callback_failed', result.message);
+  }
+
+  // 虎皮椒要求返回纯文本 "success"
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('success');
+});
+
+route('GET', '/api/payment/query/:orderId', { auth: true }, async ({ db, user, params }) => {
+  const orderId = Number(params.orderId);
+  const order = getOrderById(db, orderId);
+
+  if (!order || order.user_id !== user.id) {
+    throw new HttpError(404, 'not_found', '订单不存在');
+  }
+
+  return {
+    status: order.status,
+    paid: order.status === 'paid',
+    orderId: order.id,
+  };
 });
 
 // ---------- 实例（M2） ----------

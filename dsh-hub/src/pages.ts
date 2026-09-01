@@ -22,7 +22,7 @@ import { hasActiveMembership, getUserOrders, createOrder, getUserMembership, MEM
 
 // 页面视图
 import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
-import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage, renderMembershipPage, renderProfilePage } from './views/user.ts';
+import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage, renderMembershipPage, renderProfilePage, renderPaymentReturnPage } from './views/user.ts';
 import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage, renderAdminMembershipPage } from './views/admin.ts';
 import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
 import { getUserByAccount, getUserByEmail, isValidEmail, isValidUsername, getUserByUsername } from './users.ts';
@@ -700,6 +700,34 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   sendHtml(res, 200, renderSettingsPage(user, map, { type: 'success', message: '设置已保存' }, csrf));
 });
 
+// POST /admin/settings/payment - 保存支付配置
+page('POST', '/admin/settings/payment', async ({ db, req, res }) => {
+  const user = requireAdmin(db, req, res);
+  if (!user) return;
+  const form = await readForm(req);
+  assertPageCsrf(req, form);
+
+  if (form.xunhupay_appid !== undefined) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run('xunhupay_appid', form.xunhupay_appid ?? '');
+  }
+  if (form.xunhupay_appsecret) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run('xunhupay_appsecret', form.xunhupay_appsecret);
+  }
+  if (form.xunhupay_gateway !== undefined) {
+    db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+      .run('xunhupay_gateway', form.xunhupay_gateway ?? '');
+  }
+
+  audit(db, 'user_update', user.id, null, 'payment settings updated');
+  const settings = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+  const map: Record<string, string> = {};
+  for (const s of settings) map[s.key] = s.value;
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderSettingsPage(user, map, { type: 'success', message: '支付配置已保存' }, csrf));
+});
+
 // ========== 会员系统页面 ==========
 
 // GET /membership - 会员购买页面
@@ -711,24 +739,13 @@ page('GET', '/membership', ({ db, req, res }) => {
   sendHtml(res, 200, renderMembershipPage(auth.user, membership, null, csrf));
 });
 
-// POST /membership/purchase - 购买会员
-page('POST', '/membership/purchase', async ({ db, req, res }) => {
+// GET /payment/return - 支付成功返回页
+page('GET', '/payment/return', ({ db, req, res }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
-  const form = await readForm(req);
-  assertPageCsrf(req, form);
-  const type = form.type as MembershipType;
-  if (!['trial', 'monthly', 'yearly'].includes(type)) {
-    sendHtml(res, 400, renderMembershipPage(auth.user, getUserMembership(db, auth.user.id), '无效的会员类型', parseCookies(req)[CSRF_COOKIE] ?? ''));
-    return;
-  }
-  try {
-    createOrder(db, auth.user.id, type);
-    redirect(res, '/membership?success=1');
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : '购买失败';
-    sendHtml(res, 400, renderMembershipPage(auth.user, getUserMembership(db, auth.user.id), msg, parseCookies(req)[CSRF_COOKIE] ?? ''));
-  }
+  const membership = getUserMembership(db, auth.user.id);
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderPaymentReturnPage(auth.user, membership, csrf));
 });
 
 // GET /profile - 用户个人中心

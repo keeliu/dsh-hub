@@ -337,6 +337,8 @@ export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
 /** 全局设置页（/admin/settings） */
 export function renderSettingsPage(user: UserRow, settings: Record<string, string>, flash?: { type: string; message: string }, csrf?: string): string {
   const flashHtml = flash ? `<div class="alert alert-${flash.type}">${escapeHtml(flash.message)}</div>` : '';
+  const hasPaymentConfig = !!settings.xunhupay_appid && !!settings.xunhupay_appsecret;
+  const secretMasked = settings.xunhupay_appsecret ? '••••••••' : '';
 
   const content = `
     <div class="page-header">
@@ -345,6 +347,7 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
     ${adminSidebar('settings')}
     ${flashHtml}
     <div class="card">
+      <div class="card-title">基础设置</div>
       <form method="POST" action="/admin/settings">
         ${csrfField(csrf ?? '')}
         <div class="form-group">
@@ -365,6 +368,32 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
                  value="${escapeHtml(settings.allowed_harness_versions ?? '')}" placeholder="留空不限制">
         </div>
         <button type="submit" class="btn btn-primary">保存设置</button>
+      </form>
+    </div>
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>支付配置（虎皮椒）</span>
+        ${hasPaymentConfig ? '<span class="badge badge-success">已配置</span>' : '<span class="badge badge-secondary">未配置</span>'}
+      </div>
+      <form method="POST" action="/admin/settings/payment">
+        ${csrfField(csrf ?? '')}
+        <div class="form-group">
+          <label class="form-label">AppID</label>
+          <input type="text" name="xunhupay_appid" class="form-control" style="max-width:300px"
+                 value="${escapeHtml(settings.xunhupay_appid ?? '')}" placeholder="虎皮椒 AppID">
+        </div>
+        <div class="form-group">
+          <label class="form-label">AppSecret</label>
+          <input type="password" name="xunhupay_appsecret" class="form-control" style="max-width:300px"
+                 value="" placeholder="${secretMasked || '虎皮椒 AppSecret'}">
+          <small style="color:var(--text-secondary)">留空则保留原值不变</small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">支付网关</label>
+          <input type="text" name="xunhupay_gateway" class="form-control" style="max-width:400px"
+                 value="${escapeHtml(settings.xunhupay_gateway ?? '')}" placeholder="默认 https://api.xunhupay.com">
+        </div>
+        <button type="submit" class="btn btn-primary">保存支付配置</button>
       </form>
     </div>
     ${adminSidebarClose()}

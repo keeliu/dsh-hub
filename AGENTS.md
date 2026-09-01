@@ -64,6 +64,7 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
     │   ├── version.ts       # 版本管理
     │   ├── email.ts         # 邮件发送
     │   ├── membership.ts    # 会员系统（会员/订单/到期检查）
+    │   ├── payment.ts       # 支付集成（虎皮椒签名/API封装）
     │   ├── scheduler.ts     # 定时任务调度器
     │   └── pages.ts         # 页面路由（SSR）
     │   └── views/           # 页面视图模板
@@ -117,7 +118,7 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 - **会员系统已完成**（openspec/changes/membership-system/）：
   - 数据库 Migration v4（users 新增会员字段 + memberships/orders 表）
   - 会员核心逻辑（membership.ts：激活/到期检查/管理员设置）
-  - 订单逻辑（创建订单即激活会员，预留支付接口）
+  - 订单逻辑（创建订单为 pending 状态，支付成功后激活会员）
   - 定时任务（scheduler.ts：每日 0 点检查会员到期）
   - 页面路由（/membership 购买页、/profile 个人中心、/admin/membership 管理）
   - 注册/登录流程调整（无会员重定向到购买页）
@@ -133,6 +134,13 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 会员购买页重设计（三栏定价卡片，推荐高亮）
   - 个人中心页重设计（会员状态卡片，订单表格）
   - 管理后台页面重设计（侧边栏导航，表格布局）
+- **支付集成已完成**（openspec/changes/payment-integration/）：
+  - 支付模块（payment.ts：虎皮椒签名生成/验证、发起支付、查询订单、退款）
+  - 配置管理（settings.ts 新增 xunhupay_appid/appsecret，管理后台支付配置表单）
+  - 订单流程改造（createOrder 不再立即激活，新增 handlePaymentCallback 处理回调）
+  - API 路由（POST /api/payment/create、POST /api/payment/notify、GET /api/payment/query/:orderId）
+  - 前端支付流程（AJAX 创建订单 → 二维码弹窗 → 轮询支付状态 → 成功跳转）
+  - 支付成功返回页（/payment/return）
 
 ## 架构要点
 

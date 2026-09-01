@@ -634,6 +634,127 @@ select.form-control {
   font-weight: 500;
 }
 
+/* 支付弹窗 */
+.payment-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.payment-modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.payment-modal-content {
+  position: relative;
+  background: var(--bg-body);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-elevated);
+  padding: 2rem;
+  min-width: 320px;
+  max-width: 400px;
+  text-align: center;
+}
+
+.payment-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.payment-modal-header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+}
+
+.payment-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 0;
+  line-height: 1;
+}
+
+.payment-loading {
+  padding: 2rem 0;
+}
+
+.payment-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  margin: 0 auto 1rem;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.payment-amount {
+  font-size: var(--font-size-lg);
+  margin-bottom: 1rem;
+}
+
+.payment-amount strong {
+  color: var(--primary);
+  font-size: var(--font-size-xl);
+}
+
+.qrcode-img {
+  margin: 1rem auto;
+  padding: 1rem;
+  background: white;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  display: inline-block;
+}
+
+.qrcode-img img {
+  display: block;
+}
+
+.payment-hint {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  margin: 1rem 0;
+}
+
+.payment-status {
+  margin-top: 1rem;
+}
+
+#payment-waiting {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.payment-error {
+  padding: 1rem 0;
+}
+
+.payment-error .error-text {
+  color: var(--danger);
+  margin-bottom: 1rem;
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
   .navbar { padding: 0 1rem; }

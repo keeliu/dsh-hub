@@ -12,6 +12,9 @@ export const SETTING_KEYS = [
   'allowed_harness_versions', // M2.1 新增：逗号分隔精确版本白名单，空=不限制
   'route_mode', // M3 预留（路由模式）
   'credential_mode', // M3 预留（凭据供给模式）
+  'xunhupay_appid', // 虎皮椒支付 AppID
+  'xunhupay_appsecret', // 虎皮椒支付 AppSecret
+  'xunhupay_gateway', // 虎皮椒支付网关（默认 https://api.xunhupay.com）
 ] as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

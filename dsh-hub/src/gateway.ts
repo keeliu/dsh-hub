@@ -221,3 +221,25 @@ export async function proxyToDshInstance(
   await proxyHttpRequest(req, res, target);
   return true;
 }
+
+/**
+ * WebSocket fallback：DSH 前端通过绝对路径连接 /api/events.mux、/api/events.host 等
+ * WebSocket 端点，不经过 /i/ 前缀。需要代理到用户运行中的 DSH 实例。
+ */
+export async function proxyWebSocketToDshInstance(
+  database: DatabaseSync,
+  req: IncomingMessage,
+  socket: Socket,
+  head: Buffer
+): Promise<boolean> {
+  const auth = authenticate(database, req);
+  if (!auth) return false;
+  
+  const instances = listInstances(database, auth.user.id);
+  const running = instances.find(i => i.status === 'running' && i.port);
+  if (!running || !running.port) return false;
+  
+  const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
+  await proxyWebSocket(req, socket, head, target);
+  return true;
+}

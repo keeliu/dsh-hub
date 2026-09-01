@@ -29,7 +29,7 @@ import http from 'node:http';
 import type { DatabaseSync } from 'node:sqlite';
 import { audit, withTx } from './db.ts';
 import { handlePageRequest } from './pages.ts';
-import { handleGatewayRequest, handleGatewayWebSocket, proxyToDshInstance } from './gateway.ts';
+import { handleGatewayRequest, handleGatewayWebSocket, proxyToDshInstance, proxyWebSocketToDshInstance } from './gateway.ts';
 import { config } from './config.ts';
 import { HttpError, clientIp, parseCookies, readJson, sendError, sendJson } from './http.ts';
 import {
@@ -753,9 +753,11 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
   // M3: WebSocket 升级处理（鉴权网关 WS 隧道）
   server.on('upgrade', async (req, socket, head) => {
     const handled = await handleGatewayWebSocket(req, socket as any, head);
-    if (!handled) {
-      socket.destroy();
-    }
+    if (handled) return;
+    // DSH WebSocket fallback：/api/events.mux、/api/events.host 等绝对路径
+    const proxied = await proxyWebSocketToDshInstance(db, req, socket as any, head);
+    if (proxied) return;
+    socket.destroy();
   });
 
   server.listen(opts.port ?? config.port, opts.host ?? config.host);

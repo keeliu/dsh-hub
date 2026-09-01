@@ -110,6 +110,8 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 端口 4000 冲突（改为 4001-4999）
   - 实例链接域名错误（使用 instance.trusted_host）
   - 实例链接不完整（buildInstanceUrl 剥离协议前缀）
+  - WebSocket 事件通道断裂（/api/events.mux、/api/events.host 未代理到 DSH 实例）
+  - WebSocket 代理 Host/Origin 头不一致（与 HTTP 代理统一修复）
 
 ## 架构要点
 

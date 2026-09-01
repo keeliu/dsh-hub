@@ -86,7 +86,9 @@ export async function proxyWebSocket(
   const upstream = net.createConnection(target.port, target.host);
   
   upstream.on('connect', () => {
-    const hostHeader = `Host: ${target.host}:${target.port}\r\n`;
+    // 保留原始 Host 头（DSH 实例用 --trusted-host 校验）
+    const originalHost = req.headers.host || `${target.host}:${target.port}`;
+    const hostHeader = `Host: ${originalHost}\r\n`;
     
     let targetPath = req.url || '/';
     if (stripPrefix && targetPath.startsWith(stripPrefix)) {
@@ -98,10 +100,16 @@ export async function proxyWebSocket(
     
     let headers = '';
     for (const [key, value] of Object.entries(req.headers)) {
-      if (key.toLowerCase() !== 'host') {
-        const val = Array.isArray(value) ? value.join(', ') : value;
-        if (val) headers += `${key}: ${val}\r\n`;
+      const lowerKey = key.toLowerCase();
+      if (lowerKey === 'host') continue;
+      // 重写 Origin 头与 Host 一致（避免 DSH 实例 CORS/origin 校验失败）
+      if (lowerKey === 'origin') {
+        const protocol = req.headers['x-forwarded-proto'] || 'https';
+        headers += `origin: ${protocol}://${originalHost}\r\n`;
+        continue;
       }
+      const val = Array.isArray(value) ? value.join(', ') : value;
+      if (val) headers += `${key}: ${val}\r\n`;
     }
     headers += hostHeader;
     headers += '\r\n';

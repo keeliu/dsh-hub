@@ -700,7 +700,7 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
     orderId: order.id,
     urlQrcode: result.url_qrcode ?? '',
     url: result.url ?? '',
-    amount: price,
+    amount: price / 100,
   };
 });
 

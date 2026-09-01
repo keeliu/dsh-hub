@@ -27,12 +27,10 @@ export async function proxyHttpRequest(
       headers[key] = Array.isArray(value) ? value.join(', ') : value;
     }
   }
-  // 保留原始 Host 头（DSH 实例用 --trusted-host 校验）
-  headers['host'] = req.headers.host || `${target.host}:${target.port}`;
-  // 重写 Origin 头与 Host 一致（避免 DSH 实例 CORS/origin 校验失败）
-  const hostForOrigin = req.headers.host || `${target.host}:${target.port}`;
-  const protocol = headers['x-forwarded-proto'] || 'https';
-  headers['origin'] = `${protocol}://${hostForOrigin}`;
+  // Host 使用 loopback 地址（DSH 实例监听在本地）
+  headers['host'] = `${target.host}:${target.port}`;
+  // Origin 基于 loopback Host 构建，避免与 Host 不匹配导致 403
+  headers['origin'] = `http://${target.host}:${target.port}`;
   headers['X-Forwarded-For'] = req.socket.remoteAddress || 'unknown';
   headers['X-Forwarded-Proto'] = 'https';
 
@@ -86,9 +84,7 @@ export async function proxyWebSocket(
   const upstream = net.createConnection(target.port, target.host);
   
   upstream.on('connect', () => {
-    // 保留原始 Host 头（DSH 实例用 --trusted-host 校验）
-    const originalHost = req.headers.host || `${target.host}:${target.port}`;
-    const hostHeader = `Host: ${originalHost}\r\n`;
+    const hostHeader = `Host: ${target.host}:${target.port}\r\n`;
     
     let targetPath = req.url || '/';
     if (stripPrefix && targetPath.startsWith(stripPrefix)) {
@@ -101,13 +97,8 @@ export async function proxyWebSocket(
     let headers = '';
     for (const [key, value] of Object.entries(req.headers)) {
       const lowerKey = key.toLowerCase();
-      if (lowerKey === 'host') continue;
-      // 重写 Origin 头与 Host 一致（避免 DSH 实例 CORS/origin 校验失败）
-      if (lowerKey === 'origin') {
-        const protocol = req.headers['x-forwarded-proto'] || 'https';
-        headers += `origin: ${protocol}://${originalHost}\r\n`;
-        continue;
-      }
+      // 剥离 host 和 origin（后续单独设置）
+      if (lowerKey === 'host' || lowerKey === 'origin') continue;
       const val = Array.isArray(value) ? value.join(', ') : value;
       if (val) headers += `${key}: ${val}\r\n`;
     }

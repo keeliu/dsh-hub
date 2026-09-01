@@ -102,6 +102,14 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - P3 proxy-streaming：HTTP 代理改流式转发 + WS close frame
   - P3 db-schema-versioning：Schema 迁移版本化（schema_version 表）
   - P3 instance-state-machine：实例状态机形式化（transitionStatus）
+- 生产环境问题修复：
+  - 实例路径解析 bug（lastIndexOf 问题）
+  - 静态资源 404（/assets/、/plugins/、/dsh-deployment.js fallback）
+  - DSH API 404（/api/host.* fallback）
+  - 代理层 403（Host/Origin 头处理）
+  - 端口 4000 冲突（改为 4001-4999）
+  - 实例链接域名错误（使用 instance.trusted_host）
+  - 实例链接不完整（buildInstanceUrl 剥离协议前缀）
 
 ## 架构要点
 

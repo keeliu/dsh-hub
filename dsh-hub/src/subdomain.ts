@@ -32,8 +32,9 @@ export function buildInstancePath(userSlug: string, instanceId: string): string 
 }
 
 export function buildInstanceUrl(userSlug: string, instanceId: string, domain: string): string {
-  const protocol = 'https';
-  return `${protocol}://${domain}${buildInstancePath(userSlug, instanceId)}`;
+  // Strip protocol prefix if domain includes it (e.g. "https://hub.example.com")
+  const cleanDomain = domain.replace(/^https?:\/\//, '');
+  return `https://${cleanDomain}${buildInstancePath(userSlug, instanceId)}`;
 }
 
 export function verifyInstanceOwnership(

@@ -490,8 +490,20 @@ select.form-control {
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 0.25rem;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
+}
+
+.pricing-original {
+  font-size: var(--font-size-base);
+  color: var(--color-text-tertiary);
+  text-decoration: line-through;
+}
+
+.pricing-amount-free {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--color-primary);
 }
 
 .pricing-currency {
@@ -503,7 +515,7 @@ select.form-control {
 .pricing-amount {
   font-size: 2.5rem;
   font-weight: 700;
-  color: var(--text-primary);
+  color: #e74c3c;
   line-height: 1;
 }
 

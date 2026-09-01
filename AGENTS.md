@@ -147,6 +147,12 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 会员价格管理（getMembershipPrice/getAllMembershipPrices/setMembershipPrice）
   - 管理后台价格管理页面（/admin/prices）
   - 会员购买页面使用动态价格
+- **免费体验与双价格展示已完成**（openspec/changes/free-trial-and-pricing-display/）：
+  - 数据库 Migration v6（membership_prices 表新增 original_price 字段）
+  - 零金额订单处理（跳过支付网关，直接激活会员）
+  - 会员购买页面双价格展示（原价删除线灰色 + 优惠价红色放大）
+  - 管理后台价格管理支持双价格（原价 + 优惠价）
+  - 默认价格配置：体验 9.9/0、月度 29.9/19.9、年度 299/199
   - 导航栏用户头像和昵称链接到个人中心（/profile）
   - 订单流程改造（createOrder 不再立即激活，新增 handlePaymentCallback 处理回调）
   - API 路由（POST /api/payment/create、POST /api/payment/notify、GET /api/payment/query/:orderId）

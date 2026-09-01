@@ -256,6 +256,22 @@ const MIGRATIONS: Migration[] = [
         );
       `);
     }
+  },
+  {
+    version: 6,
+    description: 'add original_price column to membership_prices for dual price display',
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE membership_prices ADD COLUMN original_price REAL NOT NULL DEFAULT 0;
+      `);
+      // 设置默认原价（单位：分）
+      db.exec(`
+        INSERT OR REPLACE INTO membership_prices (type, price, original_price, updated_at) VALUES
+          ('trial', 0, 990, strftime('%s', 'now')),
+          ('monthly', 1990, 2990, strftime('%s', 'now')),
+          ('yearly', 19900, 29900, strftime('%s', 'now'));
+      `);
+    }
   }
 ];
 

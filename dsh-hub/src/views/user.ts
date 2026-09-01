@@ -230,7 +230,7 @@ const MEMBERSHIP_PRICES: Record<string, string> = {
 };
 
 /** 会员购买页面（/membership） */
-export function renderMembershipPage(user: UserRow, membership: MembershipInfo, prices: Record<string, number>, error?: string | null, csrf?: string): string {
+export function renderMembershipPage(user: UserRow, membership: MembershipInfo, prices: Record<MembershipType, { price: number; originalPrice: number }>, error?: string | null, csrf?: string): string {
   const errorHtml = error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : '';
   
   // 当前会员状态展示
@@ -252,7 +252,8 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
         <div class="pricing-header">
           <div class="pricing-name">体验会员</div>
           <div class="pricing-price">
-            <span class="pricing-amount">免费</span>
+            <span class="pricing-original">¥${((prices.trial?.originalPrice ?? 990) / 100).toFixed(2)}</span>
+            <span class="pricing-amount pricing-amount-free">免费</span>
           </div>
           <p class="pricing-desc">1天体验，仅限首次使用</p>
         </div>
@@ -270,8 +271,9 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
         <div class="pricing-header">
           <div class="pricing-name">月度会员</div>
           <div class="pricing-price">
+            <span class="pricing-original">¥${((prices.monthly?.originalPrice ?? 2990) / 100).toFixed(2)}</span>
             <span class="pricing-currency">¥</span>
-            <span class="pricing-amount">${prices.monthly ?? 19.9}</span>
+            <span class="pricing-amount">${((prices.monthly?.price ?? 1990) / 100).toFixed(2)}</span>
           </div>
           <p class="pricing-desc">30天有效期</p>
         </div>
@@ -289,15 +291,16 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
         <div class="pricing-header">
           <div class="pricing-name">年度会员</div>
           <div class="pricing-price">
+            <span class="pricing-original">¥${((prices.yearly?.originalPrice ?? 29900) / 100).toFixed(2)}</span>
             <span class="pricing-currency">¥</span>
-            <span class="pricing-amount">${prices.yearly ?? 198}</span>
+            <span class="pricing-amount">${((prices.yearly?.price ?? 19900) / 100).toFixed(2)}</span>
           </div>
           <p class="pricing-desc">365天有效期，更划算</p>
         </div>
         <ul class="pricing-features">
           <li>完整功能使用</li>
           <li>365天有效期</li>
-          <li>节省 45%</li>
+          <li>节省 33%</li>
           <li>优先技术支持</li>
         </ul>
         <button type="button" class="btn btn-primary btn-block" onclick="startPayment('yearly')">立即购买</button>

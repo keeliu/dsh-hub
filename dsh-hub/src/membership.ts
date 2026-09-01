@@ -52,29 +52,41 @@ export function getMembershipPrice(db: DatabaseSync, type: MembershipType): numb
   return MEMBERSHIP_CONFIG[type].price;
 }
 
-/** 获取所有套餐价格 */
-export function getAllMembershipPrices(db: DatabaseSync): Record<MembershipType, number> {
-  const rows = db.prepare('SELECT type, price FROM membership_prices').all() as { type: MembershipType; price: number }[];
-  const prices: Record<string, number> = {
-    trial: MEMBERSHIP_CONFIG.trial.price,
-    monthly: MEMBERSHIP_CONFIG.monthly.price,
-    yearly: MEMBERSHIP_CONFIG.yearly.price,
-  };
-  for (const row of rows) {
-    prices[row.type] = row.price;
-  }
-  return prices as Record<MembershipType, number>;
+/** 获取套餐原价 */
+export function getMembershipOriginalPrice(db: DatabaseSync, type: MembershipType): number {
+  const row = db.prepare('SELECT original_price FROM membership_prices WHERE type = ?').get(type) as { original_price: number } | undefined;
+  if (row && row.original_price > 0) return row.original_price;
+  // 默认原价（单位：分）
+  const defaults: Record<MembershipType, number> = { trial: 990, monthly: 2990, yearly: 29900 };
+  return defaults[type];
 }
 
-/** 设置套餐价格 */
-export function setMembershipPrice(db: DatabaseSync, type: MembershipType, price: number, adminId: number): void {
+/** 获取所有套餐价格（包含原价和优惠价） */
+export function getAllMembershipPrices(db: DatabaseSync): Record<MembershipType, { price: number; originalPrice: number }> {
+  const rows = db.prepare('SELECT type, price, original_price FROM membership_prices').all() as { type: MembershipType; price: number; original_price: number }[];
+  const defaults: Record<MembershipType, { price: number; originalPrice: number }> = {
+    trial: { price: MEMBERSHIP_CONFIG.trial.price, originalPrice: 990 },
+    monthly: { price: MEMBERSHIP_CONFIG.monthly.price, originalPrice: 2990 },
+    yearly: { price: MEMBERSHIP_CONFIG.yearly.price, originalPrice: 29900 },
+  };
+  for (const row of rows) {
+    defaults[row.type] = {
+      price: row.price,
+      originalPrice: row.original_price > 0 ? row.original_price : defaults[row.type].originalPrice,
+    };
+  }
+  return defaults;
+}
+
+/** 设置套餐价格（包含原价和优惠价） */
+export function setMembershipPrice(db: DatabaseSync, type: MembershipType, price: number, originalPrice: number, adminId: number): void {
   const now = Date.now();
   db.prepare(`
-    INSERT INTO membership_prices (type, price, updated_at)
-    VALUES (?, ?, ?)
-    ON CONFLICT(type) DO UPDATE SET price = excluded.price, updated_at = excluded.updated_at
-  `).run(type, price, now);
-  audit(db, 'membership_price_update', adminId, null, `set ${type} price to ${price}`);
+    INSERT INTO membership_prices (type, price, original_price, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(type) DO UPDATE SET price = excluded.price, original_price = excluded.original_price, updated_at = excluded.updated_at
+  `).run(type, price, originalPrice, now);
+  audit(db, 'membership_price_update', adminId, null, `set ${type} price to ${price}, original to ${originalPrice}`);
 }
 
 // ─── 会员查询 ────────────────────────────────────────────────────────────────

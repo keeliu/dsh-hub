@@ -6,6 +6,7 @@
 import { escapeHtml } from '../http.ts';
 import { layout, csrfField } from './layout.ts';
 import type { UserRow } from '../users.ts';
+import type { MembershipType } from '../membership.ts';
 
 interface InstanceInfo {
   id: string;
@@ -464,7 +465,7 @@ export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], cs
   return layout('会员管理', content, user, undefined, csrf);
 }
 
-export function renderAdminPricesPage(user: UserRow, prices: Record<string, number>, csrf?: string): string {
+export function renderAdminPricesPage(user: UserRow, prices: Record<MembershipType, { price: number; originalPrice: number }>, csrf?: string): string {
   const content = `
     <div class="page-header">
       <h1 class="page-title">会员价格管理</h1>
@@ -474,31 +475,73 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<string, numb
       <div class="card-title">套餐价格设置</div>
       <form method="POST" action="/admin/api/membership-prices" id="prices-form">
         <input type="hidden" name="_csrf" value="${csrf ?? ''}">
+        
         <div class="form-group">
           <label>体验会员（1天）</label>
-          <div class="input-group">
-            <span class="input-prefix">¥</span>
-            <input type="number" name="trial" value="${prices.trial ?? 0}" step="0.01" min="0" class="form-control" readonly>
-            <span class="input-suffix">元（免费）</span>
+          <div class="price-row">
+            <div class="price-field">
+              <label class="price-label">原价</label>
+              <div class="input-group">
+                <span class="input-prefix">¥</span>
+                <input type="number" name="trial_original" value="${((prices.trial?.originalPrice ?? 990) / 100).toFixed(2)}" step="0.01" min="0" class="form-control">
+                <span class="input-suffix">元</span>
+              </div>
+            </div>
+            <div class="price-field">
+              <label class="price-label">优惠价</label>
+              <div class="input-group">
+                <span class="input-prefix">¥</span>
+                <input type="number" name="trial_price" value="${((prices.trial?.price ?? 0) / 100).toFixed(2)}" step="0.01" min="0" class="form-control">
+                <span class="input-suffix">元（免费）</span>
+              </div>
+            </div>
           </div>
-          <small class="form-text">体验会员价格固定为 0 元</small>
         </div>
+        
         <div class="form-group">
           <label>月度会员（30天）</label>
-          <div class="input-group">
-            <span class="input-prefix">¥</span>
-            <input type="number" name="monthly" value="${prices.monthly ?? 19.9}" step="0.01" min="0" class="form-control" required>
-            <span class="input-suffix">元</span>
+          <div class="price-row">
+            <div class="price-field">
+              <label class="price-label">原价</label>
+              <div class="input-group">
+                <span class="input-prefix">¥</span>
+                <input type="number" name="monthly_original" value="${((prices.monthly?.originalPrice ?? 2990) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <span class="input-suffix">元</span>
+              </div>
+            </div>
+            <div class="price-field">
+              <label class="price-label">优惠价</label>
+              <div class="input-group">
+                <span class="input-prefix">¥</span>
+                <input type="number" name="monthly_price" value="${((prices.monthly?.price ?? 1990) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <span class="input-suffix">元</span>
+              </div>
+            </div>
           </div>
         </div>
+        
         <div class="form-group">
           <label>年度会员（365天）</label>
-          <div class="input-group">
-            <span class="input-prefix">¥</span>
-            <input type="number" name="yearly" value="${prices.yearly ?? 198}" step="0.01" min="0" class="form-control" required>
-            <span class="input-suffix">元</span>
+          <div class="price-row">
+            <div class="price-field">
+              <label class="price-label">原价</label>
+              <div class="input-group">
+                <span class="input-prefix">¥</span>
+                <input type="number" name="yearly_original" value="${((prices.yearly?.originalPrice ?? 29900) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <span class="input-suffix">元</span>
+              </div>
+            </div>
+            <div class="price-field">
+              <label class="price-label">优惠价</label>
+              <div class="input-group">
+                <span class="input-prefix">¥</span>
+                <input type="number" name="yearly_price" value="${((prices.yearly?.price ?? 19900) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <span class="input-suffix">元</span>
+              </div>
+            </div>
           </div>
         </div>
+        
         <button type="submit" class="btn btn-primary">保存价格</button>
       </form>
     </div>
@@ -509,8 +552,18 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<string, numb
         const form = e.target;
         const data = {
           prices: {
-            monthly: parseFloat(form.monthly.value),
-            yearly: parseFloat(form.yearly.value),
+            trial: {
+              price: parseFloat(form.trial_price.value) * 100,
+              originalPrice: parseFloat(form.trial_original.value) * 100,
+            },
+            monthly: {
+              price: parseFloat(form.monthly_price.value) * 100,
+              originalPrice: parseFloat(form.monthly_original.value) * 100,
+            },
+            yearly: {
+              price: parseFloat(form.yearly_price.value) * 100,
+              originalPrice: parseFloat(form.yearly_original.value) * 100,
+            },
           }
         };
         const res = await fetch('/admin/api/membership-prices', {

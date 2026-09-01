@@ -42,7 +42,7 @@ import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor/index.ts';
-import { getUserMembership, getUserOrders, getAllOrders, createOrder, getOrderById, handlePaymentCallback, getAllMembershipPrices, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
+import { getUserMembership, getUserOrders, getAllOrders, createOrder, getOrderById, handlePaymentCallback, getAllMembershipPrices, getMembershipPrice, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
   listApiTokens, revokeApiToken,
@@ -560,7 +560,8 @@ route('GET', '/api/membership/plans', { auth: true }, async ({ db }) => {
     plans: Object.entries(MEMBERSHIP_CONFIG).map(([type, cfg]) => ({
       type,
       label: cfg.label,
-      price: prices[type as MembershipType],
+      price: prices[type as MembershipType].price,
+      originalPrice: prices[type as MembershipType].originalPrice,
       durationDays: cfg.durationDays,
       trial: cfg.trial,
     })),
@@ -613,19 +614,23 @@ route('GET', '/admin/api/membership-prices', { auth: true }, async ({ db, user: 
 
 route('POST', '/admin/api/membership-prices', { auth: true, csrf: true }, async ({ db, req, user: actor }) => {
   requireRole(actor, ['admin', 'root']);
-  const body = await readJson(req) as { prices?: Record<string, number> };
+  const body = await readJson(req) as { prices?: Record<string, { price: number; originalPrice: number }> };
   if (!body.prices || typeof body.prices !== 'object') {
     throw new HttpError(400, 'invalid_body', '请提供价格数据');
   }
 
   const validTypes: MembershipType[] = ['trial', 'monthly', 'yearly'];
   for (const type of validTypes) {
-    const price = body.prices[type];
-    if (price !== undefined) {
+    const priceData = body.prices[type];
+    if (priceData !== undefined) {
+      const { price, originalPrice } = priceData;
       if (typeof price !== 'number' || price < 0) {
-        throw new HttpError(400, 'invalid_price', `${type} 价格无效`);
+        throw new HttpError(400, 'invalid_price', `${type} 优惠价无效`);
       }
-      setMembershipPrice(db, type, price, actor.id);
+      if (typeof originalPrice !== 'number' || originalPrice < 0) {
+        throw new HttpError(400, 'invalid_original_price', `${type} 原价无效`);
+      }
+      setMembershipPrice(db, type, price, originalPrice, actor.id);
     }
   }
 
@@ -635,20 +640,37 @@ route('POST', '/admin/api/membership-prices', { auth: true, csrf: true }, async 
 // ---------- 支付 ----------
 
 route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, req, user }) => {
+  const body = await readJson(req) as { type?: string };
+  const type = body.type as MembershipType;
+  if (!type || !['trial', 'monthly', 'yearly'].includes(type)) {
+    throw new HttpError(400, 'invalid_type', '请选择有效的会员套餐');
+  }
+
+  // 获取动态价格
+  const price = getMembershipPrice(db, type);
+  const cfg = MEMBERSHIP_CONFIG[type];
+
+  // 零金额订单：跳过支付网关，直接激活会员
+  if (price === 0) {
+    const order = createOrder(db, user.id, type);
+    // 直接标记为已支付并激活
+    db.prepare(`UPDATE orders SET status = 'paid', paid_at = ? WHERE id = ?`).run(Date.now(), order.id);
+    handlePaymentCallback(db, String(order.id), '0', `free_${order.id}`, 'OD');
+    return {
+      freeTrial: true,
+      orderId: order.id,
+      amount: 0,
+    };
+  }
+
+  // 正常支付流程
   const payConfig = getXunhupayConfig(db);
   if (!payConfig) {
     throw new HttpError(503, 'payment_not_configured', '支付功能尚未配置');
   }
 
-  const body = await readJson(req) as { type?: string };
-  const type = body.type as MembershipType;
-  if (!type || !['monthly', 'yearly'].includes(type)) {
-    throw new HttpError(400, 'invalid_type', '请选择有效的会员套餐');
-  }
-
   // 创建 pending 订单
   const order = createOrder(db, user.id, type);
-  const cfg = MEMBERSHIP_CONFIG[type];
 
   // 构造回调和返回 URL
   const hubHost = req.headers.host ?? 'localhost';
@@ -661,7 +683,7 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
   try {
     result = await createPayment(payConfig, {
       trade_order_id: String(order.id),
-      total_fee: cfg.price.toFixed(2),
+      total_fee: (price / 100).toFixed(2),
       title: `乌鸦Work - ${cfg.label}`,
       notify_url: notifyUrl,
       return_url: returnUrl,
@@ -678,7 +700,7 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
     orderId: order.id,
     urlQrcode: result.url_qrcode ?? '',
     url: result.url ?? '',
-    amount: cfg.price,
+    amount: price,
   };
 });
 

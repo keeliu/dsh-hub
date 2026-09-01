@@ -84,6 +84,7 @@ export async function proxyWebSocket(
   const upstream = net.createConnection(target.port, target.host);
   
   upstream.on('connect', () => {
+    console.log(`[proxy] WebSocket connected to ${target.host}:${target.port}, path: ${targetPath}`);
     const hostHeader = `Host: ${target.host}:${target.port}\r\n`;
     
     let targetPath = req.url || '/';

@@ -752,11 +752,19 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
 
   // M3: WebSocket 升级处理（鉴权网关 WS 隧道）
   server.on('upgrade', async (req, socket, head) => {
+    console.log(`[api] WebSocket upgrade: ${req.url}`);
     const handled = await handleGatewayWebSocket(req, socket as any, head);
-    if (handled) return;
+    if (handled) {
+      console.log(`[api] WebSocket handled by gateway: ${req.url}`);
+      return;
+    }
     // DSH WebSocket fallback：/api/events.mux、/api/events.host 等绝对路径
     const proxied = await proxyWebSocketToDshInstance(db, req, socket as any, head);
-    if (proxied) return;
+    if (proxied) {
+      console.log(`[api] WebSocket proxied to DSH instance: ${req.url}`);
+      return;
+    }
+    console.log(`[api] WebSocket destroyed (no handler): ${req.url}`);
     socket.destroy();
   });
 

@@ -233,12 +233,19 @@ export async function proxyWebSocketToDshInstance(
   head: Buffer
 ): Promise<boolean> {
   const auth = authenticate(database, req);
-  if (!auth) return false;
+  if (!auth) {
+    console.log(`[gateway] WebSocket fallback: no auth for ${req.url}`);
+    return false;
+  }
   
   const instances = listInstances(database, auth.user.id);
   const running = instances.find(i => i.status === 'running' && i.port);
-  if (!running || !running.port) return false;
+  if (!running || !running.port) {
+    console.log(`[gateway] WebSocket fallback: no running instance for user ${auth.user.id}`);
+    return false;
+  }
   
+  console.log(`[gateway] WebSocket fallback: proxying ${req.url} to 127.0.0.1:${running.port}`);
   const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
   await proxyWebSocket(req, socket, head, target);
   return true;

@@ -220,7 +220,8 @@ page('POST', '/login', async ({ db, req, res }) => {
 // GET /register - 注册页面
 page('GET', '/register', ({ db, res }) => {
   const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
-  if (!regOpen) {
+  const userCount = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
+  if (!regOpen && userCount > 0) {
     redirect(res, '/login');
     return;
   }
@@ -230,7 +231,8 @@ page('GET', '/register', ({ db, res }) => {
 // POST /register - 注册处理
 page('POST', '/register', async ({ db, req, res }) => {
   const regOpen = getSetting(db, 'registration_open', 'closed') === 'open';
-  if (!regOpen) {
+  const userCount = (db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number }).c;
+  if (!regOpen && userCount > 0) {
     sendHtml(res, 403, renderRegisterPage('注册已关闭'));
     return;
   }

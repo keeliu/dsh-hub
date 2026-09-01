@@ -189,7 +189,7 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
     <div class="card">
       <div class="card-title">访问实例</div>
       ${instance.status === 'running'
-        ? `<p>通过网关访问：<a href="${escapeHtml(buildInstanceUrl(user.slug, instance.id, config.hubDomain))}" target="_blank">${escapeHtml(buildInstanceUrl(user.slug, instance.id, config.hubDomain))}</a></p>`
+        ? `<p>通过网关访问：<a href="${escapeHtml(buildInstanceUrl(user.slug, instance.id, instance.trusted_host || config.hubDomain))}" target="_blank">${escapeHtml(buildInstanceUrl(user.slug, instance.id, instance.trusted_host || config.hubDomain))}</a></p>`
         : `<p style="color:var(--gray-600)">实例未运行，请先启动</p>`
       }
     </div>

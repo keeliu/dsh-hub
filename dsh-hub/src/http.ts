@@ -48,7 +48,8 @@ export function escapeHtml(s: string): string {
 
 /** 发送重定向响应。 */
 export function redirect(res: ServerResponse, url: string, status = 302): void {
-  res.writeHead(status, { location: url });
+  res.setHeader('location', url);
+  res.writeHead(status);
   res.end();
 }
 

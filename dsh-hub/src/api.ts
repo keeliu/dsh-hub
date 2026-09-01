@@ -41,6 +41,7 @@ import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor/index.ts';
+import { getUserMembership, getUserOrders, getAllOrders, createOrder, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
   listApiTokens, revokeApiToken,
@@ -548,6 +549,54 @@ route('PUT', '/admin/api/settings', { auth: true, csrf: true }, async ({ db, req
   for (const [key, value] of Object.entries(allowed)) setSetting(db, key, value);
   audit(db, 'user_update', actor.id, null, `settings updated by ${actor.nickname}: ${Object.keys(allowed).join(', ')}`);
   return { settings: allowed };
+});
+
+// ---------- 会员系统 ----------
+
+route('GET', '/api/membership/plans', { auth: true }, async () => {
+  return {
+    plans: Object.entries(MEMBERSHIP_CONFIG).map(([type, cfg]) => ({
+      type,
+      label: cfg.label,
+      price: cfg.price,
+      durationDays: cfg.durationDays,
+      trial: cfg.trial,
+    })),
+  };
+});
+
+route('POST', '/api/membership/purchase', { auth: true, csrf: true }, async ({ db, req, user }) => {
+  const body = await readJson(req) as { type?: string };
+  const type = body.type as MembershipType;
+  if (!type || !['trial', 'monthly', 'yearly'].includes(type)) {
+    throw new HttpError(400, 'invalid_type', 'invalid membership type');
+  }
+  const order = createOrder(db, user.id, type);
+  return { order: { id: order.id, type: order.membership_type, amount: order.amount, status: order.status } };
+});
+
+route('GET', '/api/me/membership', { auth: true }, async ({ db, user }) => {
+  const membership = getUserMembership(db, user.id);
+  return {
+    type: membership.type,
+    expiresAt: membership.expiresAt,
+    isActive: membership.isActive,
+    trialUsed: membership.trialUsed,
+  };
+});
+
+route('GET', '/api/me/orders', { auth: true }, async ({ db, user }) => {
+  const orders = getUserOrders(db, user.id);
+  return { orders: orders.map(o => ({ id: o.id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
+});
+
+route('GET', '/admin/api/orders', { auth: true }, async ({ db, req, user: actor }) => {
+  requireRole(actor, ['admin', 'root']);
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const limit = Number(url.searchParams.get('limit') ?? 50);
+  const offset = Number(url.searchParams.get('offset') ?? 0);
+  const orders = getAllOrders(db, limit, offset);
+  return { orders: orders.map(o => ({ id: o.id, userId: o.user_id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
 });
 
 // ---------- 实例（M2） ----------

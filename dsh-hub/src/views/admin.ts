@@ -26,6 +26,8 @@ interface UserInfo {
   max_running: number;
   created_at: number;
   last_login_at: number | null;
+  membership_type: string | null;
+  membership_expires_at: number | null;
 }
 
 interface AuditEntry {
@@ -36,6 +38,12 @@ interface AuditEntry {
   detail: string | null;
   created_at: number;
 }
+
+const MEMBERSHIP_LABELS: Record<string, string> = {
+  trial: '体验会员',
+  monthly: '月度会员',
+  yearly: '年度会员',
+};
 
 /** 状态标签 */
 function statusBadge(status: string): string {
@@ -152,6 +160,15 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
               <label class="form-label">邮箱</label>
               <input type="email" name="email" class="form-control">
             </div>
+            <div class="form-group" style="margin:0">
+              <label class="form-label">会员类型（可选）</label>
+              <select name="membership_type" class="form-control">
+                <option value="">无</option>
+                <option value="trial">体验会员（1天）</option>
+                <option value="monthly">月度会员（30天）</option>
+                <option value="yearly">年度会员（365天）</option>
+              </select>
+            </div>
           </div>
           <div style="margin-top:0.75rem">
             <button type="submit" class="btn btn-primary">创建</button>
@@ -167,6 +184,7 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
             <th>账号</th>
             <th>角色</th>
             <th>状态</th>
+            <th>会员</th>
             <th>配额</th>
             <th>创建时间</th>
             <th>操作</th>
@@ -180,9 +198,20 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
               <td>${escapeHtml(u.username)}</td>
               <td><span class="badge badge-info">${escapeHtml(u.role)}</span></td>
               <td>${statusBadge(u.status)}</td>
+              <td>${u.membership_type ? `<span class="badge badge-success">${MEMBERSHIP_LABELS[u.membership_type] || u.membership_type}</span><br><small style="color:var(--gray-600)">${u.membership_expires_at ? new Date(u.membership_expires_at).toLocaleDateString('zh-CN') + ' 到期' : ''}</small>` : '<span class="badge badge-secondary">无</span>'}</td>
               <td>${u.max_instances} / ${u.max_running}</td>
               <td>${new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
               <td class="actions">
+                <form method="POST" action="/admin/users/${u.id}/membership" style="display:inline">
+                  ${csrfField(csrf ?? '')}
+                  <select name="type" style="font-size:12px;padding:2px 4px">
+                    <option value="monthly">月度</option>
+                    <option value="yearly">年度</option>
+                    <option value="trial">体验</option>
+                  </select>
+                  <input type="number" name="days" value="30" min="1" max="365" style="width:50px;font-size:12px;padding:2px 4px">
+                  <button type="submit" class="btn btn-sm btn-primary">设置</button>
+                </form>
                 ${u.status === 'active'
                   ? `<form method="POST" action="/admin/users/${u.id}/disable" style="display:inline">
                       ${csrfField(csrf ?? '')}
@@ -346,12 +375,6 @@ interface OrderInfo {
   created_at: number;
   paid_at: number | null;
 }
-
-const MEMBERSHIP_LABELS: Record<string, string> = {
-  trial: '体验会员',
-  monthly: '月度会员',
-  yearly: '年度会员',
-};
 
 /** 管理员会员管理页（/admin/membership） */
 export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], csrf?: string): string {

@@ -7,6 +7,7 @@ import { authenticate } from './auth.ts';
 import { config } from './config.ts';
 import { getUser, type UserRow } from './users.ts';
 import { listInstances } from './instances.ts';
+import { hasActiveMembership } from './membership.ts';
 
 // DSH 实例静态资源前缀（绝对路径，需要 fallback 代理）
 const STATIC_ASSET_PREFIXES = ['/assets/', '/plugins/'];
@@ -106,6 +107,15 @@ export async function handleGatewayRequest(
     return true;
   }
   
+  // 会员检查：管理员/root 跳过，普通用户需有效会员
+  if (authResult.role !== 'admin' && authResult.role !== 'root') {
+    if (!hasActiveMembership(db, authResult.userId!)) {
+      res.writeHead(302, { Location: '/membership' });
+      res.end();
+      return true;
+    }
+  }
+  
   const instance = verifyInstanceOwnership(db, pathInfo, authResult.userId!, authResult.role!);
   if (!instance) {
     res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -150,6 +160,14 @@ export async function handleGatewayWebSocket(
   if (!authResult.ok) {
     socket.destroy();
     return true;
+  }
+  
+  // 会员检查：管理员/root 跳过，普通用户需有效会员
+  if (authResult.role !== 'admin' && authResult.role !== 'root') {
+    if (!hasActiveMembership(db, authResult.userId!)) {
+      socket.destroy();
+      return true;
+    }
   }
   
   const instance = verifyInstanceOwnership(db, pathInfo, authResult.userId!, authResult.role!);

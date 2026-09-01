@@ -75,6 +75,17 @@
 - [ ] 用户个人中心 → 查看订单 → 续费入口
 - [ ] 非会员访问实例 → 重定向到购买页面
 
+## 补充完成（规范对照修复）
+
+- [x] 场景 8：管理员用户管理页面显示会员标识（membership_type + 到期时间）
+- [x] 场景 10：管理员创建用户时选择会员身份
+- [x] 场景 13：网关检查会员状态，非会员访问实例重定向到购买页
+- [x] API: GET /api/membership/plans — 获取套餐列表
+- [x] API: POST /api/membership/purchase — 购买会员
+- [x] API: GET /api/me/membership — 获取当前会员状态
+- [x] API: GET /api/me/orders — 获取个人订单列表
+- [x] API: GET /admin/api/orders — 管理员订单列表
+
 ## 文件变更清单
 
 | 文件 | 操作 | 说明 |
@@ -83,10 +94,13 @@
 | `src/membership.ts` | 新增 | 会员核心逻辑 + 订单逻辑 |
 | `src/scheduler.ts` | 新增 | 定时任务调度器 |
 | `src/instances.ts` | 修改 | 添加 `ensureInstanceForUser()` |
-| `src/pages.ts` | 修改 | 会员页面路由 + 登录/注册流程调整 |
+| `src/pages.ts` | 修改 | 会员页面路由 + 登录/注册流程调整 + 管理员创建用户会员选项 |
+| `src/api.ts` | 修改 | 会员 API 路由 |
+| `src/gateway.ts` | 修改 | 网关会员状态检查 |
 | `src/index.ts` | 修改 | 集成调度器 |
 | `src/views/user.ts` | 修改 | 添加会员购买页、个人中心视图 |
-| `src/views/admin.ts` | 修改 | 添加管理员会员管理视图 |
+| `src/views/admin.ts` | 修改 | 用户列表会员标识 + 管理员会员管理视图 + 创建用户会员选项 |
+| `src/views/layout.ts` | 修改 | 导航栏添加个人中心入口 |
 
 ## 依赖关系
 

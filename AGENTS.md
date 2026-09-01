@@ -122,6 +122,10 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 页面路由（/membership 购买页、/profile 个人中心、/admin/membership 管理）
   - 注册/登录流程调整（无会员重定向到购买页）
   - 会员激活后自动创建 DSH 实例
+  - 网关会员检查（非会员访问实例重定向到购买页）
+  - API 路由（/api/membership/plans、/api/me/membership、/api/me/orders、/admin/api/orders）
+  - 管理员用户管理页面显示会员标识 + 设置会员
+  - 管理员创建用户时可选会员身份
 
 ## 架构要点
 

@@ -537,7 +537,7 @@ page('GET', '/admin', ({ db, req, res }) => {
 page('GET', '/admin/users', ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
-  const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
+  const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at, membership_type, membership_expires_at FROM users ORDER BY id').all() as unknown as UserInfo[];
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
   sendHtml(res, 200, renderUsersPage(user, users, undefined, csrf));
 });
@@ -549,8 +549,9 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
   const form = await readForm(req);
   assertPageCsrf(req, form);
   try {
+    let newUser: UserRow | null = null;
     withTx(db, () => {
-      createUserRow(db, {
+      newUser = createUserRow(db, {
         nickname: form.nickname ?? '',
         username: form.username ?? '',
         email: form.email || null,
@@ -558,10 +559,19 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
         role: (form.role as any) ?? 'user',
       });
     });
-    audit(db, 'user_create', actor.id, null, `created user ${form.nickname}`);
+    audit(db, 'user_create', actor.id, newUser!.id, `created user ${form.nickname}`);
+    
+    // 如果选择了会员类型，为用户设置会员
+    const membershipType = form.membership_type as MembershipType;
+    if (membershipType && ['trial', 'monthly', 'yearly'].includes(membershipType)) {
+      const durations: Record<string, number> = { trial: 1, monthly: 30, yearly: 365 };
+      const days = durations[membershipType] ?? 30;
+      adminSetMembership(db, actor.id, newUser!.id, membershipType, days);
+    }
+    
     redirect(res, '/admin/users');
   } catch (e) {
-    const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at FROM users ORDER BY id').all() as unknown as UserInfo[];
+    const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at, membership_type, membership_expires_at FROM users ORDER BY id').all() as unknown as UserInfo[];
     const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
     sendHtml(res, 400, renderUsersPage(actor, users, { type: 'danger', message: '创建失败：' + (e instanceof Error ? e.message : String(e)) }, csrf));
   }
@@ -791,6 +801,8 @@ interface UserInfo {
   max_running: number;
   created_at: number;
   last_login_at: number | null;
+  membership_type: string | null;
+  membership_expires_at: number | null;
 }
 
 interface AuditEntry {

@@ -479,7 +479,7 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
             <tr>
               <td><code>#${order.id}</code></td>
               <td>${MEMBERSHIP_LABELS[order.membership_type] || order.membership_type}</td>
-              <td>¥${order.amount.toFixed(2)}</td>
+              <td>¥${(order.amount / 100).toFixed(2)}</td>
               <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
                    order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
                    `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>

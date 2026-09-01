@@ -696,18 +696,16 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   if (!user) return;
   const form = await readForm(req);
   assertPageCsrf(req, form);
-  console.log('[settings] form data:', form);
-  for (const [key, value] of Object.entries(form)) {
-    if (['registration_open', 'default_harness_version', 'allowed_harness_versions'].includes(key)) {
-      console.log(`[settings] saving ${key} = ${value}`);
-      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, value);
+  const allowedKeys = ['registration_open', 'default_harness_version', 'allowed_harness_versions'];
+  for (const key of allowedKeys) {
+    if (form[key] !== undefined) {
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, form[key] ?? '');
     }
   }
-  audit(db, 'user_update', user.id, null, `settings updated: ${Object.keys(form).join(', ')}`);
+  audit(db, 'user_update', user.id, null, `settings updated: ${allowedKeys.filter(k => form[k] !== undefined).join(', ')}`);
   const settings = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
   const map: Record<string, string> = {};
   for (const s of settings) map[s.key] = s.value;
-  console.log('[settings] current settings:', map);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
   sendHtml(res, 200, renderSettingsPage(user, map, { type: 'success', message: '设置已保存' }, csrf));
 });

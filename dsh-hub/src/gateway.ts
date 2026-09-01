@@ -68,7 +68,10 @@ export async function handleGatewayRequest(
   
   // DSH deployment 配置：Hub 层直接提供（DSH 实例不返回此文件）
   if (pathname === '/dsh-deployment.js') {
-    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+    res.writeHead(200, {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+    });
     res.end(DSH_DEPLOYMENT_JS);
     return true;
   }

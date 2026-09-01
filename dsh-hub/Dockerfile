@@ -19,5 +19,10 @@ ENV NODE_ENV=production \
 VOLUME ["/data"]
 EXPOSE 3082
 
+# 复制 patch 脚本
+COPY scripts/patch-dsh-client.sh /usr/local/bin/patch-dsh-client.sh
+RUN chmod +x /usr/local/bin/patch-dsh-client.sh
+
 # Node.js 24 原生支持 TypeScript，直接运行源码（无需编译）
-CMD ["node", "--disable-warning=ExperimentalWarning", "src/index.ts"]
+# 启动时先执行 patch，再启动 Hub 服务
+CMD ["sh", "-c", "/usr/local/bin/patch-dsh-client.sh && node --disable-warning=ExperimentalWarning src/index.ts"]

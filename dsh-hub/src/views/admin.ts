@@ -143,8 +143,8 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
           ${csrfField(csrf ?? '')}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
             <div class="form-group" style="margin:0">
-              <label class="form-label">昵称</label>
-              <input type="text" name="nickname" class="form-control" required>
+              <label class="form-label">昵称 <span style="color:var(--text-muted);font-size:0.75rem">(可选)</span></label>
+              <input type="text" name="nickname" class="form-control" placeholder="留空则自动生成">
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">账号</label>
@@ -164,7 +164,7 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">邮箱</label>
-              <input type="email" name="email" class="form-control">
+              <input type="email" name="email" class="form-control" required>
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">会员类型（可选）</label>

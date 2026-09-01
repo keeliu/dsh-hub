@@ -554,17 +554,25 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
   const form = await readForm(req);
   assertPageCsrf(req, form);
   try {
+    // 验证邮箱必填
+    const email = form.email?.trim();
+    if (!email) {
+      throw new Error('邮箱不能为空');
+    }
+    // 昵称可选，如果未填写则使用用户名
+    const username = form.username ?? '';
+    const nickname = form.nickname?.trim() || username;
     let newUser: UserRow | null = null;
     withTx(db, () => {
       newUser = createUserRow(db, {
-        nickname: form.nickname ?? '',
-        username: form.username ?? '',
-        email: form.email || null,
+        nickname,
+        username,
+        email,
         passwordHash: hashPassword(form.password ?? ''),
         role: (form.role as any) ?? 'user',
       });
     });
-    audit(db, 'user_create', actor.id, newUser!.id, `created user ${form.nickname}`);
+    audit(db, 'user_create', actor.id, newUser!.id, `created user ${nickname}`);
     
     // 如果选择了会员类型，为用户设置会员
     const membershipType = form.membership_type as MembershipType;

@@ -88,8 +88,12 @@ export function renderRegisterPage(error?: string, form?: { nickname?: string; u
     ${errorHtml}
     <form method="POST" action="/register">
       <div class="form-group">
-        <label class="form-label" for="nickname">用户名</label>
-        <input type="text" id="nickname" name="nickname" class="form-control" required autofocus placeholder="输入用户名"${nicknameValue}>
+        <label class="form-label" for="username">用户名</label>
+        <input type="text" id="username" name="username" class="form-control" required autofocus placeholder="3-32位字母数字下划线"${usernameValue}>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="nickname">昵称（可选）</label>
+        <input type="text" id="nickname" name="nickname" class="form-control" placeholder="留空则与用户名相同"${nicknameValue}>
       </div>
       <div class="form-group">
         <label class="form-label" for="email">邮箱</label>

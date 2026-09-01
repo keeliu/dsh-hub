@@ -235,9 +235,10 @@ page('POST', '/register', async ({ db, req, res }) => {
 
   const form = await readForm(req);
   const { nickname, username, email, password, password2 } = form;
+  const effectiveNickname = (nickname || username || '').trim();
   const formPreserve = { nickname, username, email };
 
-  if (!nickname || !username || !email || !password) {
+  if (!username || !email || !password) {
     sendHtml(res, 400, renderRegisterPage('请填写所有必填字段', formPreserve));
     return;
   }
@@ -272,7 +273,7 @@ page('POST', '/register', async ({ db, req, res }) => {
       const count = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
       const role = count === 0 ? 'root' : 'user';
       user = createUserRow(db, {
-        nickname,
+        nickname: effectiveNickname,
         username,
         email,
         passwordHash: hashPassword(password),

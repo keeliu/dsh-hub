@@ -314,20 +314,28 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
       <div class="payment-modal-overlay" onclick="closePaymentModal()"></div>
       <div class="payment-modal-content">
         <div class="payment-modal-header">
-          <h3>扫码支付</h3>
+          <h3 id="payment-modal-title">扫码支付</h3>
           <button class="payment-modal-close" onclick="closePaymentModal()">&times;</button>
         </div>
         <div id="payment-loading" class="payment-loading">
           <div class="spinner"></div>
-          <p>正在创建订单...</p>
+          <p id="loading-text">正在创建订单...</p>
         </div>
         <div id="payment-qrcode" class="payment-qrcode" style="display:none">
           <p class="payment-amount">请支付 <strong id="payment-amount"></strong></p>
           <div id="qrcode-container" class="qrcode-img"></div>
           <p class="payment-hint">请使用微信或支付宝扫码支付</p>
+          <div class="payment-countdown">
+            <span>剩余时间：</span>
+            <strong id="countdown-timer">10:00</strong>
+          </div>
           <div class="payment-status">
             <span id="payment-waiting">等待支付中...</span>
             <a id="payment-link" href="#" target="_blank" class="btn btn-sm btn-secondary" style="display:none">点击跳转支付</a>
+          </div>
+          <div class="payment-actions">
+            <button class="btn btn-secondary" onclick="cancelPayment()">取消支付</button>
+            <button class="btn btn-primary" onclick="confirmPaid()">已支付</button>
           </div>
         </div>
         <div id="payment-error" class="payment-error" style="display:none">
@@ -343,18 +351,23 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
     <script>
     const CSRF_TOKEN = ${JSON.stringify(csrf ?? '')};
     let pollTimer = null;
+    let countdownTimer = null;
     let currentOrderId = null;
+    const PAYMENT_TIMEOUT = 600; // 10 minutes in seconds
 
     async function startPayment(type) {
       const modal = document.getElementById('payment-modal');
       const loading = document.getElementById('payment-loading');
       const qrcode = document.getElementById('payment-qrcode');
       const error = document.getElementById('payment-error');
+      const loadingText = document.getElementById('loading-text');
+      const modalTitle = document.getElementById('payment-modal-title');
       
       modal.style.display = 'flex';
       loading.style.display = 'block';
       qrcode.style.display = 'none';
       error.style.display = 'none';
+      modalTitle.textContent = '扫码支付';
 
       try {
         const res = await fetch('/api/payment/create', {
@@ -369,6 +382,19 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
         }
 
         currentOrderId = data.orderId;
+        
+        // 零金额订单：跳过支付，直接激活
+        if (data.amount === 0) {
+          modalTitle.textContent = '开通会员';
+          loadingText.textContent = '正在开通会员...';
+          
+          // 零金额订单后端已直接激活，直接跳转
+          setTimeout(() => {
+            window.location.href = '/payment/return?order_id=' + data.orderId;
+          }, 1500);
+          return;
+        }
+
         document.getElementById('payment-amount').textContent = '¥' + data.amount.toFixed(2);
         
         loading.style.display = 'none';
@@ -384,6 +410,8 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           document.getElementById('payment-link').style.display = 'inline-block';
         }
 
+        // 开始倒计时
+        startCountdown();
         // 开始轮询订单状态
         startPolling(data.orderId);
       } catch (e) {
@@ -393,15 +421,38 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
       }
     }
 
+    function startCountdown() {
+      let remaining = PAYMENT_TIMEOUT;
+      const timerEl = document.getElementById('countdown-timer');
+      
+      countdownTimer = setInterval(() => {
+        remaining--;
+        const minutes = Math.floor(remaining / 60);
+        const seconds = remaining % 60;
+        timerEl.textContent = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+        
+        if (remaining <= 0) {
+          clearInterval(countdownTimer);
+          document.getElementById('payment-waiting').textContent = '订单已超时，请重新下单';
+          document.getElementById('payment-link').style.display = 'none';
+          // 隐藏操作按钮
+          document.querySelector('.payment-actions').style.display = 'none';
+        }
+      }, 1000);
+    }
+
     function startPolling(orderId) {
       let attempts = 0;
-      const maxAttempts = 100; // 5 minutes at 3s interval
+      const maxAttempts = 200; // 10 minutes at 3s interval
       
       pollTimer = setInterval(async () => {
         attempts++;
         if (attempts > maxAttempts) {
           clearInterval(pollTimer);
-          document.getElementById('payment-waiting').textContent = '支付超时，请刷新页面重试';
+          clearInterval(countdownTimer);
+          document.getElementById('payment-waiting').textContent = '订单已超时，请重新下单';
+          document.getElementById('payment-link').style.display = 'none';
+          document.querySelector('.payment-actions').style.display = 'none';
           return;
         }
 
@@ -411,8 +462,15 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           
           if (data.paid) {
             clearInterval(pollTimer);
+            clearInterval(countdownTimer);
             document.getElementById('payment-waiting').textContent = '支付成功！正在跳转...';
+            document.querySelector('.payment-actions').style.display = 'none';
             setTimeout(() => { window.location.href = '/payment/return?order_id=' + orderId; }, 1000);
+          } else if (data.cancelled) {
+            clearInterval(pollTimer);
+            clearInterval(countdownTimer);
+            document.getElementById('payment-waiting').textContent = '订单已取消';
+            document.querySelector('.payment-actions').style.display = 'none';
           }
         } catch (e) {
           // ignore polling errors
@@ -420,8 +478,48 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
       }, 3000);
     }
 
+    function cancelPayment() {
+      if (pollTimer) clearInterval(pollTimer);
+      if (countdownTimer) clearInterval(countdownTimer);
+      
+      // 调用取消订单 API
+      if (currentOrderId) {
+        fetch('/api/payment/cancel/' + currentOrderId, {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': CSRF_TOKEN },
+        }).catch(() => {});
+      }
+      
+      closePaymentModal();
+    }
+
+    async function confirmPaid() {
+      if (!currentOrderId) return;
+      
+      const waitingEl = document.getElementById('payment-waiting');
+      waitingEl.textContent = '正在查询支付状态...';
+      
+      try {
+        const res = await fetch('/api/payment/query/' + currentOrderId);
+        const data = await res.json();
+        
+        if (data.paid) {
+          clearInterval(pollTimer);
+          clearInterval(countdownTimer);
+          waitingEl.textContent = '支付成功！正在跳转...';
+          document.querySelector('.payment-actions').style.display = 'none';
+          setTimeout(() => { window.location.href = '/payment/return?order_id=' + currentOrderId; }, 1000);
+        } else {
+          waitingEl.textContent = '暂未查到支付记录，请确认已完成支付后重试';
+        }
+      } catch (e) {
+        waitingEl.textContent = '查询失败，请稍后重试';
+      }
+    }
+
     function closePaymentModal() {
       if (pollTimer) clearInterval(pollTimer);
+      if (countdownTimer) clearInterval(countdownTimer);
       document.getElementById('payment-modal').style.display = 'none';
     }
     </script>

@@ -142,6 +142,13 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 前端支付流程（AJAX 创建订单 → 二维码弹窗 → 轮询支付状态 → 成功跳转）
   - 支付成功返回页（/payment/return）
   - 主动查询订单状态（查询 API 会调用虎皮椒查询接口，如果已支付则触发回调处理）
+- **支付体验优化已完成**（openspec/changes/free-trial-and-pricing-display/）：
+  - 零金额订单跳过支付弹窗，直接显示 loading 并跳转成功页
+  - 支付弹窗添加 10 分钟倒计时显示
+  - 订单超时自动取消（10 分钟）
+  - 添加"取消支付"和"已支付"按钮
+  - 新增取消订单 API（POST /api/payment/cancel/:orderId）
+  - 查询 API 返回 cancelled 状态
 - **支付回调修复与会员价格管理已完成**（openspec/changes/payment-callback-and-pricing/）：
   - 数据库 Migration v5（membership_prices 表）
   - 会员价格管理（getMembershipPrice/getAllMembershipPrices/setMembershipPrice）

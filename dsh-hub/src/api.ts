@@ -757,8 +757,21 @@ route('GET', '/api/payment/query/:orderId', { auth: true }, async ({ db, user, p
     };
   }
 
-  // 如果订单是 pending，主动查询虎皮椒
+  // 如果订单是 pending，检查是否超时（10分钟）
   if (order.status === 'pending') {
+    const ORDER_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    if (Date.now() - order.created_at > ORDER_TTL_MS) {
+      // 订单超时，自动取消
+      db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ? AND status = 'pending'").run(order.id);
+      return {
+        status: 'cancelled',
+        paid: false,
+        cancelled: true,
+        orderId: order.id,
+      };
+    }
+
+    // 主动查询虎皮椒
     const config = getXunhupayConfig(db);
     if (config) {
       try {
@@ -787,8 +800,28 @@ route('GET', '/api/payment/query/:orderId', { auth: true }, async ({ db, user, p
   return {
     status: order.status,
     paid: false,
+    cancelled: order.status === 'cancelled',
     orderId: order.id,
   };
+});
+
+// 取消订单
+route('POST', '/api/payment/cancel/:orderId', { auth: true, csrf: true }, async ({ db, user, params }) => {
+  const orderId = Number(params.orderId);
+  const order = getOrderById(db, orderId);
+
+  if (!order || order.user_id !== user.id) {
+    throw new HttpError(404, 'not_found', '订单不存在');
+  }
+
+  if (order.status !== 'pending') {
+    throw new HttpError(400, 'invalid_status', '订单状态不正确');
+  }
+
+  db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ? AND status = 'pending'").run(orderId);
+  audit(db, 'order_cancel', user.id, orderId, 'user cancelled order');
+
+  return { success: true };
 });
 
 // ---------- 实例（M2） ----------

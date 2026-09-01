@@ -765,6 +765,31 @@ select.form-control {
   margin-top: 1rem;
 }
 
+.payment-countdown {
+  margin-top: 0.75rem;
+  text-align: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.payment-countdown strong {
+  color: var(--color-error);
+  font-size: var(--font-size-lg);
+  margin-left: 0.25rem;
+}
+
+.payment-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  justify-content: center;
+}
+
+.payment-actions .btn {
+  flex: 1;
+  max-width: 140px;
+}
+
 #payment-waiting {
   color: var(--text-secondary);
   font-size: var(--font-size-sm);

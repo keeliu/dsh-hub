@@ -21,12 +21,18 @@ export async function proxyHttpRequest(
 
   const headers: Record<string, string> = {};
   for (const [key, value] of Object.entries(req.headers)) {
-    if (value && key.toLowerCase() !== 'host') {
+    const lowerKey = key.toLowerCase();
+    // 剥离 host 和 origin（后续单独设置）
+    if (value && lowerKey !== 'host' && lowerKey !== 'origin') {
       headers[key] = Array.isArray(value) ? value.join(', ') : value;
     }
   }
   // 保留原始 Host 头（DSH 实例用 --trusted-host 校验）
   headers['host'] = req.headers.host || `${target.host}:${target.port}`;
+  // 重写 Origin 头与 Host 一致（避免 DSH 实例 CORS/origin 校验失败）
+  const hostForOrigin = req.headers.host || `${target.host}:${target.port}`;
+  const protocol = headers['x-forwarded-proto'] || 'https';
+  headers['origin'] = `${protocol}://${hostForOrigin}`;
   headers['X-Forwarded-For'] = req.socket.remoteAddress || 'unknown';
   headers['X-Forwarded-Proto'] = 'https';
 

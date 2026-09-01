@@ -230,7 +230,7 @@ const MEMBERSHIP_PRICES: Record<string, string> = {
 };
 
 /** 会员购买页面（/membership） */
-export function renderMembershipPage(user: UserRow, membership: MembershipInfo, error?: string | null, csrf?: string): string {
+export function renderMembershipPage(user: UserRow, membership: MembershipInfo, prices: Record<string, number>, error?: string | null, csrf?: string): string {
   const errorHtml = error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : '';
   
   // 当前会员状态展示
@@ -271,7 +271,7 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           <div class="pricing-name">月度会员</div>
           <div class="pricing-price">
             <span class="pricing-currency">¥</span>
-            <span class="pricing-amount">19.9</span>
+            <span class="pricing-amount">${prices.monthly ?? 19.9}</span>
           </div>
           <p class="pricing-desc">30天有效期</p>
         </div>
@@ -290,7 +290,7 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           <div class="pricing-name">年度会员</div>
           <div class="pricing-price">
             <span class="pricing-currency">¥</span>
-            <span class="pricing-amount">198</span>
+            <span class="pricing-amount">${prices.yearly ?? 198}</span>
           </div>
           <p class="pricing-desc">365天有效期，更划算</p>
         </div>

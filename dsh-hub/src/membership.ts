@@ -43,6 +43,40 @@ export const MEMBERSHIP_CONFIG: Record<MembershipType, {
   yearly:   { label: '1年会员',     durationDays: 365, price: 198,  trial: false },
 };
 
+// ─── 价格管理 ────────────────────────────────────────────────────────────────
+
+/** 获取套餐价格（优先从数据库读取，否则使用默认价格） */
+export function getMembershipPrice(db: DatabaseSync, type: MembershipType): number {
+  const row = db.prepare('SELECT price FROM membership_prices WHERE type = ?').get(type) as { price: number } | undefined;
+  if (row) return row.price;
+  return MEMBERSHIP_CONFIG[type].price;
+}
+
+/** 获取所有套餐价格 */
+export function getAllMembershipPrices(db: DatabaseSync): Record<MembershipType, number> {
+  const rows = db.prepare('SELECT type, price FROM membership_prices').all() as { type: MembershipType; price: number }[];
+  const prices: Record<string, number> = {
+    trial: MEMBERSHIP_CONFIG.trial.price,
+    monthly: MEMBERSHIP_CONFIG.monthly.price,
+    yearly: MEMBERSHIP_CONFIG.yearly.price,
+  };
+  for (const row of rows) {
+    prices[row.type] = row.price;
+  }
+  return prices as Record<MembershipType, number>;
+}
+
+/** 设置套餐价格 */
+export function setMembershipPrice(db: DatabaseSync, type: MembershipType, price: number, adminId: number): void {
+  const now = Date.now();
+  db.prepare(`
+    INSERT INTO membership_prices (type, price, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(type) DO UPDATE SET price = excluded.price, updated_at = excluded.updated_at
+  `).run(type, price, now);
+  audit(db, 'membership_price_update', adminId, null, `set ${type} price to ${price}`);
+}
+
 // ─── 会员查询 ────────────────────────────────────────────────────────────────
 
 export function getUserMembership(db: DatabaseSync, userId: number): {
@@ -87,10 +121,11 @@ export function createOrder(db: DatabaseSync, userId: number, type: MembershipTy
     }
   }
 
+  const price = getMembershipPrice(db, type);
   const result = db.prepare(`
     INSERT INTO orders (user_id, membership_type, amount, status, created_at)
     VALUES (?, ?, ?, 'pending', ?)
-  `).run(userId, type, config.price, now);
+  `).run(userId, type, price, now);
 
   const orderId = Number(result.lastInsertRowid);
 

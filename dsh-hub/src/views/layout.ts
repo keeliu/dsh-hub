@@ -106,6 +106,18 @@ body {
   gap: 1rem;
 }
 
+.navbar-profile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: white;
+  text-decoration: none;
+}
+
+.navbar-profile:hover {
+  opacity: 0.8;
+}
+
 .navbar-user .avatar {
   width: 32px;
   height: 32px;
@@ -786,8 +798,10 @@ function renderNav(user: UserRow | null): string {
         ${!isAdmin ? '<a href="/">智能体</a>' : ''}
         ${isAdmin ? '<a href="/admin">系统管理</a>' : ''}
         <div class="navbar-user">
-          <div class="avatar">${initial}</div>
-          <span>${escapeHtml(user.nickname)}</span>
+          <a href="/profile" class="navbar-profile">
+            <div class="avatar">${initial}</div>
+            <span>${escapeHtml(user.nickname)}</span>
+          </a>
           <form method="POST" action="/api/auth/logout" style="display:inline">
             <input type="hidden" name="csrf" value="">
             <button type="submit" class="btn btn-sm" style="background:transparent;color:white;border:1px solid rgba(255,255,255,0.3);border-radius:4px;padding:4px 12px;font-size:12px;">登出</button>

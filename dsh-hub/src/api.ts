@@ -31,7 +31,7 @@ import { audit, withTx } from './db.ts';
 import { handlePageRequest } from './pages.ts';
 import { handleGatewayRequest, handleGatewayWebSocket, proxyToDshInstance, proxyWebSocketToDshInstance } from './gateway.ts';
 import { config } from './config.ts';
-import { getXunhupayConfig, createPayment, verifyHash, type NotifyParams, type CreatePaymentResponse } from './payment.ts';
+import { getXunhupayConfig, createPayment, queryPayment, verifyHash, type NotifyParams, type CreatePaymentResponse } from './payment.ts';
 import { HttpError, clientIp, parseCookies, readForm, readJson, sendError, sendJson } from './http.ts';
 import {
   authenticate, assertCsrf, checkLoginLock, clearLoginLock, loginLockKey, recordLoginFailure, requireRole,
@@ -42,7 +42,7 @@ import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor/index.ts';
-import { getUserMembership, getUserOrders, getAllOrders, createOrder, getOrderById, handlePaymentCallback, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
+import { getUserMembership, getUserOrders, getAllOrders, createOrder, getOrderById, handlePaymentCallback, getAllMembershipPrices, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
 import {
   CSRF_COOKIE, SESSION_COOKIE, createApiToken, createSession, destroySession,
   listApiTokens, revokeApiToken,
@@ -554,12 +554,13 @@ route('PUT', '/admin/api/settings', { auth: true, csrf: true }, async ({ db, req
 
 // ---------- 会员系统 ----------
 
-route('GET', '/api/membership/plans', { auth: true }, async () => {
+route('GET', '/api/membership/plans', { auth: true }, async ({ db }) => {
+  const prices = getAllMembershipPrices(db);
   return {
     plans: Object.entries(MEMBERSHIP_CONFIG).map(([type, cfg]) => ({
       type,
       label: cfg.label,
-      price: cfg.price,
+      price: prices[type as MembershipType],
       durationDays: cfg.durationDays,
       trial: cfg.trial,
     })),
@@ -598,6 +599,37 @@ route('GET', '/admin/api/orders', { auth: true }, async ({ db, req, user: actor 
   const offset = Number(url.searchParams.get('offset') ?? 0);
   const orders = getAllOrders(db, limit, offset);
   return { orders: orders.map(o => ({ id: o.id, userId: o.user_id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
+});
+
+// ---------- 会员价格管理 ----------
+
+import { setMembershipPrice } from './membership.ts';
+
+route('GET', '/admin/api/membership-prices', { auth: true }, async ({ db, user: actor }) => {
+  requireRole(actor, ['admin', 'root']);
+  const prices = getAllMembershipPrices(db);
+  return { prices };
+});
+
+route('POST', '/admin/api/membership-prices', { auth: true, csrf: true }, async ({ db, req, user: actor }) => {
+  requireRole(actor, ['admin', 'root']);
+  const body = await readJson(req) as { prices?: Record<string, number> };
+  if (!body.prices || typeof body.prices !== 'object') {
+    throw new HttpError(400, 'invalid_body', '请提供价格数据');
+  }
+
+  const validTypes: MembershipType[] = ['trial', 'monthly', 'yearly'];
+  for (const type of validTypes) {
+    const price = body.prices[type];
+    if (price !== undefined) {
+      if (typeof price !== 'number' || price < 0) {
+        throw new HttpError(400, 'invalid_price', `${type} 价格无效`);
+      }
+      setMembershipPrice(db, type, price, actor.id);
+    }
+  }
+
+  return { ok: true };
 });
 
 // ---------- 支付 ----------
@@ -694,9 +726,45 @@ route('GET', '/api/payment/query/:orderId', { auth: true }, async ({ db, user, p
     throw new HttpError(404, 'not_found', '订单不存在');
   }
 
+  // 如果订单已支付，直接返回
+  if (order.status === 'paid') {
+    return {
+      status: order.status,
+      paid: true,
+      orderId: order.id,
+    };
+  }
+
+  // 如果订单是 pending，主动查询虎皮椒
+  if (order.status === 'pending') {
+    const config = getXunhupayConfig(db);
+    if (config) {
+      try {
+        const result = await queryPayment(config, String(order.id));
+        if (result.errcode === 0 && result.data?.status === 'OD') {
+          // 虎皮椒显示已支付，触发回调处理
+          handlePaymentCallback(
+            db,
+            String(order.id),
+            String(order.amount),
+            result.data.open_order_id || '',
+            'OD',
+          );
+          return {
+            status: 'paid',
+            paid: true,
+            orderId: order.id,
+          };
+        }
+      } catch {
+        // 查询失败，返回当前状态
+      }
+    }
+  }
+
   return {
     status: order.status,
-    paid: order.status === 'paid',
+    paid: false,
     orderId: order.id,
   };
 });

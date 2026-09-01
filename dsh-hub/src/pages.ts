@@ -18,12 +18,12 @@ import { startInstance, stopInstance, tailLog } from './supervisor/index.ts';
 import { audit, withTx } from './db.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { disableUser } from './users.ts';
-import { hasActiveMembership, getUserOrders, createOrder, getUserMembership, MEMBERSHIP_CONFIG, adminSetMembership, getAllOrders, expireMemberships, type MembershipType } from './membership.ts';
+import { hasActiveMembership, getUserOrders, createOrder, getUserMembership, MEMBERSHIP_CONFIG, adminSetMembership, getAllOrders, expireMemberships, getAllMembershipPrices, type MembershipType } from './membership.ts';
 
 // 页面视图
 import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
 import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage, renderMembershipPage, renderProfilePage, renderPaymentReturnPage } from './views/user.ts';
-import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage, renderAdminMembershipPage } from './views/admin.ts';
+import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage, renderAdminMembershipPage, renderAdminPricesPage } from './views/admin.ts';
 import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
 import { getUserByAccount, getUserByEmail, isValidEmail, isValidUsername, getUserByUsername } from './users.ts';
 
@@ -745,8 +745,9 @@ page('GET', '/membership', ({ db, req, res }) => {
   const auth = authenticate(db, req);
   if (!auth) { redirect(res, '/login'); return; }
   const membership = getUserMembership(db, auth.user.id);
+  const prices = getAllMembershipPrices(db);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
-  sendHtml(res, 200, renderMembershipPage(auth.user, membership, null, csrf));
+  sendHtml(res, 200, renderMembershipPage(auth.user, membership, prices, null, csrf));
 });
 
 // GET /payment/return - 支付成功返回页
@@ -777,6 +778,15 @@ page('GET', '/admin/membership', ({ db, req, res }) => {
   const orders = getAllOrders(db);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
   sendHtml(res, 200, renderAdminMembershipPage(user, orders, csrf));
+});
+
+// GET /admin/prices - 管理员价格管理
+page('GET', '/admin/prices', ({ db, req, res }) => {
+  const user = requireAdmin(db, req, res);
+  if (!user) return;
+  const prices = getAllMembershipPrices(db);
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderAdminPricesPage(user, prices, csrf));
 });
 
 // POST /admin/users/:id/membership - 管理员设置会员

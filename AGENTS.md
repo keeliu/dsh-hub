@@ -137,6 +137,17 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 - **支付集成已完成**（openspec/changes/payment-integration/）：
   - 支付模块（payment.ts：虎皮椒签名生成/验证、发起支付、查询订单、退款）
   - 配置管理（settings.ts 新增 xunhupay_appid/appsecret，管理后台支付配置表单）
+  - 订单流程改造（创建订单为 pending 状态，支付回调后激活会员）
+  - API 路由（POST /api/payment/create、POST /api/payment/notify、GET /api/payment/query/:orderId）
+  - 前端支付流程（AJAX 创建订单 → 二维码弹窗 → 轮询支付状态 → 成功跳转）
+  - 支付成功返回页（/payment/return）
+  - 主动查询订单状态（查询 API 会调用虎皮椒查询接口，如果已支付则触发回调处理）
+- **支付回调修复与会员价格管理已完成**（openspec/changes/payment-callback-and-pricing/）：
+  - 数据库 Migration v5（membership_prices 表）
+  - 会员价格管理（getMembershipPrice/getAllMembershipPrices/setMembershipPrice）
+  - 管理后台价格管理页面（/admin/prices）
+  - 会员购买页面使用动态价格
+  - 导航栏用户头像和昵称链接到个人中心（/profile）
   - 订单流程改造（createOrder 不再立即激活，新增 handlePaymentCallback 处理回调）
   - API 路由（POST /api/payment/create、POST /api/payment/notify、GET /api/payment/query/:orderId）
   - 前端支付流程（AJAX 创建订单 → 二维码弹窗 → 轮询支付状态 → 成功跳转）

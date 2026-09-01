@@ -67,6 +67,7 @@ function adminSidebar(active: string): string {
     { key: 'users', href: '/admin/users', label: '用户管理', icon: '👥' },
     { key: 'instances', href: '/admin/instances', label: '实例总览', icon: '📦' },
     { key: 'membership', href: '/admin/membership', label: '会员管理', icon: '💎' },
+    { key: 'prices', href: '/admin/prices', label: '价格管理', icon: '💰' },
     { key: 'audit', href: '/admin/audit', label: '审计日志', icon: '📋' },
     { key: 'settings', href: '/admin/settings', label: '全局设置', icon: '⚙️' },
   ];
@@ -461,4 +462,72 @@ export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], cs
   `;
 
   return layout('会员管理', content, user, undefined, csrf);
+}
+
+export function renderAdminPricesPage(user: UserRow, prices: Record<string, number>, csrf?: string): string {
+  const content = `
+    <div class="page-header">
+      <h1 class="page-title">会员价格管理</h1>
+    </div>
+    ${adminSidebar('prices')}
+    <div class="card">
+      <div class="card-title">套餐价格设置</div>
+      <form method="POST" action="/admin/api/membership-prices" id="prices-form">
+        <input type="hidden" name="_csrf" value="${csrf ?? ''}">
+        <div class="form-group">
+          <label>体验会员（1天）</label>
+          <div class="input-group">
+            <span class="input-prefix">¥</span>
+            <input type="number" name="trial" value="${prices.trial ?? 0}" step="0.01" min="0" class="form-control" readonly>
+            <span class="input-suffix">元（免费）</span>
+          </div>
+          <small class="form-text">体验会员价格固定为 0 元</small>
+        </div>
+        <div class="form-group">
+          <label>月度会员（30天）</label>
+          <div class="input-group">
+            <span class="input-prefix">¥</span>
+            <input type="number" name="monthly" value="${prices.monthly ?? 19.9}" step="0.01" min="0" class="form-control" required>
+            <span class="input-suffix">元</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>年度会员（365天）</label>
+          <div class="input-group">
+            <span class="input-prefix">¥</span>
+            <input type="number" name="yearly" value="${prices.yearly ?? 198}" step="0.01" min="0" class="form-control" required>
+            <span class="input-suffix">元</span>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">保存价格</button>
+      </form>
+    </div>
+    ${adminSidebarClose()}
+    <script>
+      document.getElementById('prices-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const data = {
+          prices: {
+            monthly: parseFloat(form.monthly.value),
+            yearly: parseFloat(form.yearly.value),
+          }
+        };
+        const res = await fetch('/admin/api/membership-prices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': '${csrf ?? ''}' },
+          body: JSON.stringify(data),
+        });
+        if (res.ok) {
+          alert('价格已保存');
+          location.reload();
+        } else {
+          const err = await res.json();
+          alert('保存失败: ' + (err.error?.message || '未知错误'));
+        }
+      });
+    </script>
+  `;
+
+  return layout('会员价格管理', content, user, undefined, csrf);
 }

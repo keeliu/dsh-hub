@@ -242,6 +242,20 @@ const MIGRATIONS: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
       `);
     }
+  },
+  {
+    version: 5,
+    description: 'add membership_prices table for configurable pricing',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS membership_prices (
+          id INTEGER PRIMARY KEY,
+          type TEXT NOT NULL UNIQUE CHECK(type IN ('trial','monthly','yearly')),
+          price REAL NOT NULL CHECK(price >= 0),
+          updated_at INTEGER NOT NULL
+        );
+      `);
+    }
   }
 ];
 
@@ -296,6 +310,7 @@ export type AuditAction =
   | 'membership_create'
   | 'membership_renew'
   | 'membership_expire'
+  | 'membership_price_update'
   | 'order_create'
   | 'order_pay'
   | 'order_cancel'

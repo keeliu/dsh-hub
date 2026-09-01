@@ -106,7 +106,7 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 实例路径解析 bug（lastIndexOf 问题）
   - 静态资源 404（/assets/、/plugins/、/dsh-deployment.js fallback）
   - DSH API 404（/api/host.* fallback）
-  - 代理层 403（Host/Origin 头处理）
+  - 代理层 403（Host/Origin 头处理，改用 loopback 地址）
   - 端口 4000 冲突（改为 4001-4999）
   - 实例链接域名错误（使用 instance.trusted_host）
   - 实例链接不完整（buildInstanceUrl 剥离协议前缀）

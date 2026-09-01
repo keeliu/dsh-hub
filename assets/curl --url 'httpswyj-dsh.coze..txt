@@ -1,0 +1,131 @@
+curl --url 'https://wyj-dsh.coze.site/login' \
+  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Cache-Control: max-age=0' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'Referer: https://wyj-dsh.coze.site/login' \
+  -H 'Sec-Fetch-Dest: document' \
+  -H 'Sec-Fetch-Mode: navigate' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'Sec-Fetch-User: ?1' \
+  -H 'Upgrade-Insecure-Requests: 1' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  --data-raw 'account=test0001&password=test0001' ;
+curl --url 'https://wyj-dsh.coze.site/membership' \
+  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Cache-Control: max-age=0' \
+  -H 'Connection: keep-alive' \
+  -b 'dshhub_sid=8bc5cae6832ad49889dda6f1fa8e7a546f086ea08860733adb9b6ac01e589b21; dshhub_csrf=f29eca868629c4b3090563b0e21b7cedb631f9d118d1d8d4' \
+  -H 'Referer: https://wyj-dsh.coze.site/login' \
+  -H 'Sec-Fetch-Dest: document' \
+  -H 'Sec-Fetch-Mode: navigate' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'Sec-Fetch-User: ?1' \
+  -H 'Upgrade-Insecure-Requests: 1' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' ;
+curl --url 'https://apm.volccdn.com/mars-web/apmplus/web/browser.cn.js?aid=1001891&globalName=apmPlus' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  -H 'Referer: https://wyj-dsh.coze.site/' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' ;
+curl --url 'https://apmplus.volces.com/settings/get/webpro?aid=1001891' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'Referer: https://wyj-dsh.coze.site/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: cross-site' \
+  -H 'Sec-Fetch-Storage-Access: active' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' ;
+curl --url 'https://code.coze.cn/api/coding/deployment/analytics/report?project_id=7679854228352843827&did=a4325dd2-e62f-430e-a508-5c498ec6472e' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'Referer: https://wyj-dsh.coze.site/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: cross-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  --data-raw '{"events":[{"type":"page_view","url":"https://wyj-dsh.coze.site/membership","path":"/membership","referrer":"https://wyj-dsh.coze.site/login","timestamp":1788274342947}]}' ;
+curl --url 'https://wyj-dsh.coze.site/api/payment/create' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -b 'dshhub_sid=8bc5cae6832ad49889dda6f1fa8e7a546f086ea08860733adb9b6ac01e589b21; dshhub_csrf=f29eca868629c4b3090563b0e21b7cedb631f9d118d1d8d4' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'Referer: https://wyj-dsh.coze.site/membership' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'X-CSRF-Token: f29eca868629c4b3090563b0e21b7cedb631f9d118d1d8d4' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  --data-raw '{"type":"monthly"}' ;
+curl --url 'https://apmplus.volces.com/monitor_web/collect?did=d76a9574-f86d-47a9-bd7f-f5a093fc1ef3&sid=9161d6e5-3294-4862-a69f-7c3794c5f5de&release=&env=production&sname=APM_PLUS_WEB&sversion=2.10.3&soffset=0&biz_id=1001891&x_auth_token=26a8704bd4d34b1698085c787d0c95d0' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'Referer: https://wyj-dsh.coze.site/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: cross-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  --data-raw '{"ev_type":"batch","list":[{"ev_type":"pageview","payload":{"pid":"/membership","source":"init"},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274342782,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":1}},{"ev_type":"performance","payload":{"name":"fp","value":828,"isSupport":true,"isPolyfill":false,"isBounced":false,"isCustom":false,"type":"perf"},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274342782,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":1}},{"ev_type":"performance","payload":{"name":"fcp","value":828,"isSupport":true,"isPolyfill":false,"isBounced":false,"isCustom":false,"type":"perf"},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274342782,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":1}},{"ev_type":"performance_timing","payload":{"isBounced":false,"timing":{"connectStart":1788274342350,"secureConnectionStart":0,"unloadEventEnd":1788274342739,"domainLookupStart":1788274342350,"domainLookupEnd":1788274342350,"responseStart":1788274342567,"connectEnd":1788274342350,"responseEnd":1788274342698,"requestStart":1788274342365,"domLoading":1788274342747,"redirectStart":1788274342038,"loadEventEnd":1788274342949,"domComplete":1788274342947,"navigationStart":1788274342022,"loadEventStart":1788274342949,"domContentLoadedEventEnd":1788274342789,"unloadEventStart":1788274342739,"redirectEnd":1788274342350,"domInteractive":1788274342788,"fetchStart":1788274342350,"domContentLoadedEventStart":1788274342788},"navigation_timing":{"name":"https://wyj-dsh.coze.site/membership","entryType":"navigation","startTime":0,"duration":927.4000000357628,"navigationId":8143,"initiatorType":"navigation","deliveryType":"","nextHopProtocol":"http/1.1","renderBlockingStatus":"non-blocking","contentType":"text/html","contentEncoding":"br","workerStart":0,"workerRouterEvaluationStart":0,"workerCacheLookupStart":0,"workerMatchedSourceType":"","workerFinalSourceType":"","redirectStart":16,"redirectEnd":328.4000000357628,"fetchStart":328.4000000357628,"domainLookupStart":328.4000000357628,"domainLookupEnd":328.4000000357628,"connectStart":328.4000000357628,"secureConnectionStart":328.4000000357628,"connectEnd":328.4000000357628,"requestStart":343,"responseStart":545.1000000238419,"firstInterimResponseStart":0,"finalResponseHeadersStart":545.1000000238419,"responseEnd":676.9000000357628,"transferSize":6927,"encodedBodySize":6627,"decodedBodySize":25593,"responseStatus":200,"serverTiming":[{"name":"inner","duration":37,"description":""},{"name":"inner","duration":12,"description":""},{"name":"cdn-cache","duration":0,"description":"MISS"},{"name":"edge","duration":125,"description":""},{"name":"origin","duration":61,"description":""}],"unloadEventStart":717.6000000238419,"unloadEventEnd":717.6000000238419,"domInteractive":766.6000000238419,"domContentLoadedEventStart":766.8000000119209,"domContentLoadedEventEnd":767.6000000238419,"domComplete":925.5,"loadEventStart":927.1999999880791,"loadEventEnd":927.4000000357628,"type":"navigate","redirectCount":1,"activationStart":0,"criticalCHRestart":0,"notRestoredReasons":null,"confidence":{"randomizedTriggerRate":0.4994798,"value":"high"}}},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274342950,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":1}},{"ev_type":"resource","payload":{"name":"https://apm.volccdn.com/mars-web/apmplus/web/browser.cn.js?aid=1001891&globalName=apmPlus","entryType":"resource","startTime":758.4000000357628,"duration":125.39999997615814,"navigationId":8143,"initiatorType":"script","deliveryType":"cache","nextHopProtocol":"h2","renderBlockingStatus":"non-blocking","contentType":"text/javascript","contentEncoding":"br","workerStart":0,"workerRouterEvaluationStart":0,"workerCacheLookupStart":0,"workerMatchedSourceType":"","workerFinalSourceType":"","redirectStart":0,"redirectEnd":0,"fetchStart":758.4000000357628,"domainLookupStart":758.4000000357628,"domainLookupEnd":758.4000000357628,"connectStart":758.4000000357628,"secureConnectionStart":758.4000000357628,"connectEnd":758.4000000357628,"requestStart":807.1999999880791,"responseStart":808.1999999880791,"firstInterimResponseStart":808.1999999880791,"finalResponseHeadersStart":0,"responseEnd":883.8000000119209,"transferSize":0,"encodedBodySize":25448,"decodedBodySize":69815,"responseStatus":200,"serverTiming":[{"name":"inner","duration":6,"description":""}]},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274342950,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":0.5}},{"ev_type":"performance","payload":{"name":"fmp","value":0,"isSupport":true,"isPolyfill":false,"isBounced":false,"isCustom":false,"type":"perf"},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274343156,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":1}},{"ev_type":"performance","payload":{"name":"lcp","value":828,"isSupport":true,"isPolyfill":false,"isBounced":false,"isCustom":false,"type":"perf","extra":{"element":"body > div.container > div.page-header > p.page-subtitle"}},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274343940,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":1}},{"ev_type":"http","payload":{"api":"fetch","request":{"method":"post","timestamp":1788274342948,"url":"https://code.coze.cn/api/coding/deployment/analytics/report?project_id=7679854228352843827&did=a4325dd2-e62f-430e-a508-5c498ec6472e","headers":{"content-type":"application/json"}},"response":{"status":200,"is_custom_error":false,"timestamp":1788274343273,"headers":{"access-control-allow-origin":"*","access-control-expose-headers":"*","connection":"keep-alive","content-length":"19","content-type":"application/json","date":"Tue, 01 Sep 2026 14:52:23 GMT","eagleid":"a38e9bad17882743430661014e","server":"Tengine","server-timing":"inner; dur=11,tt_agw; dur=5, cdn-cache;desc=MISS,edge;dur=38,origin;dur=39","strict-transport-security":"max-age=31536000; includeSubDomains","timing-allow-origin":"*","via":"cache20.l2cm9-7[39,0], dynamic3.cn6679[77,0]","x-tt-logid":"2026090122522319D963EA5CEABB83456D","x-tt-timestamp":"1788274343.114","x-tt-trace-host":"01168a34d926284fcf844c73fd0c77c842e34ddb1ed8357e6031769c87deb6f89bb5e14b4d6650cdf69cd2dd1332ab30c87eea2c43f595e4e0b68f3e3e15381c97f9cdfca7a7cfd7b40625fa8dc91680df63ec6e18831970c5963b7d76ad917c02777df975864b1c9402f5860459b5de90d8d8765ccb06392c21b2da0a82a0fc55","x-tt-trace-id":"00-26090122522319D963EA5CEABB83456D-0368EFDF9E7104B3-00","x-tt-trace-tag":"id=03;cdn-cache=miss;type=dyn"},"timing":{"name":"https://code.coze.cn/api/coding/deployment/analytics/report?project_id=7679854228352843827&did=a4325dd2-e62f-430e-a508-5c498ec6472e","entryType":"resource","startTime":926.6000000238419,"duration":272.0999999642372,"navigationId":8143,"initiatorType":"fetch","deliveryType":"","nextHopProtocol":"http/1.1","renderBlockingStatus":"non-blocking","contentType":"application/json","contentEncoding":"","workerStart":0,"workerRouterEvaluationStart":0,"workerCacheLookupStart":0,"workerMatchedSourceType":"","workerFinalSourceType":"","redirectStart":0,"redirectEnd":0,"fetchStart":926.6000000238419,"domainLookupStart":926.6000000238419,"domainLookupEnd":926.6000000238419,"connectStart":926.6000000238419,"secureConnectionStart":926.6000000238419,"connectEnd":926.6000000238419,"requestStart":1031.199999988079,"responseStart":1139.699999988079,"firstInterimResponseStart":0,"finalResponseHeadersStart":1139.699999988079,"responseEnd":1198.699999988079,"transferSize":319,"encodedBodySize":19,"decodedBodySize":19,"responseStatus":200,"serverTiming":[{"name":"inner","duration":11,"description":""},{"name":"tt_agw","duration":5,"description":""},{"name":"cdn-cache","duration":0,"description":"MISS"},{"name":"edge","duration":38,"description":""},{"name":"origin","duration":39,"description":""}]}},"duration":325},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274342948,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":0.5}},{"ev_type":"http","payload":{"api":"fetch","request":{"method":"post","timestamp":1788274343926,"url":"https://wyj-dsh.coze.site/api/payment/create","headers":{"content-type":"application/json"}},"response":{"status":502,"is_custom_error":false,"timestamp":1788274344224,"headers":{"cache-control":"no-store","connection":"keep-alive","content-length":"143","content-type":"application/json; charset=utf-8","date":"Tue, 01 Sep 2026 14:52:24 GMT","eagleid":"705f085117882743439627881e","server":"Tengine","server-timing":"inner; dur=65,inner; dur=33, cdn-cache;desc=MISS,edge;dur=42,origin;dur=88","strict-transport-security":"max-age=31536000; includeSubDomains","timing-allow-origin":"*","via":"cache38.l2cm9-7[88,0], dynamic2.cn9393[130,0]","x-alicdn-da-ups-status":"endOs,0,502","x-coze-prj":"7679854228352843827","x-envoy-upstream-service-time":"19","x-faas-execution-duration":"3.00","x-faas-request-id":"6e1b20ce-cf46-9374-bbe2-435a9c77e3f6","x-tt-logid":"20260901225223046A846B2125134069F8","x-tt-timestamp":"1788274344.058","x-tt-trace-host":"01168a34d926284fcf844c73fd0c77c842e34ddb1ed8357e6031769c87deb6f89bb5e14b4d6650cdf69cd2dd1332ab30c8dbfad5bfbd46798f431d266fd5edbdd88e1cef5370f8766f42db3e37d117c128abf8e88651ea12b6daf18f2166a39693fc8c4fc36d51294ead08d8d928db8f3f","x-tt-trace-id":"00-260901225223046A846B2125134069F8-3D345E7B9EDCE912-00","x-tt-trace-tag":"id=03;cdn-cache=miss;type=dyn"},"timing":{"name":"https://wyj-dsh.coze.site/api/payment/create","entryType":"resource","startTime":1904.6000000238419,"duration":289.39999997615814,"navigationId":8143,"initiatorType":"fetch","deliveryType":"","nextHopProtocol":"http/1.1","renderBlockingStatus":"non-blocking","contentType":"application/json","contentEncoding":"","workerStart":0,"workerRouterEvaluationStart":0,"workerCacheLookupStart":0,"workerMatchedSourceType":"","workerFinalSourceType":"","redirectStart":0,"redirectEnd":0,"fetchStart":1904.6000000238419,"domainLookupStart":1904.6000000238419,"domainLookupEnd":1904.6000000238419,"connectStart":1904.6000000238419,"secureConnectionStart":1904.6000000238419,"connectEnd":1904.6000000238419,"requestStart":1926.9000000357628,"responseStart":2071.900000035763,"firstInterimResponseStart":0,"finalResponseHeadersStart":2071.900000035763,"responseEnd":2194,"transferSize":443,"encodedBodySize":143,"decodedBodySize":143,"responseStatus":502,"serverTiming":[{"name":"inner","duration":65,"description":""},{"name":"inner","duration":33,"description":""},{"name":"cdn-cache","duration":0,"description":"MISS"},{"name":"edge","duration":42,"description":""},{"name":"origin","duration":88,"description":""}]}},"duration":298},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274343926,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":0.5}}]}' ;
+curl --url 'https://apmplus.volces.com/monitor_web/collect?did=d76a9574-f86d-47a9-bd7f-f5a093fc1ef3&sid=9161d6e5-3294-4862-a69f-7c3794c5f5de&release=&env=production&sname=APM_PLUS_WEB&sversion=2.10.3&soffset=0&biz_id=1001891&x_auth_token=26a8704bd4d34b1698085c787d0c95d0' \
+  -X 'OPTIONS' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Access-Control-Request-Headers: content-type' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Connection: keep-alive' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'Referer: https://wyj-dsh.coze.site/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: cross-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' ;
+curl --url 'https://apmplus.volces.com/monitor_web/collect?did=d76a9574-f86d-47a9-bd7f-f5a093fc1ef3&sid=9161d6e5-3294-4862-a69f-7c3794c5f5de&release=&env=production&sname=APM_PLUS_WEB&sversion=2.10.3&soffset=0&biz_id=1001891&x_auth_token=26a8704bd4d34b1698085c787d0c95d0' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -H 'Origin: https://wyj-dsh.coze.site' \
+  -H 'Referer: https://wyj-dsh.coze.site/' \
+  -H 'Sec-Fetch-Dest: empty' \
+  -H 'Sec-Fetch-Mode: cors' \
+  -H 'Sec-Fetch-Site: cross-site' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36 Edg/151.0.0.0' \
+  -H 'sec-ch-ua: "Not=A?Brand";v="99", "Microsoft Edge";v="151", "Chromium";v="151"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Windows"' \
+  --data-raw '{"ev_type":"batch","list":[{"ev_type":"performance","payload":{"name":"tti","value":828,"isSupport":true,"isPolyfill":false,"isBounced":false,"isCustom":false,"type":"perf"},"common":{"aid":1001891,"user_id":"88436b76-b08f-41ca-8ab6-0518b5285225","url":"https://wyj-dsh.coze.site/membership","timestamp":1788274348039,"pid":"/membership","view_id":"/membership_1788274342942","context":{"project_id":"7679854228352843827"},"network_type":"4g","sample_rate":1}}]}'

@@ -321,7 +321,7 @@ export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
           ${logs.length === 0 ? '<tr><td colspan="4" style="text-align:center;color:var(--text-secondary)">暂无日志</td></tr>' : ''}
           ${logs.map(log => `
             <tr>
-              <td style="white-space:nowrap">${new Date(log.created_at).toLocaleString("zh-CN")}</td>
+              <td style="white-space:nowrap">${new Date(log.created_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</td>
               <td>${log.actor_id ?? '-'}</td>
               <td><code>${escapeHtml(log.action)}</code></td>
               <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(log.detail ?? '')}</td>
@@ -447,8 +447,8 @@ export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], cs
               <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
                    order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
                    `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>
-              <td>${new Date(order.created_at).toLocaleString("zh-CN")}</td>
-              <td>${order.paid_at ? new Date(order.paid_at).toLocaleString("zh-CN") : '-'}</td>
+              <td>${new Date(order.created_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</td>
+              <td>${order.paid_at ? new Date(order.paid_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' }) : '-'}</td>
             </tr>
           `).join('')}
         </tbody>

@@ -239,7 +239,7 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
   const statusHtml = membership.isActive
     ? `<div class="alert alert-success" style="text-align:center;margin-bottom:1.5rem">
         <strong>当前会员：</strong>${MEMBERSHIP_LABELS[membership.type!] || membership.type}
-        <br><small>到期时间：${new Date(membership.expiresAt!).toLocaleString("zh-CN")}</small>
+        <br><small>到期时间：${new Date(membership.expiresAt!).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</small>
        </div>`
     : membership.trialUsed
       ? `<div class="alert alert-warning" style="text-align:center;margin-bottom:1.5rem">您的会员已过期，请续费以继续使用</div>`
@@ -549,7 +549,7 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
         <div class="membership-icon">✓</div>
         <div class="membership-info">
           <div class="membership-type">${MEMBERSHIP_LABELS[membership.type!] || membership.type}</div>
-          <div class="membership-expires">到期时间：${new Date(membership.expiresAt!).toLocaleString("zh-CN")}</div>
+          <div class="membership-expires">到期时间：${new Date(membership.expiresAt!).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</div>
         </div>
         <a href="/membership" class="btn btn-sm btn-secondary">续费</a>
        </div>`
@@ -586,8 +586,8 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
               <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
                    order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
                    `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>
-              <td>${new Date(order.created_at).toLocaleString("zh-CN")}</td>
-              <td>${order.paid_at ? new Date(order.paid_at).toLocaleString("zh-CN") : '-'}</td>
+              <td>${new Date(order.created_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</td>
+              <td>${order.paid_at ? new Date(order.paid_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' }) : '-'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -657,7 +657,7 @@ export function renderPaymentReturnPage(
           <span class="membership-badge ${membership.isActive ? membership.type : 'expired'}">
             ${membership.isActive && membership.type ? (MEMBERSHIP_LABELS[membership.type] ?? '会员') : '未激活'}
           </span>
-          ${membership.expiresAt ? `<span class="membership-expire">到期时间：${new Date(membership.expiresAt).toLocaleString("zh-CN")}</span>` : ''}
+          ${membership.expiresAt ? `<span class="membership-expire">到期时间：${new Date(membership.expiresAt).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</span>` : ''}
         </div>
       </div>
       

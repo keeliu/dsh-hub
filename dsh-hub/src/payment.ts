@@ -12,7 +12,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { getSetting } from './settings.ts';
-import { correctedUnixTime } from './config.ts';
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
 
@@ -141,7 +140,7 @@ export async function createPayment(
   config: XunhupayConfig,
   params: CreatePaymentParams,
 ): Promise<CreatePaymentResponse> {
-  const time = correctedUnixTime();
+  const time = Math.floor(Date.now() / 1000).toString();
   const nonce = nonceStr();
 
   const reqParams: Record<string, string> = {
@@ -163,14 +162,12 @@ export async function createPayment(
 
   const result = await postJson(`${config.gateway}/payment/do.html`, reqParams);
 
-  // 虎皮椒 API 响应格式：数据在 data 字段中
-  const data = result.data ?? result;
   return {
     errcode: Number(result.errcode ?? 500),
     errmsg: String(result.errmsg ?? 'unknown error'),
-    url_qrcode: (data.url_qrcode ?? data.pay_url) as string | undefined,
-    url: (data.url ?? data.pay_url) as string | undefined,
-    openid: (data.openid ?? data.open_order_id) as string | undefined,
+    url_qrcode: result.url_qrcode as string | undefined,
+    url: result.url as string | undefined,
+    openid: result.openid as string | undefined,
   };
 }
 
@@ -180,7 +177,7 @@ export async function queryPayment(
   config: XunhupayConfig,
   tradeOrderId: string,
 ): Promise<QueryPaymentResponse> {
-  const time = correctedUnixTime();
+  const time = Math.floor(Date.now() / 1000).toString();
   const nonce = nonceStr();
 
   const reqParams: Record<string, string> = {
@@ -208,7 +205,7 @@ export async function refundPayment(
   tradeOrderId: string,
   reason?: string,
 ): Promise<RefundPaymentResponse> {
-  const time = correctedUnixTime();
+  const time = Math.floor(Date.now() / 1000).toString();
   const nonce = nonceStr();
 
   const reqParams: Record<string, string> = {

@@ -590,7 +590,7 @@ route('GET', '/api/me/membership', { auth: true }, async ({ db, user }) => {
 
 route('GET', '/api/me/orders', { auth: true }, async ({ db, user }) => {
   const orders = getUserOrders(db, user.id);
-  return { orders: orders.map(o => ({ id: o.id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
+  return { orders: orders.map(o => ({ id: o.id, orderNo: o.order_no, paymentOrderId: o.payment_order_id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
 });
 
 route('GET', '/admin/api/orders', { auth: true }, async ({ db, req, user: actor }) => {
@@ -599,7 +599,7 @@ route('GET', '/admin/api/orders', { auth: true }, async ({ db, req, user: actor 
   const limit = Number(url.searchParams.get('limit') ?? 50);
   const offset = Number(url.searchParams.get('offset') ?? 0);
   const orders = getAllOrders(db, limit, offset);
-  return { orders: orders.map(o => ({ id: o.id, userId: o.user_id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
+  return { orders: orders.map(o => ({ id: o.id, orderNo: o.order_no, paymentOrderId: o.payment_order_id, userId: o.user_id, type: o.membership_type, amount: o.amount, status: o.status, createdAt: o.created_at, paidAt: o.paid_at })) };
 });
 
 // ---------- 会员价格管理 ----------
@@ -654,8 +654,8 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
   if (price === 0) {
     const order = createOrder(db, user.id, type);
     // 直接标记为已支付并激活
-    db.prepare(`UPDATE orders SET status = 'paid', paid_at = ? WHERE id = ?`).run(Date.now(), order.id);
-    handlePaymentCallback(db, String(order.id), '0', `free_${order.id}`, 'OD');
+    db.prepare(`UPDATE orders SET status = 'paid', paid_at = ?, payment_order_id = ? WHERE id = ?`).run(Date.now(), `free_${order.id}`, order.id);
+    handlePaymentCallback(db, String(order.id), '0', `free_${order.id}`, 'OD', `free_${order.id}`);
     return {
       freeTrial: true,
       orderId: order.id,
@@ -731,6 +731,7 @@ route('POST', '/api/payment/notify', { auth: false, csrf: false }, async ({ db, 
     params.total_fee,
     params.transaction_id,
     params.status,
+    params.open_order_id,
   );
 
   if (!result.ok && result.message !== 'already paid') {
@@ -787,6 +788,7 @@ route('GET', '/api/payment/query/:orderId', { auth: true }, async ({ db, user, p
             String(order.amount),
             result.data.open_order_id || '',
             'OD',
+            result.data.open_order_id || '',
           );
           return {
             status: 'paid',

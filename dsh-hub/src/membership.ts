@@ -1,6 +1,6 @@
 // src/membership.ts — 会员系统核心逻辑
 import type { DatabaseSync } from 'node:sqlite';
-import { audit } from './db.ts';
+import { audit, generateOrderNo } from './db.ts';
 import { ensureInstanceForUser } from './instances.ts';
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
@@ -26,6 +26,8 @@ export interface OrderRow {
   status: OrderStatus;
   payment_method: string | null;
   payment_id: string | null;
+  order_no: string;
+  payment_order_id: string | null;
   created_at: number;
   paid_at: number | null;
 }
@@ -125,6 +127,7 @@ export function hasActiveMembership(db: DatabaseSync, userId: number): boolean {
 export function createOrder(db: DatabaseSync, userId: number, type: MembershipType): OrderRow {
   const config = MEMBERSHIP_CONFIG[type];
   const now = Date.now();
+  const orderNo = generateOrderNo(now);
 
   if (type === 'trial') {
     const membership = getUserMembership(db, userId);
@@ -135,9 +138,9 @@ export function createOrder(db: DatabaseSync, userId: number, type: MembershipTy
 
   const price = getMembershipPrice(db, type);
   const result = db.prepare(`
-    INSERT INTO orders (user_id, membership_type, amount, status, created_at)
-    VALUES (?, ?, ?, 'pending', ?)
-  `).run(userId, type, price, now);
+    INSERT INTO orders (user_id, membership_type, amount, status, order_no, created_at)
+    VALUES (?, ?, ?, 'pending', ?, ?)
+  `).run(userId, type, price, orderNo, now);
 
   const orderId = Number(result.lastInsertRowid);
 
@@ -145,10 +148,10 @@ export function createOrder(db: DatabaseSync, userId: number, type: MembershipTy
   if (type === 'trial') {
     activateMembership(db, userId, type, orderId, now);
     db.prepare(`UPDATE orders SET status = 'paid', paid_at = ? WHERE id = ?`).run(now, orderId);
-    audit(db, 'order_create', userId, userId, `type=${type},order_id=${orderId}`);
-    audit(db, 'order_pay', userId, userId, `order_id=${orderId}`);
+    audit(db, 'order_create', userId, userId, `type=${type},order_id=${orderId},order_no=${orderNo}`);
+    audit(db, 'order_pay', userId, userId, `order_id=${orderId},order_no=${orderNo}`);
   } else {
-    audit(db, 'order_create', userId, userId, `type=${type},order_id=${orderId}`);
+    audit(db, 'order_create', userId, userId, `type=${type},order_id=${orderId},order_no=${orderNo}`);
   }
 
   return db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId) as unknown as OrderRow;
@@ -258,6 +261,7 @@ export function handlePaymentCallback(
   totalFee: string,
   transactionId: string,
   status: string,
+  openOrderId: string,
 ): { ok: boolean; message: string } {
   const orderId = Number(tradeOrderId);
   const order = getOrderById(db, orderId);
@@ -288,15 +292,15 @@ export function handlePaymentCallback(
 
   // 更新订单状态
   db.prepare(`
-    UPDATE orders SET status = 'paid', paid_at = ?, payment_id = ?, payment_method = 'xunhupay'
+    UPDATE orders SET status = 'paid', paid_at = ?, payment_id = ?, payment_method = 'xunhupay', payment_order_id = ?
     WHERE id = ?
-  `).run(now, transactionId, orderId);
+  `).run(now, transactionId, openOrderId, orderId);
 
   // 激活会员
   activateMembership(db, order.user_id, order.membership_type, orderId, now);
 
   audit(db, 'order_pay', order.user_id, order.user_id,
-    `order_id=${orderId},transaction_id=${transactionId}`);
+    `order_id=${orderId},order_no=${order.order_no},transaction_id=${transactionId},payment_order_id=${openOrderId}`);
 
   return { ok: true, message: 'success' };
 }

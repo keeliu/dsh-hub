@@ -12,6 +12,20 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * 生成订单号：YYYYMMDDHH + 10 位随机数字
+ * 例如：20260903151234567890
+ */
+export function generateOrderNo(timestamp?: number): string {
+  const now = timestamp ? new Date(timestamp) : new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const random = String(Math.floor(Math.random() * 10000000000)).padStart(10, '0');
+  return `${year}${month}${day}${hour}${random}`;
+}
+
 export interface DbOptions {
   /** 数据根目录（含 db 文件与后续 users/ 目录）。 */
   dataDir?: string;
@@ -271,6 +285,23 @@ const MIGRATIONS: Migration[] = [
           ('monthly', 1990, 2990, strftime('%s', 'now')),
           ('yearly', 19900, 29900, strftime('%s', 'now'));
       `);
+    }
+  },
+  {
+    version: 7,
+    description: 'add order_no and payment_order_id to orders table',
+    up: (db) => {
+      db.exec(`
+        ALTER TABLE orders ADD COLUMN order_no TEXT NOT NULL DEFAULT '';
+        ALTER TABLE orders ADD COLUMN payment_order_id TEXT;
+      `);
+      // 为现有订单生成订单号
+      const orders = db.prepare('SELECT id, created_at FROM orders').all() as Array<{ id: number; created_at: number }>;
+      const updateStmt = db.prepare('UPDATE orders SET order_no = ? WHERE id = ?');
+      for (const order of orders) {
+        const orderNo = generateOrderNo(order.created_at);
+        updateStmt.run(orderNo, order.id);
+      }
     }
   }
 ];

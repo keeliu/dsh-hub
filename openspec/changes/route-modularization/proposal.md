@@ -24,6 +24,14 @@ src/
 │   ├── page-instances.ts  # /, /instances/*（用户端实例页面）
 │   ├── page-admin.ts      # /admin, /admin/*（管理后台页面）
 │   └── index.ts           # registerApiRoutes() + registerPageRoutes() 聚合
+├── views/
+│   ├── layout.ts          # 布局框架 + nav + csrf（~200 行）
+│   ├── styles.ts          # CSS 字符串（~400 行）
+│   ├── components.ts      # 通用组件（flash/alert/form）（~200 行）
+│   ├── icons.ts           # SVG 图标（~200 行）
+│   ├── auth.ts            # 认证页面（登录/注册/找回密码）
+│   ├── user.ts            # 用户页面（实例列表/会员/个人中心）
+│   └── admin.ts           # 管理页面（用户管理/实例总览/设置）
 ├── api.ts                 # 精简为：路由框架 + startServer() + 调用 routes/index.ts
 ├── pages.ts               # 精简为：handlePageRequest() + 调用 routes/index.ts
 ```
@@ -37,5 +45,5 @@ src/
 ## Impact
 
 - **破坏性**：无。纯内部重构，不改变任何公共 API 或 URL。
-- **影响范围**：`src/api.ts`、`src/pages.ts`、新增 `src/routes/` 目录
+- **影响范围**：`src/api.ts`、`src/pages.ts`、`src/views/layout.ts`、新增 `src/routes/` 目录、新增 `src/views/styles.ts`、`src/views/components.ts`、`src/views/icons.ts`
 - **风险**：中。文件移动和 import 路径变更需要仔细验证。建议在 `logic-dedup` 之后执行（此时 pages.ts 已瘦身，拆分更干净）。

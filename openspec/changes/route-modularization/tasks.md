@@ -32,13 +32,25 @@
 - [ ] 4.2 `pages.ts` 删除已迁移的路由，保留 `handlePageRequest`
 - [ ] 4.3 确认 `api.ts` ≤ 300 行、`pages.ts` ≤ 300 行
 
-## 阶段 5：验证
+## 阶段 5：拆分 views/layout.ts
 
-- [ ] 5.1 类型检查通过
-- [ ] 5.2 冒烟测试通过
-- [ ] 5.3 确认所有 API 端点行为不变
-- [ ] 5.4 确认所有页面路由行为不变
-- [ ] 5.5 归档变更
+`views/layout.ts`（978 行）包含布局框架、CSS、通用组件、SVG 图标，按职责拆分：
+
+- [ ] 5.1 提取 CSS 字符串到 `views/styles.ts`（`NAVBAR_CSS`、`ADMIN_CSS`、`AUTH_CSS`、`MEMBERSHIP_CSS`、`PROFILE_CSS`）
+- [ ] 5.2 提取通用组件到 `views/components.ts`（`csrfField`、`flashHtml`、`alertHtml`、`formGroup`）
+- [ ] 5.3 提取 SVG 图标到 `views/icons.ts`（`ICON_CHEVRON`、`ICON_SEARCH`、`ICON_PLUS`、`ICON_SETTINGS`、`ICON_LOGOUT` 等）
+- [ ] 5.4 `views/layout.ts` 保留布局框架函数（`layout`、`authLayout`、`renderNav`）+ import
+- [ ] 5.5 更新所有引用 `views/layout.ts` 的文件的 import 路径
+- [ ] 5.6 确认 `views/layout.ts` ≤ 300 行
+
+## 阶段 6：验证
+
+- [ ] 6.1 类型检查通过
+- [ ] 6.2 冒烟测试通过
+- [ ] 6.3 确认所有 API 端点行为不变
+- [ ] 6.4 确认所有页面路由行为不变
+- [ ] 6.5 确认所有页面渲染效果不变
+- [ ] 6.6 归档变更
 
 ## 预估时间
 
@@ -46,5 +58,6 @@
 - 阶段 2：2 小时
 - 阶段 3：2 小时
 - 阶段 4：1 小时
-- 阶段 5：1 小时
-- **总计：7 小时**
+- 阶段 5：2 小时
+- 阶段 6：1 小时
+- **总计：9 小时**

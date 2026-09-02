@@ -1002,9 +1002,11 @@ export function startServer(db: DatabaseSync, opts: ServerOptions = {}): http.Se
       if (!match) {
         // DSH API fallback：如果请求 /api/* 但 hub 没有路由，尝试代理到用户的 DSH 实例
         if (url.pathname.startsWith('/api/')) {
+          console.log(`[api] No route for ${method} ${url.pathname}, trying DSH instance proxy`);
           const proxied = await proxyToDshInstance(db, req, res);
           if (proxied) return;
         }
+        console.log(`[api] 404 not found: ${method} ${url.pathname}`);
         sendJson(res, 404, { error: { code: 'not_found', message: 'not found' } });
         return;
       }

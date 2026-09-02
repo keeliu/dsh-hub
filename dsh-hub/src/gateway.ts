@@ -67,6 +67,9 @@ export async function handleGatewayRequest(
 ): Promise<boolean> {
   const pathname = (req.url || '/').split('?')[0] || '/';
   
+  // 调试日志：记录所有进入网关的请求
+  console.log(`[gateway] Request: ${req.method} ${pathname}`);
+  
   // DSH deployment 配置：Hub 层直接提供（DSH 实例不返回此文件）
   if (pathname === '/dsh-deployment.js') {
     res.writeHead(200, {
@@ -84,6 +87,7 @@ export async function handleGatewayRequest(
   
   const pathInfo = parseInstancePath(pathname);
   if (!pathInfo) {
+    console.log(`[gateway] Not an instance path: ${pathname}`);
     return false;
   }
   

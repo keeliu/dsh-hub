@@ -6,7 +6,7 @@
 import { escapeHtml } from '../http.ts';
 import { layout, csrfField } from './layout.ts';
 import { buildInstanceUrl } from '../subdomain.ts';
-import { config } from '../config.ts';
+import { config, formatCorrectedTime } from '../config.ts';
 import type { UserRow } from '../users.ts';
 import type { MembershipType } from '../membership.ts';
 
@@ -172,8 +172,8 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
         <tr><td style="font-weight:500">端口</td><td>${instance.port ?? '-'}</td></tr>
         <tr><td style="font-weight:500">版本</td><td>${instance.harness_version ? escapeHtml(instance.harness_version) : '默认'}</td></tr>
         <tr><td style="font-weight:500">Trusted Host</td><td><code>${escapeHtml(instance.trusted_host)}</code></td></tr>
-        <tr><td style="font-weight:500">创建时间</td><td>${new Date(instance.created_at).toLocaleString('zh-CN')}</td></tr>
-        ${instance.last_started_at ? `<tr><td style="font-weight:500">最近启动</td><td>${new Date(instance.last_started_at).toLocaleString('zh-CN')}</td></tr>` : ''}
+        <tr><td style="font-weight:500">创建时间</td><td>${formatCorrectedTime(instance.created_at)}</td></tr>
+        ${instance.last_started_at ? `<tr><td style="font-weight:500">最近启动</td><td>${formatCorrectedTime(instance.last_started_at)}</td></tr>` : ''}
       </table>
     </div>
 
@@ -237,7 +237,7 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
   const statusHtml = membership.isActive
     ? `<div class="alert alert-success" style="text-align:center;margin-bottom:1.5rem">
         <strong>当前会员：</strong>${MEMBERSHIP_LABELS[membership.type!] || membership.type}
-        <br><small>到期时间：${new Date(membership.expiresAt!).toLocaleString('zh-CN')}</small>
+        <br><small>到期时间：${formatCorrectedTime(membership.expiresAt!)}</small>
        </div>`
     : membership.trialUsed
       ? `<div class="alert alert-warning" style="text-align:center;margin-bottom:1.5rem">您的会员已过期，请续费以继续使用</div>`
@@ -547,7 +547,7 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
         <div class="membership-icon">✓</div>
         <div class="membership-info">
           <div class="membership-type">${MEMBERSHIP_LABELS[membership.type!] || membership.type}</div>
-          <div class="membership-expires">到期时间：${new Date(membership.expiresAt!).toLocaleString('zh-CN')}</div>
+          <div class="membership-expires">到期时间：${formatCorrectedTime(membership.expiresAt!)}</div>
         </div>
         <a href="/membership" class="btn btn-sm btn-secondary">续费</a>
        </div>`
@@ -581,7 +581,7 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
               <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
                    order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
                    `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>
-              <td>${new Date(order.created_at).toLocaleString('zh-CN')}</td>
+              <td>${formatCorrectedTime(order.created_at)}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -651,7 +651,7 @@ export function renderPaymentReturnPage(
           <span class="membership-badge ${membership.isActive ? membership.type : 'expired'}">
             ${membership.isActive && membership.type ? (MEMBERSHIP_LABELS[membership.type] ?? '会员') : '未激活'}
           </span>
-          ${membership.expiresAt ? `<span class="membership-expire">到期时间：${new Date(membership.expiresAt).toLocaleString('zh-CN')}</span>` : ''}
+          ${membership.expiresAt ? `<span class="membership-expire">到期时间：${formatCorrectedTime(membership.expiresAt)}</span>` : ''}
         </div>
       </div>
       

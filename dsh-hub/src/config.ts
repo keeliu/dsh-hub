@@ -60,3 +60,27 @@ export function correctedNow(): number {
 export function correctedUnixTime(): string {
   return Math.floor(correctedNow() / 1000).toString();
 }
+
+/**
+ * 校正历史时间戳（用于显示）。
+ * 将存储在数据库中的错误时间戳转换为正确时间。
+ */
+export function correctTimestamp(ts: number): number {
+  return ts - config.timeOffsetMs;
+}
+
+/**
+ * 格式化时间戳为本地时间字符串（已校正）。
+ */
+export function formatCorrectedTime(ts: number): string {
+  return new Date(correctTimestamp(ts)).toLocaleString('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}

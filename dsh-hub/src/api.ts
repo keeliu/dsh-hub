@@ -689,8 +689,11 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
       return_url: returnUrl,
     });
   } catch (err) {
+    console.error("[payment] 虎皮椒请求异常:", err);
     throw new HttpError(502, 'payment_request_failed', `支付网关请求失败: ${err instanceof Error ? err.message : '未知错误'}`);
   }
+
+  console.log(`[payment] 虎皮椒响应：errcode=${result.errcode}, errmsg=${result.errmsg}, url_qrcode=${result.url_qrcode?.substring(0, 50) ?? "null"}`);
 
   if (result.errcode !== 0) {
     throw new HttpError(502, 'payment_create_failed', result.errmsg || '支付创建失败');

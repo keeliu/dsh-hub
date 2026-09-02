@@ -229,12 +229,19 @@ export async function proxyToDshInstance(
   res: ServerResponse
 ): Promise<boolean> {
   const auth = authenticate(db, req);
-  if (!auth) return false;
+  if (!auth) {
+    console.log(`[gateway] DSH API fallback: no auth for ${req.url}`);
+    return false;
+  }
   
   const instances = listInstances(db, auth.user.id);
   const running = instances.find(i => i.status === 'running' && i.port);
-  if (!running || !running.port) return false;
+  if (!running || !running.port) {
+    console.log(`[gateway] DSH API fallback: no running instance for user ${auth.user.id} (instances: ${instances.length})`);
+    return false;
+  }
   
+  console.log(`[gateway] DSH API fallback: proxying ${req.method} ${req.url} to 127.0.0.1:${running.port} (instance ${running.id})`);
   const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
   await proxyHttpRequest(req, res, target);
   return true;

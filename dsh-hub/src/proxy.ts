@@ -44,6 +44,7 @@ export async function proxyHttpRequest(
       method: req.method,
       headers,
     }, (proxyRes) => {
+      console.log(`[proxy] ${req.method} ${targetPath} -> ${target.host}:${target.port} => ${proxyRes.statusCode}`);
       res.statusCode = proxyRes.statusCode || 200;
       for (const [key, value] of Object.entries(proxyRes.headers)) {
         if (key.toLowerCase() !== 'transfer-encoding') {
@@ -55,7 +56,7 @@ export async function proxyHttpRequest(
     });
 
     proxyReq.on('error', (err) => {
-      console.error('[proxy] HTTP proxy error:', err);
+      console.error(`[proxy] HTTP proxy error for ${req.method} ${targetPath} -> ${target.host}:${target.port}:`, err.message);
       if (!res.headersSent) {
         res.statusCode = 502;
         res.end('Bad Gateway');

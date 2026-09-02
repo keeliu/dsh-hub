@@ -2,7 +2,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import { audit } from './db.ts';
 import { ensureInstanceForUser } from './instances.ts';
-import { correctedNow } from './config.ts';
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
 
@@ -125,7 +124,7 @@ export function hasActiveMembership(db: DatabaseSync, userId: number): boolean {
 
 export function createOrder(db: DatabaseSync, userId: number, type: MembershipType): OrderRow {
   const config = MEMBERSHIP_CONFIG[type];
-  const now = correctedNow();
+  const now = Date.now();
 
   if (type === 'trial') {
     const membership = getUserMembership(db, userId);

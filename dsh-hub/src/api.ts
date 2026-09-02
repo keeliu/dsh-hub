@@ -30,7 +30,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { audit, withTx } from './db.ts';
 import { handlePageRequest } from './pages.ts';
 import { handleGatewayRequest, handleGatewayWebSocket, proxyToDshInstance, proxyWebSocketToDshInstance } from './gateway.ts';
-import { config, correctedNow } from './config.ts';
+import { config } from './config.ts';
 import { getXunhupayConfig, createPayment, queryPayment, verifyHash, type NotifyParams, type CreatePaymentResponse } from './payment.ts';
 import { HttpError, clientIp, parseCookies, readForm, readJson, sendError, sendJson } from './http.ts';
 import {
@@ -760,7 +760,7 @@ route('GET', '/api/payment/query/:orderId', { auth: true }, async ({ db, user, p
   // 如果订单是 pending，检查是否超时（10分钟）
   if (order.status === 'pending') {
     const ORDER_TTL_MS = 10 * 60 * 1000; // 10 minutes
-    if (correctedNow() - order.created_at > ORDER_TTL_MS) {
+    if (Date.now() - order.created_at > ORDER_TTL_MS) {
       // 订单超时，自动取消
       db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ? AND status = 'pending'").run(order.id);
       return {

@@ -12,7 +12,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 import { getSetting } from './settings.ts';
-import { correctedUnixTime } from './config.ts';
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
 
@@ -141,7 +140,7 @@ export async function createPayment(
   config: XunhupayConfig,
   params: CreatePaymentParams,
 ): Promise<CreatePaymentResponse> {
-  const time = correctedUnixTime();
+  const time = Math.floor(Date.now() / 1000).toString();
   const nonce = nonceStr();
 
   const reqParams: Record<string, string> = {
@@ -178,7 +177,7 @@ export async function queryPayment(
   config: XunhupayConfig,
   tradeOrderId: string,
 ): Promise<QueryPaymentResponse> {
-  const time = correctedUnixTime();
+  const time = Math.floor(Date.now() / 1000).toString();
   const nonce = nonceStr();
 
   const reqParams: Record<string, string> = {

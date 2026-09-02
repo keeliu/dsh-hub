@@ -68,8 +68,6 @@ export function renderLoginPage(error?: string, registrationOpen = false, csrf?:
     </form>
     <div class="auth-footer">
       <a href="/forgot-password">忘记密码？</a>
-      <span style="margin:0 0.5rem;color:var(--border)">|</span>
-      <a href="/register">没有账号？立即注册</a>
     </div>
     ${registerLink}
   `;

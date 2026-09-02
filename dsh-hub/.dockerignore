@@ -4,7 +4,10 @@ dist
 *.md
 docs/
 spikes/
-scripts/
+scripts/m1-*.sh
+scripts/m2-*.sh
+scripts/security-*.sh
+scripts/push-release.sh
 assets/
 .openspec
 .coze

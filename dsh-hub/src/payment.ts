@@ -163,12 +163,14 @@ export async function createPayment(
 
   const result = await postJson(`${config.gateway}/payment/do.html`, reqParams);
 
+  // 虎皮椒 API 响应格式：数据在 data 字段中
+  const data = result.data ?? result;
   return {
     errcode: Number(result.errcode ?? 500),
     errmsg: String(result.errmsg ?? 'unknown error'),
-    url_qrcode: result.url_qrcode as string | undefined,
-    url: result.url as string | undefined,
-    openid: result.openid as string | undefined,
+    url_qrcode: (data.url_qrcode ?? data.pay_url) as string | undefined,
+    url: (data.url ?? data.pay_url) as string | undefined,
+    openid: (data.openid ?? data.open_order_id) as string | undefined,
   };
 }
 

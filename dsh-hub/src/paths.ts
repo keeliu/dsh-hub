@@ -4,17 +4,17 @@
  * 布局（docs/02 §3.1）：
  *   <dataDir>/dshhub.db
  *   <dataDir>/users/<dir_name>/            (700)
- *     instances/<实例ID>/
+ *     instances/<实例 ID>/
  *       home/        = DSH_HOME
  *       workspace/   = dsh 进程 cwd
  *       logs/        = web.out.log + start-fail-<ts>.md
  *       instance.pid + .dsh-instance.lock
  */
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { getDataDir } from './config.ts';
 
 export function dataDir(): string {
-  return process.env.DSH_HUB_DATA ?? join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
+  return getDataDir();
 }
 
 export function userRoot(): string {

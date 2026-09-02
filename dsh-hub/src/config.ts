@@ -9,9 +9,11 @@
  *   DSH_BIN              dsh 二进制路径（缺省自动探测）
  *   DSH_HUB_DOMAIN       trusted-host 子域后缀（默认 dshhub.local）
  *   DSH_HUB_TRUST_PROXY=1   信任 X-Forwarded-For（仅当控制面只被可信反代访问）
+ *   SMTP_HOST/PORT/USER/PASS/FROM/SECURE  邮件发送配置
  */
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 
 export interface Config {
   host: string;
@@ -21,6 +23,15 @@ export interface Config {
   dshBin: string | null;
   hubDomain: string;
   trustProxy: boolean;
+}
+
+export interface SmtpConfig {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+  secure: boolean;
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -39,3 +50,36 @@ function loadConfig(): Config {
 
 /** 进程级配置单例（每进程加载一次；测试通过独立进程覆盖 env）。 */
 export const config: Config = loadConfig();
+
+/** 获取数据根目录 */
+export function getDataDir(): string {
+  return config.dataDir;
+}
+
+/** 获取 SMTP 配置（未配置时返回 null） */
+export function getSmtpConfig(): SmtpConfig | null {
+  const host = process.env.SMTP_HOST;
+  if (!host) return null;
+  return {
+    host,
+    port: Number(process.env.SMTP_PORT ?? 587),
+    user: process.env.SMTP_USER ?? '',
+    pass: process.env.SMTP_PASS ?? '',
+    from: process.env.SMTP_FROM ?? '',
+    secure: process.env.SMTP_SECURE === 'true',
+  };
+}
+
+/** 获取 DSH 二进制路径 */
+export function getDshBin(): string | null {
+  const fromEnv = process.env.DSH_BIN;
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  const guess = join(dirname(process.execPath), '..', 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+  if (existsSync(guess)) return guess;
+  return null;
+}
+
+/** 获取会员到期检查间隔（毫秒），默认 1 小时 */
+export function getExpiryCheckInterval(): number {
+  return Number(process.env.DSH_HUB_EXPIRY_CHECK_INTERVAL ?? 3600000);
+}

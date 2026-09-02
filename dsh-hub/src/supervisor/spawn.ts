@@ -10,6 +10,7 @@ import { clearPidfile, readPidfile, writePidfile } from './pidfile.ts';
 import { instanceLogDir, rotateLog, writeFailureSnapshot, tailLog } from './log.ts';
 import { stopProcessGroup } from './stop.ts';
 import { isValidHarnessVersion } from '../version.ts';
+import { getDshBin } from '../config.ts';
 
 export interface StartResult {
   status: 'running' | 'failed';
@@ -24,11 +25,7 @@ export function ensureInstanceDirs(record: Pick<InstanceRecord, 'home_path' | 'w
 }
 
 export function resolveDshBin(): string | null {
-  const fromEnv = process.env.DSH_BIN;
-  if (fromEnv && existsSync(fromEnv)) return fromEnv;
-  const guess = join(dirname(process.execPath), '..', 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
-  if (existsSync(guess)) return guess;
-  return null;
+  return getDshBin();
 }
 
 /** 启动实例：建目录 → 加锁 → spawn → 探活 → 更新 DB。 */

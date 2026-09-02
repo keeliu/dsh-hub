@@ -2,37 +2,11 @@
  * DSH Hub · 邮件发送模块
  *
  * 使用 Node.js 内置 net 模块实现 SMTP 发送（零依赖）。
- * 环境变量：
- *   SMTP_HOST - SMTP 服务器地址
- *   SMTP_PORT - SMTP 端口（默认 587）
- *   SMTP_USER - 发件人邮箱
- *   SMTP_PASS - 密码/授权码
- *   SMTP_FROM - 发件人显示名（可选）
+ * SMTP 配置通过 config.ts 的 getSmtpConfig() 获取。
  */
 import * as net from 'node:net';
 import * as tls from 'node:tls';
-
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  user: string;
-  pass: string;
-  from?: string;
-}
-
-export function getSmtpConfig(): SmtpConfig | null {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-  if (!host || !user || !pass) return null;
-  return {
-    host,
-    port: Number(process.env.SMTP_PORT) || 587,
-    user,
-    pass,
-    from: process.env.SMTP_FROM,
-  };
-}
+import { getSmtpConfig, type SmtpConfig } from './config.ts';
 
 function base64Encode(str: string): string {
   return Buffer.from(str).toString('base64');

@@ -7,10 +7,8 @@
  */
 import { DatabaseSync } from 'node:sqlite';
 import { chmodSync, existsSync, mkdirSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const here = dirname(fileURLToPath(import.meta.url));
+import { join } from 'node:path';
+import { getDataDir } from './config.ts';
 
 /**
  * 生成订单号：YYYYMMDDHH + 10 位随机数字
@@ -32,7 +30,7 @@ export interface DbOptions {
 }
 
 export function openDb(opts: DbOptions = {}): DatabaseSync {
-  const dataDir = opts.dataDir ?? process.env.DSH_HUB_DATA ?? join(here, '..', 'data');
+  const dataDir = opts.dataDir ?? getDataDir();
   if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
   // 多用户共机时 DB 含密码哈希/token 哈希：数据根 700、DB 文件 600（M2.1）。
   chmodSync(dataDir, 0o700);

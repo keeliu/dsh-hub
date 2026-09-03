@@ -116,6 +116,13 @@ export async function handleGatewayRequest(
     return handleStaticAssetFallback(req, res, pathname);
   }
   
+  // DSH 插件 API fallback：/i/<plugin-name>/* 格式（不符合实例路径规范）
+  // 例如：/i/dsh-market/registry → 代理到用户运行中的实例
+  if (pathname.startsWith('/i/') && !pathname.match(/^\/i\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-(i-[0-9a-f]{8})(?:\/|$)/)) {
+    console.log(`[gateway] Plugin API fallback: ${pathname}`);
+    return handleStaticAssetFallback(req, res, pathname);
+  }
+  
   const pathInfo = parseInstancePath(pathname);
   if (!pathInfo) {
     console.log(`[gateway] Not an instance path: ${pathname}`);
@@ -248,9 +255,18 @@ async function handleStaticAssetFallback(
   const running = instances.find(i => i.status === 'running' && i.port);
   if (!running || !running.port) return false; // 无运行中实例则不处理
   
-  // 代理到实例（不 strip 前缀，因为 DSH 期望 /assets/ 路径）
+  // 代理到实例
+  // 对于 /i/<plugin>/* 格式，strip /i 前缀，变成 /<plugin>/*
+  // 对于 /assets/* 和 /plugins/*，不 strip 前缀
   const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
-  await proxyHttpRequest(req, res, target);
+  let stripPrefix: string | undefined;
+  
+  if (pathname.startsWith('/i/') && !pathname.match(/^\/i\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-(i-[0-9a-f]{8})(?:\/|$)/)) {
+    // /i/dsh-market/registry → /dsh-market/registry
+    stripPrefix = '/i';
+  }
+  
+  await proxyHttpRequest(req, res, target, stripPrefix);
   return true;
 }
 

@@ -66,14 +66,27 @@ export async function handleGatewayRequest(
     let apiBase = '';
     let wsBase = '';
     
-    // 从 Referer 提取实例路径
-    const refererPathname = new URL(referer, 'http://localhost').pathname;
-    const instanceMatch = refererPathname.match(/^\/i\/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?-(i-[0-9a-f]{8}))(?:\/|$)/);
+    console.log(`[gateway] dsh-deployment.js request, Referer: "${referer}"`);
     
-    if (instanceMatch) {
-      const instancePrefix = `/i/${instanceMatch[1]}`;
-      apiBase = instancePrefix;
-      wsBase = instancePrefix;
+    // 从 Referer 提取实例路径
+    if (referer) {
+      try {
+        const refererUrl = new URL(referer);
+        const refererPathname = refererUrl.pathname;
+        console.log(`[gateway] dsh-deployment.js Referer pathname: "${refererPathname}"`);
+        
+        const instanceMatch = refererPathname.match(/^\/i\/([a-z0-9](?:[a-z0-9-]*[a-z0-9])?-(i-[0-9a-f]{8}))(?:\/|$)/);
+        console.log(`[gateway] dsh-deployment.js instanceMatch:`, instanceMatch);
+        
+        if (instanceMatch) {
+          const instancePrefix = `/i/${instanceMatch[1]}`;
+          apiBase = instancePrefix;
+          wsBase = instancePrefix;
+          console.log(`[gateway] dsh-deployment.js apiBase: "${apiBase}"`);
+        }
+      } catch (err) {
+        console.error(`[gateway] dsh-deployment.js Referer parse error:`, err);
+      }
     }
     
     const js = `window.__DSH_DEPLOYMENT__ = {

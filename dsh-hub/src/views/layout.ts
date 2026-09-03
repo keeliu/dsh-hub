@@ -171,7 +171,7 @@ body {
 .dropdown-item {
   display: block;
   padding: 0.75rem 1rem;
-  color: var(--text-primary);
+  color: #1a1a1a !important;
   text-decoration: none;
   font-size: var(--font-size-base);
   transition: background 0.2s;
@@ -180,10 +180,11 @@ body {
 
 .dropdown-item:hover {
   background: var(--bg-input);
+  color: #1a1a1a !important;
 }
 
 .dropdown-item-danger {
-  color: var(--danger);
+  color: var(--danger) !important;
   width: 100%;
   text-align: left;
   border: none;

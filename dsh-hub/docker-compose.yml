@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  dsh-hub:
+    build: .
+    container_name: dsh-hub
+    restart: unless-stopped
+    ports:
+      - "3082:3082"
+    environment:
+      - NODE_ENV=production
+      - DSH_HUB_DATA=/data
+      - DSH_HUB_HOST=0.0.0.0
+      - DSH_HUB_PORT=3082
+      - DSH_HUB_TRUST_PROXY=1
+      - DSH_HUB_COOKIE_SECURE=1
+      - DSH_BIN=/usr/local/bin/dsh
+      # 可选：配置域名
+      # - DSH_HUB_DOMAIN=hub.wuyajun.cn
+      # 可选：配置 SMTP（邮件通知）
+      # - SMTP_HOST=smtp.example.com
+      # - SMTP_PORT=587
+      # - SMTP_USER=user@example.com
+      # - SMTP_PASS=password
+      # - SMTP_FROM=noreply@example.com
+    volumes:
+      # 关键：将 /data 挂载到宿主机的持久化存储
+      # 修改为你想要的路径，例如：
+      # - /home/keeliu/dsh-hub-data:/data
+      - dsh-hub-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3082/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  dsh-hub-data:
+    driver: local

@@ -1,5 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, closeSync } from 'node:fs';
+import { spawn, type ChildProcess, execSync } from 'node:child_process';
+import { existsSync, mkdirSync, openSync, closeSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import type { InstanceRecord } from './index.ts';
@@ -11,6 +11,15 @@ import { instanceLogDir, rotateLog, writeFailureSnapshot, tailLog } from './log.
 import { stopProcessGroup } from './stop.ts';
 import { isValidHarnessVersion } from '../version.ts';
 import { getDshBin } from '../config.ts';
+
+// 默认插件列表（实例创建时自动安装）
+const DEFAULT_PLUGINS = [
+  'dsh-market',
+  'dsh-better-sidebar',
+  'dsh-im',
+  'dsh-cost-meter',
+  'dsh-visualize',
+];
 
 export interface StartResult {
   status: 'running' | 'failed';
@@ -42,6 +51,36 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
   }
 
   ensureInstanceDirs(record);
+  
+  // 首次启动时自动安装默认插件
+  const pluginInstallFlag = join(record.home_path, '.plugins-installed');
+  if (!existsSync(pluginInstallFlag)) {
+    console.log(`[spawn] Installing default plugins for instance ${record.id}...`);
+    try {
+      const bin = resolveDshBin() || 'dsh';
+      for (const plugin of DEFAULT_PLUGINS) {
+        console.log(`[spawn] Installing plugin: ${plugin}`);
+        try {
+          execSync(`${bin} install ${plugin}`, {
+            cwd: record.workspace_path,
+            env: { ...process.env, DSH_HOME: record.home_path },
+            stdio: 'pipe',
+            timeout: 60000, // 60 秒超时
+          });
+          console.log(`[spawn] ✅ Plugin ${plugin} installed successfully`);
+        } catch (err) {
+          console.error(`[spawn] ❌ Failed to install plugin ${plugin}:`, err);
+        }
+      }
+      // 创建标记文件，避免重复安装
+      writeFileSync(pluginInstallFlag, new Date().toISOString());
+      console.log(`[spawn] Default plugins installation completed for instance ${record.id}`);
+    } catch (err) {
+      console.error(`[spawn] Plugin installation error:`, err);
+      // 插件安装失败不阻塞实例启动
+    }
+  }
+  
   const lockToken = acquireLock(record);
   if (lockToken === null) return { status: 'failed', error: 'instance lock held by another start' };
   if (!record.port) {

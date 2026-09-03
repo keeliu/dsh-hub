@@ -326,3 +326,258 @@ export async function proxyWebSocketToDshInstance(
   await proxyWebSocket(req, socket, head, target);
   return true;
 }
+
+// ============================================================
+// Workspace 直接嵌入
+// ============================================================
+
+const WORKSPACE_PREFIX = '/workspace';
+
+// HTML 中需要重写路径的标签属性
+const HTML_PATH_ATTRS = [
+  { tag: 'script', attr: 'src' },
+  { tag: 'link', attr: 'href' },
+  { tag: 'img', attr: 'src' },
+  { tag: 'video', attr: 'src' },
+  { tag: 'source', attr: 'src' },
+];
+
+/**
+ * 重写 HTML 响应体中的绝对路径
+ * /assets/main.js → /workspace/assets/main.js
+ * 不重写外部 URL、相对路径、data URI
+ */
+function rewriteHtmlPaths(html: string, prefix: string): string {
+  let result = html;
+  for (const { tag, attr } of HTML_PATH_ATTRS) {
+    // 匹配 <tag attr="/..."> 或 <tag attr='/...'>
+    const regex = new RegExp(
+      `(<${tag}[^>]*${attr}=["'])(/(?!/|data:|\\.\\.)[^"']*["'])`,
+      'gi'
+    );
+    result = result.replace(regex, `$1${prefix}$2`.replace('$2', '$2').replace('$1', '$1'));
+    // 更简单的实现
+    result = result.replace(
+      new RegExp(`(<${tag}[^>]*${attr}=["'])(/[^"']+["'])`, 'gi'),
+      (match, open, path) => {
+        // 不重写外部 URL、相对路径、data URI
+        if (path.startsWith('"/') && !path.startsWith('"//') && !path.startsWith('"data:')) {
+          return `${open}${prefix}${path.slice(1)}`;
+        }
+        return match;
+      }
+    );
+  }
+  return result;
+}
+
+/**
+ * 重写 CSS 响应体中的 url() 路径
+ * url(/assets/font.woff) → url(/workspace/assets/font.woff)
+ */
+function rewriteCssPaths(css: string, prefix: string): string {
+  return css.replace(
+    /url\((["']?)(\/[^)"']+)\1\)/g,
+    (match, quote, path) => {
+      // 不重写外部 URL、相对路径、data URI
+      if (path.startsWith('/') && !path.startsWith('//') && !path.startsWith('data:')) {
+        return `url(${quote}${prefix}${path}${quote})`;
+      }
+      return match;
+    }
+  );
+}
+
+/**
+ * 注入 __DSH_DEPLOYMENT__ 配置
+ * 在 <head> 中插入 <script>window.__DSH_DEPLOYMENT__ = {...}</script>
+ */
+function injectDeploymentConfig(html: string, prefix: string): string {
+  const configScript = `<script>window.__DSH_DEPLOYMENT__ = { apiBase: '${prefix}', wsBase: '${prefix}' };</script>`;
+  return html.replace('<head>', `<head>${configScript}`);
+}
+
+/**
+ * Workspace 入口处理
+ * GET /workspace → 返回重写后的 index.html
+ */
+export async function handleWorkspaceEntry(
+  database: DatabaseSync,
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<boolean> {
+  // 1. 认证检查
+  const auth = authenticate(database, req);
+  if (!auth) {
+    res.writeHead(302, { Location: '/login' });
+    res.end();
+    return true;
+  }
+
+  // 2. 会员检查
+  if (!hasActiveMembership(database, auth.user.id)) {
+    res.writeHead(302, { Location: '/membership' });
+    res.end();
+    return true;
+  }
+
+  // 3. 查找 running 实例
+  const instances = listInstances(database, auth.user.id);
+  const running = instances.find(i => i.status === 'running' && i.port);
+
+  if (!running || !running.port) {
+    // 无 running 实例，返回 loading 页面
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workspace - DSH Hub</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.container { text-align: center; padding: 2rem; }
+h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #00d9ff; }
+p { color: #aaa; margin-bottom: 1.5rem; }
+.loading { display: inline-block; width: 40px; height: 40px; border: 4px solid #2a2a4e; border-top-color: #00d9ff; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>正在启动 Workspace...</h1>
+<div class="loading"></div>
+<p>正在准备你的工作环境</p>
+</div>
+<script>
+// 轮询实例状态
+async function pollStatus() {
+  try {
+    const res = await fetch('/api/instances');
+    const data = await res.json();
+    const running = data.instances?.find(i => i.status === 'running');
+    if (running) {
+      window.location.reload();
+    } else {
+      // 尝试启动实例
+      const instances = data.instances || [];
+      const stopped = instances.find(i => i.status === 'stopped');
+      if (stopped) {
+        await fetch('/api/instances/' + stopped.id + '/start', { method: 'POST' });
+      }
+      setTimeout(pollStatus, 2000);
+    }
+  } catch (e) {
+    setTimeout(pollStatus, 2000);
+  }
+}
+pollStatus();
+</script>
+</body>
+</html>`);
+    return true;
+  }
+
+  // 4. 获取实例的 index.html
+  try {
+    const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
+    const response = await fetch(`http://${target.host}:${target.port}/`);
+    let html = await response.text();
+
+    // 5. 重写 HTML 中所有资源路径
+    html = rewriteHtmlPaths(html, WORKSPACE_PREFIX);
+
+    // 6. 注入 __DSH_DEPLOYMENT__ 配置
+    html = injectDeploymentConfig(html, WORKSPACE_PREFIX);
+
+    // 7. 返回修改后的 HTML
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache, no-store',
+    });
+    res.end(html);
+    return true;
+  } catch (err) {
+    console.error(`[gateway] Workspace entry error:`, err);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'workspace_error', message: 'Failed to load workspace' } }));
+    return true;
+  }
+}
+
+/**
+ * Workspace 通配代理
+ * GET /workspace/* → 去掉前缀 → 代理到实例 → 重写响应体
+ */
+export async function handleWorkspaceProxy(
+  database: DatabaseSync,
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string
+): Promise<boolean> {
+  // 1. 认证检查
+  const auth = authenticate(database, req);
+  if (!auth) {
+    res.writeHead(302, { Location: '/login' });
+    res.end();
+    return true;
+  }
+
+  // 2. 会员检查
+  if (!hasActiveMembership(database, auth.user.id)) {
+    res.writeHead(302, { Location: '/membership' });
+    res.end();
+    return true;
+  }
+
+  // 3. 查找 running 实例
+  const instances = listInstances(database, auth.user.id);
+  const running = instances.find(i => i.status === 'running' && i.port);
+  if (!running || !running.port) {
+    res.writeHead(302, { Location: '/workspace' });
+    res.end();
+    return true;
+  }
+
+  // 4. 去掉 /workspace 前缀
+  const targetPath = pathname.slice(WORKSPACE_PREFIX.length) || '/';
+
+  // 5. 代理到实例
+  try {
+    const target: ProxyTarget = { host: '127.0.0.1', port: running.port };
+    const response = await fetch(`http://${target.host}:${target.port}${targetPath}`);
+    const contentType = response.headers.get('content-type') || '';
+
+    // 6. 根据 Content-Type 决定是否重写响应体
+    if (contentType.includes('text/html')) {
+      let html = await response.text();
+      html = rewriteHtmlPaths(html, WORKSPACE_PREFIX);
+      html = injectDeploymentConfig(html, WORKSPACE_PREFIX);
+      res.writeHead(response.status, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-cache, no-store',
+      });
+      res.end(html);
+    } else if (contentType.includes('text/css')) {
+      let css = await response.text();
+      css = rewriteCssPaths(css, WORKSPACE_PREFIX);
+      res.writeHead(response.status, {
+        'Content-Type': contentType,
+      });
+      res.end(css);
+    } else {
+      // 其他类型（JS、图片等）直接转发
+      const buffer = Buffer.from(await response.arrayBuffer());
+      res.writeHead(response.status, {
+        'Content-Type': contentType,
+      });
+      res.end(buffer);
+    }
+    return true;
+  } catch (err) {
+    console.error(`[gateway] Workspace proxy error for ${pathname}:`, err);
+    // SPA fallback：返回重写后的 index.html
+    return await handleWorkspaceEntry(database, req, res);
+  }
+}

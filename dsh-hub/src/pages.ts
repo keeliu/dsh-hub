@@ -769,6 +769,21 @@ page('GET', '/profile', ({ db, req, res }) => {
   sendHtml(res, 200, renderProfilePage(auth.user, membership, orders, csrf));
 });
 
+// ========== Workspace 直接嵌入 ==========
+
+// GET /workspace - Workspace 入口
+page('GET', '/workspace', async ({ db, req, res }) => {
+  const { handleWorkspaceEntry } = await import('./gateway.ts');
+  await handleWorkspaceEntry(db, req, res);
+});
+
+// GET /workspace/* - Workspace 通配代理（SPA fallback 包含在内）
+page('GET', '/workspace/*', async ({ db, req, res, params }) => {
+  const { handleWorkspaceProxy } = await import('./gateway.ts');
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  await handleWorkspaceProxy(db, req, res, url.pathname);
+});
+
 // ========== 管理员会员管理 ==========
 
 // GET /admin/membership - 管理员会员管理

@@ -99,8 +99,64 @@ Then 系统执行：
 - 不重写 JSON、图片、二进制文件的响应体
 - WebSocket 代理复用现有的鉴权逻辑（session cookie）
 
-## 向后兼容
+## 付费后自动进入 Workspace
 
-- 现有 `/i/<slug>-<id>` 网关代理不受影响
-- 用户仍可通过 `/i/<slug>-<id>` 直接访问实例（独立全屏模式）
-- `/workspace` 是新的访问入口，不替代现有路径
+### 支付回调成功后
+
+Given 用户支付成功，虎皮椒回调 `POST /api/payment/notify`
+
+When 回调验证通过且订单状态为已支付
+
+Then 系统执行：
+1. 调用 `handlePaymentCallback` 激活会员
+2. 调用 `ensureInstanceForUser` 确保用户有实例（无则创建）
+3. 调用 `startInstance` 启动实例
+4. 返回成功响应（前端跳转到 `/workspace`）
+
+### 首页重定向逻辑
+
+Given 用户访问 `GET /`
+
+When 请求到达
+
+Then 系统按以下优先级判断：
+1. 未登录 → 重定向到 `/login`
+2. 已登录 + 无有效会员（`hasActiveMembership` 返回 false）→ 重定向到 `/membership`
+3. 已登录 + 有有效会员 + 无 running 实例 → 重定向到 `/workspace`（页面内自动启动）
+4. 已登录 + 有有效会员 + 有 running 实例 → 重定向到 `/workspace`
+
+### 会员过期处理
+
+Given 已登录用户访问系统
+
+When 会员已过期（`hasActiveMembership` 返回 false）
+
+Then：
+- 访问 `/workspace` → 重定向到 `/membership`
+- 访问 `/` → 重定向到 `/membership`
+- 访问 `/instances` → 允许访问（用户可能需要管理实例）
+- 访问 `/profile` → 允许访问（用户可能需要续费）
+
+## 导航栏增强
+
+### 用户下拉菜单
+
+Given 已登录用户在任意 DSH Hub 页面
+
+When 点击顶栏右侧用户头像/昵称
+
+Then 下拉菜单显示以下选项：
+1. **个人信息** → 跳转 `/profile`
+2. **实例管理** → 跳转 `/instances`
+3. **退出系统** → 调用 logout
+
+### Workspace 页面顶栏
+
+Given 用户在 `/workspace` 页面
+
+When 页面加载
+
+Then 顶栏显示：
+- 左侧：DSH Hub logo + 品牌名
+- 右侧：用户头像/昵称下拉菜单（同上：个人信息、实例管理、退出系统）
+- 顶栏下方：DSH 实例内容（占满剩余视口高度）

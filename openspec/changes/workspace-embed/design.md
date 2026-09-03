@@ -122,6 +122,33 @@ function handleWorkspaceProxy(db, req, res, pathname): boolean {
 - 只需在路径解析时去掉 `/workspace` 前缀
 - 鉴权逻辑不变（session cookie 自动带上）
 
+### 5. 付费后自动进入 Workspace
+
+**决策**：支付回调成功后，在 `handlePaymentCallback` 中自动调用 `ensureInstanceForUser` + `startInstance`，前端收到成功响应后跳转到 `/workspace`。
+
+**理由**：
+- 用户付费后的期望是「立刻能用」，不应该再手动创建/启动实例
+- `ensureInstanceForUser` 已有实现（幂等，有实例则跳过创建）
+- `startInstance` 是异步的，前端在 `/workspace` 页面轮询实例状态直到 running
+
+**首页重定向决策**：
+- 有会员 → `/workspace`（付费用户的核心使用场景）
+- 无会员/过期 → `/membership`（引导续费）
+- 未登录 → `/login`
+
+**会员过期处理决策**：
+- `/workspace` 和 `/` 重定向到 `/membership`（阻止使用）
+- `/instances` 和 `/profile` 允许访问（用户可能需要管理实例或续费）
+
+### 6. 导航栏用户下拉菜单
+
+**决策**：在现有 `layout.ts` 的用户下拉菜单中增加「个人中心」和「实例管理」选项。
+
+**理由**：
+- 用户在 Workspace 页面中可能需要快速跳转到个人中心或实例管理
+- 复用现有下拉菜单组件，只增加菜单项，不改变交互模式
+- 「退出系统」保留在最下方，红色文字
+
 ## 实现顺序
 
 1. **Phase 1**：基础代理（`/workspace` 入口 + `/workspace/*` 通配代理 + HTML 重写）

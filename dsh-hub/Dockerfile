@@ -3,6 +3,17 @@ FROM node:24-slim
 # 装 dsh（数据面；pin 死版本，别用 latest）
 RUN npm i -g @deepseek-ai/dsh@0.1.0-rc.7
 
+# 预装默认插件到模板目录
+ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template
+RUN mkdir -p $TEMPLATE_DSH_HOME \
+    && echo "ignore-scripts=false" > $TEMPLATE_DSH_HOME/.npmrc \
+    && dsh install dsh-market \
+    && dsh install dsh-better-sidebar \
+    && dsh install dsh-im \
+    && dsh install dsh-cost-meter \
+    && dsh install dsh-visualize \
+    && echo "Plugins pre-installed successfully"
+
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm install
@@ -14,7 +25,8 @@ ENV NODE_ENV=production \
     DSH_HUB_PORT=3082 \
     DSH_HUB_TRUST_PROXY=1 \
     DSH_HUB_COOKIE_SECURE=1 \
-    DSH_BIN=/usr/local/bin/dsh
+    DSH_BIN=/usr/local/bin/dsh \
+    TEMPLATE_DSH_HOME=/opt/dsh-home-template
 
 VOLUME ["/data"]
 EXPOSE 3082

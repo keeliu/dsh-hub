@@ -11,7 +11,7 @@
  * - 目录创建失败补偿删除（不残留孤儿目录）。
  * 启停交给 supervisor.ts；这里只管数据与目录。
  */
-import { existsSync, mkdirSync, chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, chmodSync, rmSync, writeFileSync, cpSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
@@ -81,12 +81,17 @@ export async function createInstance(db: DatabaseSync, owner: UserRow, input: Cr
           ).run(id, owner.id, name, port, instanceHome(owner.dir_name, id), instanceWorkspace(owner.dir_name, id),
             input.harnessVersion ?? null, instanceTrustedHost(owner.slug, id), 'stopped', Date.now());
           
-          // 创建实例后立即安装默认插件（异步，不阻塞创建流程）
+          // 创建实例后立即安装默认插件（优先从模板复制，失败则回退到安装）
           const homePath = instanceHome(owner.dir_name, id);
           const workspacePath = instanceWorkspace(owner.dir_name, id);
-          installDefaultPlugins(homePath, workspacePath, id).catch(err => {
-            console.error(`[instances] Plugin installation failed for instance ${id}:`, err);
-          });
+          
+          const copied = copyPreinstalledPlugins(homePath, id);
+          if (!copied) {
+            // 模板复制失败，回退到安装
+            installDefaultPlugins(homePath, workspacePath, id).catch(err => {
+              console.error(`[instances] Plugin installation failed for instance ${id}:`, err);
+            });
+          }
         } catch (e) {
           rmSync(dir, { recursive: true, force: true }); // 目录补偿删除，不残留孤儿
           throw e;
@@ -205,5 +210,60 @@ async function installDefaultPlugins(homePath: string, workspacePath: string, in
     console.log(`[instances] Default plugins installation completed for instance ${instanceId}`);
   } catch (err) {
     console.error(`[instances] Plugin installation error:`, err);
+  }
+}
+
+/**
+ * 从模板目录复制预装插件到实例（实例创建后自动调用）
+ * 同步执行，确保实例创建完成时插件已就绪
+ */
+function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean {
+  const templateHome = process.env.TEMPLATE_DSH_HOME || '/opt/dsh-home-template';
+  
+  // 检查模板目录是否存在
+  if (!existsSync(templateHome)) {
+    console.log(`[instances] Template directory not found: ${templateHome}, falling back to install`);
+    return false;
+  }
+  
+  console.log(`[instances] Copying pre-installed plugins from template for instance ${instanceId}...`);
+  
+  try {
+    // 复制插件目录（node_modules 中的插件）
+    const templateNodeModules = join(templateHome, 'node_modules');
+    const targetNodeModules = join(homePath, 'node_modules');
+    
+    if (existsSync(templateNodeModules)) {
+      if (!existsSync(targetNodeModules)) {
+        mkdirSync(targetNodeModules, { recursive: true });
+      }
+      
+      // 复制每个插件
+      for (const plugin of DEFAULT_PLUGINS) {
+        const srcPlugin = join(templateNodeModules, plugin);
+        const destPlugin = join(targetNodeModules, plugin);
+        
+        if (existsSync(srcPlugin)) {
+          cpSync(srcPlugin, destPlugin, { recursive: true });
+          console.log(`[instances] ✅ Copied plugin: ${plugin}`);
+        } else {
+          console.log(`[instances] ⚠️  Plugin not found in template: ${plugin}`);
+        }
+      }
+    }
+    
+    // 复制 .npmrc
+    const templateNpmrc = join(templateHome, '.npmrc');
+    if (existsSync(templateNpmrc)) {
+      cpSync(templateNpmrc, join(homePath, '.npmrc'));
+    }
+    
+    // 创建标记文件
+    writeFileSync(join(homePath, '.plugins-installed'), new Date().toISOString());
+    console.log(`[instances] Pre-installed plugins copied successfully for instance ${instanceId}`);
+    return true;
+  } catch (err) {
+    console.error(`[instances] Failed to copy pre-installed plugins:`, err);
+    return false;
   }
 }

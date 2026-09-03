@@ -58,6 +58,14 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
     console.log(`[spawn] Installing default plugins for instance ${record.id}...`);
     try {
       const bin = resolveDshBin() || 'dsh';
+      
+      // 配置 pnpm 允许 node-pty 等包的构建脚本
+      const pnpmConfigPath = join(record.home_path, '.npmrc');
+      if (!existsSync(pnpmConfigPath)) {
+        writeFileSync(pnpmConfigPath, 'ignore-scripts=false\n');
+        console.log(`[spawn] Created .npmrc to allow build scripts`);
+      }
+      
       for (const plugin of DEFAULT_PLUGINS) {
         console.log(`[spawn] Installing plugin: ${plugin}`);
         try {
@@ -65,7 +73,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
             cwd: record.workspace_path,
             env: { ...process.env, DSH_HOME: record.home_path },
             stdio: 'pipe',
-            timeout: 60000, // 60 秒超时
+            timeout: 120000, // 120 秒超时（原生编译需要更长时间）
           });
           console.log(`[spawn] ✅ Plugin ${plugin} installed successfully`);
         } catch (err) {

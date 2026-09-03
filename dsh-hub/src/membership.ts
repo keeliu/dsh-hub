@@ -255,14 +255,14 @@ export function getOrderById(db: DatabaseSync, orderId: number): OrderRow | unde
 
 // ─── 支付回调处理 ────────────────────────────────────────────────────────────
 
-export function handlePaymentCallback(
+export async function handlePaymentCallback(
   db: DatabaseSync,
   tradeOrderId: string,
   totalFee: string,
   transactionId: string,
   status: string,
   openOrderId: string,
-): { ok: boolean; message: string } {
+): Promise<{ ok: boolean; message: string }> {
   const orderId = Number(tradeOrderId);
   const order = getOrderById(db, orderId);
 
@@ -301,6 +301,23 @@ export function handlePaymentCallback(
 
   audit(db, 'order_pay', order.user_id, order.user_id,
     `order_id=${orderId},order_no=${order.order_no},transaction_id=${transactionId},payment_order_id=${openOrderId}`);
+
+  // 自动创建并启动实例
+  try {
+    const { ensureInstanceForUser, listInstances } = await import('./instances.ts');
+    const { startInstance } = await import('./supervisor/index.ts');
+    
+    await ensureInstanceForUser(db, order.user_id);
+    
+    const instances = listInstances(db, order.user_id);
+    const instance = instances.find((i: any) => i.status === 'stopped');
+    if (instance) {
+      await startInstance(db, instance);
+    }
+  } catch (err) {
+    console.error(`[membership] Failed to auto-start instance for user ${order.user_id}:`, err);
+    // 不阻塞支付回调
+  }
 
   return { ok: true, message: 'success' };
 }

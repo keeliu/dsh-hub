@@ -60,6 +60,15 @@ export async function handleGatewayRequest(
   // 调试日志：记录所有进入网关的请求
   console.log(`[gateway] Request: ${req.method} ${pathname}`);
   
+  // Workspace 请求处理
+  if (pathname.startsWith(WORKSPACE_PREFIX)) {
+    if (pathname === WORKSPACE_PREFIX) {
+      return handleWorkspaceEntry(db!, req, res);
+    } else {
+      return handleWorkspaceProxy(db!, req, res, pathname);
+    }
+  }
+  
   // DSH deployment 配置：Hub 层直接提供（DSH 实例不返回此文件）
   if (pathname === '/dsh-deployment.js') {
     const referer = req.headers.referer || '';

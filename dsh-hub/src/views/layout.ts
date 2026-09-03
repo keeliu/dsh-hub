@@ -128,6 +128,77 @@ body {
   align-items: center;
   justify-content: center;
   font-weight: 600;
+  font-size: 14px;
+}
+
+/* 用户下拉菜单 */
+.user-dropdown {
+  position: relative;
+}
+
+.user-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: var(--font-size-base);
+}
+
+.user-dropdown-toggle:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.user-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-elevated);
+  min-width: 160px;
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.dropdown-item {
+  display: block;
+  padding: 0.75rem 1rem;
+  color: var(--text-primary);
+  text-decoration: none;
+  font-size: var(--font-size-base);
+  transition: background 0.2s;
+}
+
+.dropdown-item:hover {
+  background: var(--bg-input);
+}
+
+.dropdown-item-danger {
+  color: var(--danger);
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dropdown-item-danger:hover {
+  background: #fff1f0;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0.25rem 0;
+}
+  font-weight: 600;
   font-size: var(--font-size-base);
 }
 
@@ -835,17 +906,41 @@ function renderNav(user: UserRow | null): string {
         ${!isAdmin ? '<a href="/">智能体</a>' : ''}
         ${isAdmin ? '<a href="/admin">系统管理</a>' : ''}
         <div class="navbar-user">
-          <a href="/profile" class="navbar-profile">
-            <div class="avatar">${initial}</div>
-            <span>${escapeHtml(user.nickname)}</span>
-          </a>
-          <form method="POST" action="/api/auth/logout" style="display:inline">
-            <input type="hidden" name="csrf" value="">
-            <button type="submit" class="btn btn-sm" style="background:transparent;color:white;border:1px solid rgba(255,255,255,0.3);border-radius:4px;padding:4px 12px;font-size:12px;">登出</button>
-          </form>
+          <div class="user-dropdown">
+            <button class="user-dropdown-toggle">
+              <div class="avatar">${initial}</div>
+              <span>${escapeHtml(user.nickname)}</span>
+            </button>
+            <div class="user-dropdown-menu">
+              <a href="/profile" class="dropdown-item">个人中心</a>
+              <a href="/instances" class="dropdown-item">实例管理</a>
+              <div class="dropdown-divider"></div>
+              <form method="POST" action="/api/auth/logout" style="margin:0">
+                <input type="hidden" name="csrf" value="">
+                <button type="submit" class="dropdown-item dropdown-item-danger">退出系统</button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
-    </nav>`;
+    </nav>
+    <script>
+      // 用户下拉菜单交互
+      document.querySelectorAll('.user-dropdown-toggle').forEach(function(toggle) {
+        toggle.addEventListener('click', function(e) {
+          e.preventDefault();
+          var menu = this.nextElementSibling;
+          menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        });
+      });
+      document.addEventListener('click', function(e) {
+        if (!e.target.closest('.user-dropdown')) {
+          document.querySelectorAll('.user-dropdown-menu').forEach(function(menu) {
+            menu.style.display = 'none';
+          });
+        }
+      });
+    </script>`;
 }
 
 /** 渲染页面布局 */

@@ -725,7 +725,7 @@ route('POST', '/api/payment/notify', { auth: false, csrf: false }, async ({ db, 
   }
 
   // 处理回调
-  const result = handlePaymentCallback(
+  const result = await handlePaymentCallback(
     db,
     params.trade_order_id,
     params.total_fee,

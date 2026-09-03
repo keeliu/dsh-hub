@@ -11,13 +11,23 @@
  * - 目录创建失败补偿删除（不残留孤儿目录）。
  * 启停交给 supervisor.ts；这里只管数据与目录。
  */
-import { existsSync, mkdirSync, chmodSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, chmodSync, rmSync, writeFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { withTx } from './db.ts';
-import { config } from './config.ts';
+import { config, getDshBin } from './config.ts';
 import { allocatePort } from './port.ts';
 import { instanceDir, instanceHome, instanceWorkspace, INSTANCE_SUBDIRS, userDir } from './paths.ts';
+
+// 默认插件列表（实例创建时自动安装）
+const DEFAULT_PLUGINS = [
+  'dsh-market',
+  'dsh-better-sidebar',
+  'dsh-im',
+  'dsh-cost-meter',
+  'dsh-visualize',
+];
 import { shortId, type UserRow } from './users.ts';
 import type { InstanceRecord } from './supervisor/index.ts';
 
@@ -70,6 +80,13 @@ export async function createInstance(db: DatabaseSync, owner: UserRow, input: Cr
             'INSERT INTO instances (id, owner_id, name, port, home_path, workspace_path, harness_version, trusted_host, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
           ).run(id, owner.id, name, port, instanceHome(owner.dir_name, id), instanceWorkspace(owner.dir_name, id),
             input.harnessVersion ?? null, instanceTrustedHost(owner.slug, id), 'stopped', Date.now());
+          
+          // 创建实例后立即安装默认插件（异步，不阻塞创建流程）
+          const homePath = instanceHome(owner.dir_name, id);
+          const workspacePath = instanceWorkspace(owner.dir_name, id);
+          installDefaultPlugins(homePath, workspacePath, id).catch(err => {
+            console.error(`[instances] Plugin installation failed for instance ${id}:`, err);
+          });
         } catch (e) {
           rmSync(dir, { recursive: true, force: true }); // 目录补偿删除，不残留孤儿
           throw e;
@@ -140,5 +157,53 @@ export async function ensureInstanceForUser(db: DatabaseSync, userId: number): P
     await createInstance(db, user, { name: `${user.nickname} 的工作空间` });
   } catch (e) {
     console.error(`[dsh-hub] ensureInstanceForUser: 自动创建实例失败 (user=${userId}):`, e);
+  }
+}
+
+/**
+ * 安装默认插件（实例创建后自动调用）
+ * 异步执行，不阻塞实例创建流程
+ */
+async function installDefaultPlugins(homePath: string, workspacePath: string, instanceId: string): Promise<void> {
+  const pluginInstallFlag = join(homePath, '.plugins-installed');
+  
+  // 如果已经安装过，跳过
+  if (existsSync(pluginInstallFlag)) {
+    console.log(`[instances] Plugins already installed for instance ${instanceId}`);
+    return;
+  }
+  
+  console.log(`[instances] Installing default plugins for instance ${instanceId}...`);
+  
+  try {
+    const bin = getDshBin() || 'dsh';
+    
+    // 配置 pnpm 允许 node-pty 等包的构建脚本
+    const pnpmConfigPath = join(homePath, '.npmrc');
+    if (!existsSync(pnpmConfigPath)) {
+      writeFileSync(pnpmConfigPath, 'ignore-scripts=false\n');
+      console.log(`[instances] Created .npmrc to allow build scripts`);
+    }
+    
+    for (const plugin of DEFAULT_PLUGINS) {
+      console.log(`[instances] Installing plugin: ${plugin}`);
+      try {
+        execSync(`${bin} install ${plugin}`, {
+          cwd: workspacePath,
+          env: { ...process.env, DSH_HOME: homePath },
+          stdio: 'pipe',
+          timeout: 120000, // 120 秒超时（原生编译需要更长时间）
+        });
+        console.log(`[instances] ✅ Plugin ${plugin} installed successfully`);
+      } catch (err) {
+        console.error(`[instances] ❌ Failed to install plugin ${plugin}:`, err);
+      }
+    }
+    
+    // 创建标记文件，避免重复安装
+    writeFileSync(pluginInstallFlag, new Date().toISOString());
+    console.log(`[instances] Default plugins installation completed for instance ${instanceId}`);
+  } catch (err) {
+    console.error(`[instances] Plugin installation error:`, err);
   }
 }

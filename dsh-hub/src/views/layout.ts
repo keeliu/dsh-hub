@@ -164,7 +164,8 @@ body {
   box-shadow: var(--shadow-elevated);
   min-width: 160px;
   overflow: hidden;
-  z-index: 1000;
+  z-index: 10000;
+  border: 1px solid var(--border);
 }
 
 .dropdown-item {
@@ -174,6 +175,7 @@ body {
   text-decoration: none;
   font-size: var(--font-size-base);
   transition: background 0.2s;
+  background: white;
 }
 
 .dropdown-item:hover {
@@ -186,6 +188,11 @@ body {
   text-align: left;
   border: none;
   background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  padding: 0.75rem 1rem;
+}
   cursor: pointer;
 }
 

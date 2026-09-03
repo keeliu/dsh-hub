@@ -310,9 +310,14 @@ export async function handlePaymentCallback(
     await ensureInstanceForUser(db, order.user_id);
     
     const instances = listInstances(db, order.user_id);
-    const instance = instances.find((i: any) => i.status === 'stopped');
+    // 查找非运行状态的实例（stopped 或 failed）
+    const instance = instances.find((i: any) => i.status === 'stopped' || i.status === 'failed');
     if (instance) {
+      console.log(`[membership] Auto-starting instance ${instance.id} for user ${order.user_id}`);
       await startInstance(db, instance);
+      console.log(`[membership] Instance ${instance.id} started successfully`);
+    } else {
+      console.log(`[membership] No stopped/failed instance found for user ${order.user_id}, instances:`, instances.map((i: any) => ({ id: i.id, status: i.status })));
     }
   } catch (err) {
     console.error(`[membership] Failed to auto-start instance for user ${order.user_id}:`, err);

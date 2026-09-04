@@ -170,6 +170,10 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 调整 body 高度为 `calc(100vh - 60px)`，适配 Hub 导航栏
   - 设置 `html, body { overflow: hidden; }` 防止整体滚动
   - 设置 `body { overflow-y: auto; }` 允许内容滚动
+- **实例管理页面导航栏重复修复**（openspec/changes/fix-duplicate-navbar/）：
+  - 修复 `/instances` 页面出现两个顶部导航栏的问题
+  - 移除 `pages.ts` 中多余的 `layout` 包裹
+  - 与其他页面渲染方式保持一致
 
 ## 架构要点
 

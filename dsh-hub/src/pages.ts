@@ -410,7 +410,7 @@ page('GET', '/instances', ({ db, req, res }) => {
   if (!auth) { redirect(res, '/login'); return; }
   const instances = listInstances(db, auth.user.id);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
-  sendHtml(res, 200, layout('实例管理', renderInstancesPage(auth.user, instances, undefined, csrf), auth.user, undefined, csrf));
+  sendHtml(res, 200, renderInstancesPage(auth.user, instances, undefined, csrf));
 });
 
 // GET /instances/new - 新建实例页面

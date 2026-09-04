@@ -38,7 +38,7 @@ function statusBadge(status: string): string {
 export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], flash?: { type: string; message: string }, csrf?: string): string {
   const instancesHtml = instances.length === 0
     ? `<div class="empty-state">
-        <div class="empty-state-icon">📦</div>
+        <div class="empty-state-icon"></div>
         <p>暂无实例</p>
         <p style="margin-top:0.5rem">创建你的第一个实例开始使用</p>
        </div>`
@@ -49,6 +49,8 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
             <th>状态</th>
             <th>端口</th>
             <th>版本</th>
+            <th>创建时间</th>
+            <th>最近启动</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -59,6 +61,8 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
               <td>${statusBadge(inst.status)}</td>
               <td>${inst.port ?? '-'}</td>
               <td>${inst.harness_version ? escapeHtml(inst.harness_version) : '默认'}</td>
+              <td style="font-size:0.875rem;color:var(--gray-600)">${new Date(inst.created_at).toLocaleString("zh-CN")}</td>
+              <td style="font-size:0.875rem;color:var(--gray-600)">${inst.last_started_at ? new Date(inst.last_started_at).toLocaleString("zh-CN") : '-'}</td>
               <td class="actions">
                 ${inst.status === 'stopped' || inst.status === 'failed'
                   ? `<form method="POST" action="/instances/${inst.id}/start" style="display:inline">
@@ -138,9 +142,13 @@ export function renderNewInstancePage(user: UserRow, error?: string, csrf?: stri
 
 /** 实例详情页（/instances/:id） */
 export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, logs: string, csrf?: string): string {
+  const instanceUrl = instance.status === 'running'
+    ? buildInstanceUrl(user.slug, instance.id, instance.trusted_host || config.hubDomain)
+    : null;
+
   const content = `
     <div style="margin-bottom:1rem">
-      <a href="/" style="color:var(--gray-600)">← 返回列表</a>
+      <a href="/instances" style="color:var(--gray-600)">← 返回实例列表</a>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
       <h1>${escapeHtml(instance.name)}</h1>
@@ -177,23 +185,25 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
       </table>
     </div>
 
+    ${instance.status === 'running' && instanceUrl ? `
+    <div class="card">
+      <div class="card-title">访问实例</div>
+      <p style="margin-bottom:0.5rem">通过网关访问：</p>
+      <p style="margin:0">
+        <a href="${escapeHtml(instanceUrl)}" target="_blank" style="word-break:break-all">${escapeHtml(instanceUrl)}</a>
+      </p>
+    </div>
+    ` : ''}
+
     ${instance.status === 'running' ? `
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
-        <span>日志</span>
+        <span>日志（最近 200 行）</span>
         <a href="/instances/${instance.id}" class="btn btn-sm btn-secondary">刷新</a>
       </div>
       <div class="log-viewer">${escapeHtml(logs) || '(暂无日志)'}</div>
     </div>
     ` : ''}
-
-    <div class="card">
-      <div class="card-title">访问实例</div>
-      ${instance.status === 'running'
-        ? `<p>通过网关访问：<a href="${escapeHtml(buildInstanceUrl(user.slug, instance.id, instance.trusted_host || config.hubDomain))}" target="_blank">${escapeHtml(buildInstanceUrl(user.slug, instance.id, instance.trusted_host || config.hubDomain))}</a></p>`
-        : `<p style="color:var(--gray-600)">实例未运行，请先启动</p>`
-      }
-    </div>
   `;
 
   return layout(instance.name, content, user, undefined, csrf);

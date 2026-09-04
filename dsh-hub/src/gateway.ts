@@ -424,7 +424,7 @@ function injectDeploymentConfig(html: string, prefix: string, user?: { nickname:
   align-items: center;
   justify-content: space-between;
   padding: 0 1.5rem;
-  z-index: 10000;
+  z-index: 100;
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
@@ -466,7 +466,7 @@ function injectDeploymentConfig(html: string, prefix: string, user?: { nickname:
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
   min-width: 160px;
   overflow: hidden;
-  z-index: 10001;
+  z-index: 101;
 }
 #dsh-hub-navbar .dropdown-menu.show {
   display: block;
@@ -526,9 +526,12 @@ document.addEventListener('click', function(e) {
     </div>
   </div>
 </div>
-<div class="workspace-content">`;
+<style>
+body {
+  margin-top: 60px !important;
+}
+</style>`;
     result = result.replace('<body>', `<body>${navHtml}`);
-    result = result.replace('</body>', `</div></body>`);
   }
   
   return result;

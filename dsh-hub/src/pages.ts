@@ -24,6 +24,7 @@ import { hasActiveMembership, getUserOrders, createOrder, getUserMembership, MEM
 import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
 import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage, renderMembershipPage, renderProfilePage, renderPaymentReturnPage } from './views/user.ts';
 import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage, renderAdminMembershipPage, renderAdminPricesPage } from './views/admin.ts';
+import { layout } from './views/layout.ts';
 import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
 import { getUserByAccount, getUserByEmail, isValidEmail, isValidUsername, getUserByUsername } from './users.ts';
 
@@ -401,6 +402,15 @@ page('GET', '/', ({ db, req, res }) => {
   if (!hasActiveMembership(db, auth.user.id)) { redirect(res, '/membership'); return; }
   // 有会员用户直接重定向到 Workspace
   redirect(res, '/workspace');
+});
+
+// GET /instances - 实例列表
+page('GET', '/instances', ({ db, req, res }) => {
+  const auth = authenticate(db, req);
+  if (!auth) { redirect(res, '/login'); return; }
+  const instances = listInstances(db, auth.user.id);
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, layout('实例管理', renderInstancesPage(auth.user, instances, undefined, csrf), auth.user, undefined, csrf));
 });
 
 // GET /instances/new - 新建实例页面

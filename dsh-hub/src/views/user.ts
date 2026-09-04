@@ -181,7 +181,7 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
         <span>日志</span>
-        <a href="/instances/${instance.id}/logs" class="btn btn-sm btn-secondary">刷新</a>
+        <a href="/instances/${instance.id}" class="btn btn-sm btn-secondary">刷新</a>
       </div>
       <div class="log-viewer">${escapeHtml(logs) || '(暂无日志)'}</div>
     </div>

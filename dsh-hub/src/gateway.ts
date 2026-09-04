@@ -527,8 +527,16 @@ document.addEventListener('click', function(e) {
   </div>
 </div>
 <style>
+html, body {
+  height: 100%;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
 body {
   margin-top: 60px !important;
+  height: calc(100vh - 60px) !important;
+  overflow-y: auto !important;
 }
 </style>`;
     result = result.replace('<body>', `<body>${navHtml}`);

@@ -165,6 +165,11 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - API 路由（POST /api/payment/create、POST /api/payment/notify、GET /api/payment/query/:orderId）
   - 前端支付流程（AJAX 创建订单 → 二维码弹窗 → 轮询支付状态 → 成功跳转）
   - 支付成功返回页（/payment/return）
+- **DSH 实例页面整屏显示修复**（openspec/changes/fix-workspace-fullscreen/）：
+  - 修复 `/workspace` 页面底部内容被截断问题
+  - 调整 body 高度为 `calc(100vh - 60px)`，适配 Hub 导航栏
+  - 设置 `html, body { overflow: hidden; }` 防止整体滚动
+  - 设置 `body { overflow-y: auto; }` 允许内容滚动
 
 ## 架构要点
 

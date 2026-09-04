@@ -483,6 +483,7 @@ select.form-control {
 .admin-layout {
   display: flex;
   min-height: calc(100vh - 56px);
+  max-width: 100%;
 }
 
 .admin-sidebar {
@@ -490,6 +491,7 @@ select.form-control {
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
   padding: 1rem 0;
+  flex-shrink: 0;
 }
 
 .admin-sidebar a {
@@ -514,8 +516,9 @@ select.form-control {
 
 .admin-content {
   flex: 1;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
   background: var(--bg-page);
+  min-width: 0;
 }
 
 /* 会员卡片 */

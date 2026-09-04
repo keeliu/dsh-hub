@@ -9,16 +9,36 @@
 
 ## What Changes（做什么）
 
-采用**预置 Profile 模板**方案：
-1. 制作一个标准模板 Profile（`member-template`），预装所有基础插件
-2. 用户购买会员后，直接复制模板目录创建新 Profile
-3. 修改新 Profile 配置（用户标识等）
+采用**预置 DSH_HOME 模板**方案：
+1. 制作一个标准模板 DSH_HOME 目录（`/opt/dsh-home-template/`），预装所有基础插件
+2. 用户购买会员后，直接复制模板到实例的 `home/` 目录
+3. 修改新实例的配置（用户标识等）
 4. 启动实例
+
+## ⚠️ 项目特殊性：每实例独立 DSH_HOME
+
+**关键架构**：本项目中，每个 DSH 实例拥有独立的 `DSH_HOME` 目录：
+
+```
+<dataDir>/users/<dir_name>/instances/<instanceId>/
+├── home/           = DSH_HOME（每实例独立）
+│   ├── profiles/
+│   │   └── web/    # Profile 在这里
+│   ├── .credentials.yaml
+│   └── .env
+├── workspace/      = dsh 进程 cwd
+└── logs/
+```
+
+**这意味着**：
+- 模板是完整的 `DSH_HOME` 目录（不是 `~/.dsh/profiles/`）
+- 复制目标是每个实例的 `home/` 目录
+- 每个实例的 Profile 路径不同：`<instance_home>/profiles/web/`
 
 ## Impact（影响范围）
 
 - **影响文件**：
-  - `dsh-hub/src/instances.ts` - 实例创建逻辑
+  - `dsh-hub/src/instances.ts` - 实例创建逻辑（`copyPreinstalledPlugins` 函数）
   - `dsh-hub/src/membership.ts` - 会员激活逻辑
   - 可能需要新增 `dsh-hub/src/profile-template.ts` - 模板管理模块
 - **影响流程**：会员激活 → 实例创建流程
@@ -32,20 +52,20 @@
 - 耗时长，用户体验差
 - 依赖外部命令，失败风险高
 
-### 方案二：预置 Profile 模板（推荐）
+### 方案二：预置 DSH_HOME 模板（推荐）
 - 直接复制模板目录，秒级完成
 - 稳定可靠，不依赖外部命令
 - 用户体验好，支付后立即获得可用实例
 
-## ⚠️ 重要发现：当前实现的遗漏
+## ️ 重要发现：当前实现的遗漏
 
 根据 DSH 官方文档，Profile 目录结构包含以下关键文件：
 
 ```
-~/.dsh/profiles/<name>/
+<DSH_HOME>/profiles/web/
 ├── package.json          # 依赖清单：树外插件声明
 ├── dsh.profile           # profile 清单：bundles 列表
-├── pnpm-lock.yaml        # 插件锁定
+── pnpm-lock.yaml        # 插件锁定
 ├── pnpm-workspace.yaml   # pnpm workspace 配置
 ├── cordis.patch.yml      # 定制配置层
 └── node_modules/         # 插件 bundle 实际位置
@@ -64,11 +84,12 @@
 1. **优先使用 `dshp` 工具**（如果可用）：
    ```bash
    # 导出模板
-   npx dshp export member-template -o template.dshp
-   # 为用户导入
-   npx dshp import template.dshp --as user_123
+   npx dshp export web -o template.dshp --home /opt/dsh-home-template
+   # 为实例导入
+   npx dshp import template.dshp --as web --home <instance_home>
    ```
 
-2. **如果 `dshp` 不可用，确保复制所有必要文件**：
-   - 复制整个 Profile 目录（不仅仅是 `node_modules`）
-   - 修改新 Profile 中的用户标识配置
+2. **如果 `dshp` 不可用，确保复制整个 DSH_HOME 目录**：
+   - 复制整个 `profiles/web/` 目录（不仅仅是 `node_modules`）
+   - 清除敏感信息（`.credentials.yaml`、`.env`）
+   - 修改实例特定配置

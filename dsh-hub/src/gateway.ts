@@ -4,6 +4,8 @@ import type { DatabaseSync } from 'node:sqlite';
 import { parseInstancePath, verifyInstanceOwnership, buildInstanceUrl, type PathInfo } from './subdomain.ts';
 import { proxyHttpRequest, proxyWebSocket, type ProxyTarget } from './proxy.ts';
 import { authenticate } from './auth.ts';
+import { parseCookies } from './http.ts';
+import { CSRF_COOKIE } from './sessions.ts';
 import { config } from './config.ts';
 import { getUser, type UserRow } from './users.ts';
 import { listInstances } from './instances.ts';
@@ -436,12 +438,15 @@ export async function handleWorkspaceEntry(
 
   if (!running || !running.port) {
     // 无 running 实例，返回 loading 页面
+    const cookies = parseCookies(req);
+    const csrfToken = cookies[CSRF_COOKIE] || '';
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf-token" content="${csrfToken}">
 <title>Workspace - DSH Hub</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -471,9 +476,13 @@ async function pollStatus() {
     } else {
       // 尝试启动实例
       const instances = data.instances || [];
-      const stopped = instances.find(i => i.status === 'stopped');
+      const stopped = instances.find(i => i.status === 'stopped' || i.status === 'failed');
       if (stopped) {
-        await fetch('/api/instances/' + stopped.id + '/start', { method: 'POST' });
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        await fetch('/api/instances/' + stopped.id + '/start', {
+          method: 'POST',
+          headers: { 'X-CSRF-Token': csrfToken || '' }
+        });
       }
       setTimeout(pollStatus, 2000);
     }

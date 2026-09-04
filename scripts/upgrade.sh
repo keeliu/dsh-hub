@@ -16,7 +16,7 @@ cd "$PROJECT_DIR"
 
 # 1. 备份数据库
 echo "[1/5] 备份数据库..."
-DATA_DIR="${DSH_HUB_DATA:-/opt/dsh-hub/dsh-hub/data}"
+DATA_DIR="${DSH_HUB_DATA:-/data/dsh-hub}"
 DB_FILE="$DATA_DIR/dshhub.db"
 if [ -f "$DB_FILE" ]; then
     BACKUP_FILE="$DB_FILE.$(date +%Y%m%d%H%M%S)"
@@ -46,7 +46,7 @@ else
     # 如果没有 systemd 服务，手动重启
     pkill -f "node.*src/index.ts" 2>/dev/null || true
     sleep 2
-    DSH_HUB_DATA="${DSH_HUB_DATA:-/opt/dsh-hub/dsh-hub/data}" \
+    DSH_HUB_DATA="${DSH_HUB_DATA:-/data/dsh-hub}" \
     DSH_HUB_HOST="${DSH_HUB_HOST:-0.0.0.0}" \
     DSH_HUB_PORT="${DSH_HUB_PORT:-3082}" \
     DSH_HUB_DOMAIN="${DSH_HUB_DOMAIN:-hub.wuyajun.cn}" \

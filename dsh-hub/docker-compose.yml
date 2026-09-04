@@ -24,23 +24,11 @@ services:
       # - SMTP_PASS=password
       # - SMTP_FROM=noreply@example.com
     volumes:
-      # ⚠️ 关键：将 /data 挂载到持久化存储
-      # 方式 1：使用 Docker 命名卷（推荐）
-      - dsh-hub-data:/data
-      # 方式 2：使用宿主机目录（取消注释并修改路径）
-      # - /opt/dsh-hub-data:/data
+      # 数据持久化：bind mount 到独立路径（不在 git 仓库内）
+      - /data/dsh-hub:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3082/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-
-volumes:
-  dsh-hub-data:
-    driver: local
-    # 可选：指定驱动选项（如使用 NFS 等）
-    # driver_opts:
-    #   type: nfs
-    #   o: addr=192.168.1.100,rw
-    #   device: ":/path/to/nfs/share"

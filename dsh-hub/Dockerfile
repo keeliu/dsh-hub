@@ -11,10 +11,10 @@ ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template
 RUN mkdir -p $TEMPLATE_DSH_HOME \
     && echo "ignore-scripts=false" > $TEMPLATE_DSH_HOME/.npmrc \
     && export DSH_HOME=$TEMPLATE_DSH_HOME \
-    && (dsh plugin --profile web add dsh-market || echo "WARN: dsh-market pre-install failed") \
-    && (dsh plugin --profile web add dsh-better-sidebar || echo "WARN: dsh-better-sidebar pre-install failed") \
-    && (dsh plugin --profile web add dsh-im || echo "WARN: dsh-im pre-install failed") \
-    && (dsh plugin --profile web add dsh-cost-meter || echo "WARN: dsh-cost-meter pre-install failed") \
+    && (dsh plugin --profile web add dshmarket || echo "WARN: dshmarket pre-install failed") \
+    && (dsh plugin --profile web add github:omdsh-dev/DSH-better-sidebar#main || echo "WARN: dsh-better-sidebar pre-install failed") \
+    && (dsh plugin --profile web add -w @xmanrui/dsh-im || echo "WARN: dsh-im pre-install failed") \
+    && (dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#main || echo "WARN: dsh-cost-meter pre-install failed") \
     && (dsh plugin --profile web add dsh-visualize || echo "WARN: dsh-visualize pre-install failed") \
     && echo "Plugin pre-install step completed (success or skipped)"
 

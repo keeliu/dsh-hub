@@ -20,18 +20,40 @@
 
 ### 目录结构
 
+根据 DSH 官方文档，Profile 目录包含以下关键文件：
+
+```
+~/.dsh/profiles/<name>/
+├── package.json          # 依赖清单：树外插件声明
+── dsh.profile           # profile 清单：bundles 列表
+├── pnpm-lock.yaml        # 插件锁定
+├── pnpm-workspace.yaml   # pnpm workspace 配置
+├── cordis.patch.yml      # 定制配置层
+└── node_modules/         # 插件 bundle 实际位置
+```
+
+**重要**：必须复制整个 Profile 目录，而不仅仅是 `node_modules`！
+
 ```
 ~/.dsh/profiles/
 ├── member-template/          # 模板 Profile（预装基础插件）
+│   ├── package.json
 │   ├── dsh.profile
+│   ├── pnpm-lock.yaml
+│   ├── pnpm-workspace.yaml
 │   ├── cordis.patch.yml
-│   └── plugins/
-│       └── dsh-cost-meter/
+│   └── node_modules/
+│       ├── dsh-cost-meter/
+│       └── ...
 ├── user_123/                 # 用户实例 Profile（从模板复制）
+│   ├── package.json
 │   ├── dsh.profile
+│   ├── pnpm-lock.yaml
+│   ├── pnpm-workspace.yaml
 │   ├── cordis.patch.yml
-│   └── plugins/
-│       └── dsh-cost-meter/
+│   └── node_modules/
+│       ├── dsh-cost-meter/
+│       └── ...
 └── ...
 ```
 
@@ -101,34 +123,72 @@ async function createInstance(userId: string) {
 
 ## 关键决策
 
-### 1. 模板存储位置
+### 1. 模板复制方式
+
+**优先方案：使用 `dshp` 工具**（如果可用）
+
+```bash
+# 导出模板
+npx dshp export member-template -o template.dshp
+
+# 为用户导入
+npx dshp import template.dshp --as user_123
+```
+
+优势：
+- 自动处理所有依赖和配置
+- 官方推荐，可靠性高
+- 支持 `dshp clone` 快速复制、`dshp diff` 对比配置
+
+**备选方案：手动复制整个目录**
+
+如果 `dshp` 不可用，必须复制整个 Profile 目录：
+
+```typescript
+function copyProfileTemplate(srcDir: string, destDir: string): void {
+  // 复制所有文件（不仅仅是 node_modules）
+  cpSync(srcDir, destDir, {
+    recursive: true,
+    filter: (src) => {
+      // 排除敏感文件
+      const basename = path.basename(src);
+      return !basename.startsWith('.credentials') && 
+             !basename.startsWith('.env');
+    }
+  });
+}
+```
+
+**必须复制的文件**：
+- `package.json` - 依赖清单
+- `dsh.profile` - profile 清单
+- `pnpm-lock.yaml` - 插件锁定
+- `pnpm-workspace.yaml` - pnpm workspace 配置
+- `cordis.patch.yml` - 定制配置层
+- `node_modules/` - 插件 bundle
+
+### 2. 模板存储位置
 **选择**：`~/.dsh/profiles/member-template/`
 - 与用户 Profile 同目录，便于管理
 - 使用特殊命名（`member-` 前缀）区分
 
-### 2. 模板更新策略
+### 3. 模板更新策略
 **选择**：手动更新 + 版本标记
 - 管理员手动执行更新命令
 - 模板目录记录创建/更新时间
 - 已创建实例不受影响
 
-### 3. 降级策略
+### 4. 降级策略
 **选择**：模板不存在时回退到原有逻辑
 - 记录错误日志
 - 通知管理员（可选）
 - 不影响用户购买流程
 
-### 4. 插件列表管理
-**选择**：配置文件定义基础插件列表
-```json
-// config/member-plugins.json
-{
-  "basePlugins": [
-    "dsh-cost-meter",
-    "dsh-market"
-  ]
-}
-```
+### 5. 敏感信息清除
+复制模板后必须清除：
+- `.credentials.yaml` - API keys
+- `.env` - 环境变量
+- 其他用户特定的配置
 
 ## 测试策略
 

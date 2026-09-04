@@ -36,3 +36,39 @@
 - 直接复制模板目录，秒级完成
 - 稳定可靠，不依赖外部命令
 - 用户体验好，支付后立即获得可用实例
+
+## ⚠️ 重要发现：当前实现的遗漏
+
+根据 DSH 官方文档，Profile 目录结构包含以下关键文件：
+
+```
+~/.dsh/profiles/<name>/
+├── package.json          # 依赖清单：树外插件声明
+├── dsh.profile           # profile 清单：bundles 列表
+├── pnpm-lock.yaml        # 插件锁定
+├── pnpm-workspace.yaml   # pnpm workspace 配置
+├── cordis.patch.yml      # 定制配置层
+└── node_modules/         # 插件 bundle 实际位置
+```
+
+**当前实现问题**：
+- `copyPreinstalledPlugins` 函数只复制了 `node_modules/` 和 `.npmrc`
+- **遗漏了**：`package.json`、`dsh.profile`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`cordis.patch.yml`
+
+**风险**：
+- 简单的 `cp -r node_modules` 可能不完整
+- 缺少 `package.json` 可能导致依赖解析问题
+- 缺少 `pnpm-lock.yaml` 可能导致版本不一致
+
+**建议方案**：
+1. **优先使用 `dshp` 工具**（如果可用）：
+   ```bash
+   # 导出模板
+   npx dshp export member-template -o template.dshp
+   # 为用户导入
+   npx dshp import template.dshp --as user_123
+   ```
+
+2. **如果 `dshp` 不可用，确保复制所有必要文件**：
+   - 复制整个 Profile 目录（不仅仅是 `node_modules`）
+   - 修改新 Profile 中的用户标识配置

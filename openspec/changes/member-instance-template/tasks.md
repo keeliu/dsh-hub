@@ -1,16 +1,29 @@
 # 实施清单：会员实例预置模板
 
+## 阶段 0：环境检查
+
+- [ ] 0.1 检查 `dshp` 工具是否可用
+  - 运行 `npx dshp --version` 或 `dshp --version`
+  - 如果可用，优先使用 `dshp export/import` 方案
+  - 如果不可用，使用手动复制方案
+
+- [ ] 0.2 确认 DSH Profile 目录结构
+  - 检查 `~/.dsh/profiles/` 目录
+  - 确认 Profile 包含所有必要文件（package.json、dsh.profile 等）
+
 ## 阶段 1：模板管理模块
 
 - [ ] 1.1 创建 `dsh-hub/src/profile-template.ts` 模块
   - `initTemplate()` - 初始化模板
-  - `copyTemplate(userId)` - 复制模板创建新 Profile
+  - `copyTemplate(userId)` - 复制模板创建新 Profile（**必须复制整个目录**）
   - `isTemplateReady()` - 检查模板状态
   - `updateTemplate()` - 更新模板
+  - `clearSensitiveInfo(profileDir)` - 清除敏感信息
 
 - [ ] 1.2 创建模板初始化脚本
   - `scripts/init-member-template.sh`
   - 预装基础插件（dsh-cost-meter 等）
+  - 验证模板目录完整性
 
 - [ ] 1.3 创建插件配置文件
   - `config/member-plugins.json`
@@ -30,7 +43,7 @@
   - `USE_PROFILE_TEMPLATE` 开关
   - `TEMPLATE_PROFILE_NAME` 模板名称
 
-## 阶段 3：配置修改逻辑
+## 阶段 3：配置修改与敏感信息清除
 
 - [ ] 3.1 实现 Profile 配置修改
   - 修改用户标识
@@ -38,9 +51,11 @@
   - 设置工作目录
   - 设置日志目录
 
-- [ ] 3.2 实现敏感信息清除
-  - 清除模板中的 API keys
-  - 重置用户相关配置
+- [ ] 3.2 实现敏感信息清除（**重要**）
+  - 清除 `.credentials.yaml`（API keys）
+  - 清除 `.env`（环境变量）
+  - 清除其他用户特定的配置
+  - 验证清除后的配置文件完整性
 
 ## 阶段 4：验证
 

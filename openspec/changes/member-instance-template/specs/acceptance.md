@@ -41,7 +41,29 @@
 **And** 实例间数据完全隔离
 **And** 用户无法访问其他用户的实例
 
-## 场景 6：模板目录权限
+## 场景 6：模板目录完整性
+
+**Given** 模板 Profile 已创建
+**When** 检查模板目录内容
+**Then** 模板目录包含所有必要文件：
+- `package.json`
+- `dsh.profile`
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
+- `cordis.patch.yml`
+- `node_modules/` 目录
+
+## 场景 7：敏感信息清除
+
+**Given** 从模板复制创建新 Profile
+**When** 检查新 Profile 目录
+**Then** 敏感信息已被清除：
+- 无 `.credentials.yaml` 文件
+- 无 `.env` 文件
+- 无其他用户特定的配置
+**And** 新 Profile 可以正常启动
+
+## 场景 8：模板目录权限
 
 **Given** 模板目录包含敏感配置
 **When** 系统复制模板创建新 Profile

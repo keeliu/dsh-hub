@@ -1,81 +1,94 @@
-# 验收规范：会员实例预置 DSH_HOME 模板
+# 验收规范：会员实例预置模板
 
-## 场景 1：模板初始化
+## 场景 1：模板目录初始化
 
-**Given** 系统首次部署或管理员手动触发
-**When** 执行模板初始化脚本
-**Then** 创建 `/opt/dsh-home-template/` 目录
-**And** 目录包含完整的 DSH_HOME 结构（profiles/web/ 及所有必要文件）
-**And** 基础插件已安装（dsh-cost-meter 等）
-**And** 模板状态标记为 ready
+**Given** 服务器上存在 `/opt/dsh-home-template` 目录
+**When** 目录包含完整的 Profile 结构（`profiles/web/` 及其所有文件）
+**Then** 目录结构符合 DSH Profile 标准：
+- `profiles/web/package.json` 存在
+- `profiles/web/dsh.profile` 存在
+- `profiles/web/pnpm-lock.yaml` 存在
+- `profiles/web/pnpm-workspace.yaml` 存在
+- `profiles/web/cordis.patch.yml` 存在
+- `profiles/web/node_modules/` 包含所有默认插件
 
 ## 场景 2：会员购买后快速创建实例
 
-**Given** 用户购买会员并支付成功
-**When** 系统触发会员激活流程
-**Then** 从模板复制完整的 DSH_HOME 到实例的 `home/` 目录
-**And** 清除敏感信息（`.credentials.yaml`、`.env`）
-**And** 启动 DSH 实例
-**And** 整个创建过程在 10 秒内完成
+**Given** 用户购买会员并触发实例创建
+**When** `createInstance()` 被调用
+**Then** 实例创建流程执行以下步骤：
+1. 创建用户目录和实例目录
+2. 调用 `copyPreinstalledPlugins()` 从模板复制完整 Profile
+3. 创建 `.plugins-installed` 标记文件
+4. 实例创建完成，无需等待插件安装
 
-## 场景 3：DSH_HOME 目录完整性
+**And** 实例的 `home/profiles/web/` 目录包含所有配置文件和插件
 
-**Given** 从模板复制创建新实例
-**When** 检查实例的 `home/` 目录
-**Then** 目录包含所有必要文件：
-- `profiles/web/package.json`
-- `profiles/web/dsh.profile`
-- `profiles/web/pnpm-lock.yaml`
-- `profiles/web/pnpm-workspace.yaml`
-- `profiles/web/cordis.patch.yml`
-- `profiles/web/node_modules/` 目录
+## 场景 3：模板目录不存在时降级处理
 
-## 场景 4：敏感信息清除
+**Given** 模板目录 `/opt/dsh-home-template` 不存在
+**When** `copyPreinstalledPlugins()` 被调用
+**Then** 函数返回 `false`
+**And** 控制台输出降级日志：`Template directory not found, falling back to install`
+**And** 实例创建流程继续（不阻塞）
 
-**Given** 从模板复制创建新实例
-**When** 检查实例的 `home/` 目录
-**Then** 敏感信息已被清除：
-- 无 `.credentials.yaml` 文件
-- 无 `.env` 文件
-- 无其他用户特定的配置
-**And** 新实例可以正常启动
+## 场景 4：实例目录完整性验证
 
-## 场景 5：模板更新
+**Given** 实例创建完成
+**When** 检查实例的 `home/profiles/web/` 目录
+**Then** 目录包含以下文件：
+- `package.json`
+- `dsh.profile`
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
+- `cordis.patch.yml`
+- `node_modules/` 包含所有默认插件
 
-**Given** 管理员需要更新基础插件列表
-**When** 管理员执行模板更新脚本
-**Then** 更新 `/opt/dsh-home-template/` 目录
-**And** 已创建的实例不受影响
-**And** 新创建的实例使用更新后的模板
+**And** 每个文件的内容与模板目录中的对应文件一致
 
-## 场景 6：模板不存在时的降级处理
+## 场景 5：用户路径独立性验证
 
-**Given** `/opt/dsh-home-template/` 目录不存在或损坏
-**When** 用户购买会员触发实例创建
-**Then** 系统记录错误日志
-**And** 回退到原有创建方式（动态安装插件）
-**And** 通知管理员修复模板
+**Given** 两个不同用户的实例
+**When** 比较两个实例的 `home/profiles/web/` 目录路径
+**Then** 路径完全不同：
+- 用户 A：`<dataDir>/users/<dir_a>/instances/<id_a>/home/profiles/web/`
+- 用户 B：`<dataDir>/users/<dir_b>/instances/<id_b>/home/profiles/web/`
 
-## 场景 7：实例隔离性
+**And** 每个实例的 Profile 目录相互隔离，互不影响
 
-**Given** 多个会员用户各自拥有实例
-**When** 用户访问自己的实例
-**Then** 每个实例使用独立的 `home/` 目录
-**And** 实例间数据完全隔离
-**And** 用户无法访问其他用户的实例
+## 场景 6：重复创建标记文件检查
 
-## 场景 8：不同用户路径独立
+**Given** 实例已创建完成（`.plugins-installed` 标记文件存在）
+**When** 再次调用 `copyPreinstalledPlugins()`
+**Then** 函数正常执行（不检查标记文件）
+**And** 覆盖复制 Profile 目录
+**And** 更新 `.plugins-installed` 标记文件的时间戳
 
-**Given** 用户 A 和用户 B 各自购买会员
-**When** 系统为两个用户创建实例
-**Then** 用户 A 的实例路径：`<dataDir>/users/<userA_dir>/instances/<idA>/home/`
-**And** 用户 B 的实例路径：`<dataDir>/users/<userB_dir>/instances/<idB>/home/`
-**And** 两个实例的 DSH_HOME 路径完全不同
-**And** 两个实例都从同一模板复制，但配置独立
+## 场景 7：代码清理验证
 
-## 场景 9：模板目录权限
+**Given** 代码重构完成
+**When** 检查 `instances.ts` 文件
+**Then** `installDefaultPlugins()` 函数已被删除
+**And** `createInstance()` 中不再调用 `installDefaultPlugins()`
 
-**Given** 模板目录包含预装插件
-**When** 系统复制模板创建新实例
-**Then** 新实例目录权限正确（仅所有者可访问）
-**And** 敏感配置已清除或重置
+**When** 检查 `spawn.ts` 文件
+**Then** 插件安装兜底逻辑已被删除
+**And** 只保留 `ensureInstanceDirs()` 和启动逻辑
+
+**When** 检查 `config.ts` 文件
+**Then** `DEFAULT_PLUGINS` 常量已定义
+**And** `instances.ts` 和 `spawn.ts` 中不再定义 `DEFAULT_PLUGINS`
+
+## 场景 8：模板更新后新实例使用新模板
+
+**Given** 模板目录 `/opt/dsh-home-template` 已更新（添加新插件）
+**When** 创建新实例
+**Then** 新实例的 Profile 目录包含更新后的插件
+**And** 已创建的旧实例不受影响（保持创建时的状态）
+
+## 场景 9：敏感信息清除
+
+**Given** 模板目录包含敏感信息（如 `.credentials.yaml`、`.env`）
+**When** `copyPreinstalledPlugins()` 执行复制
+**Then** 敏感文件不应被复制到实例目录
+**And** 或复制后自动清除敏感信息

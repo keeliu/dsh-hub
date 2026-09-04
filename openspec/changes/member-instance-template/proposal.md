@@ -2,94 +2,125 @@
 
 ## Why（为什么做）
 
-当前会员购买后创建 DSH 实例时，需要动态安装插件，导致：
-1. 创建耗时长（数分钟），用户体验差
-2. 依赖外部命令（`dsh plugin`），失败风险高
-3. 需要管理安装进度和错误重试
+当前会员购买后创建 DSH 实例时，需要逐个安装插件（`dsh plugin add`），耗时较长（可能数分钟），用户体验差。
+
+### 现有代码分析
+
+#### 两处插件安装逻辑
+
+**位置 1：`instances.ts` - `installDefaultPlugins()` 函数（第 172-220 行）**
+- 在 `createInstance()` 中被调用（第 94 行）
+- 异步执行，不阻塞实例创建
+- 使用 `dsh plugin --profile web add` 命令逐个安装插件
+- 创建 `.plugins-installed` 标记文件
+
+**位置 2：`spawn.ts` - `startInstance()` 函数（第 55-94 行）**
+- 在首次启动时检查 `.plugins-installed` 标记
+- 如果标记不存在，再次执行插件安装
+- 这是**兜底逻辑**，防止 `createInstance` 中的异步安装未完成
+
+#### 新增的 `copyPreinstalledPlugins()` 函数（第 226-283 行）
+
+- 在 `createInstance()` 中被调用（第 88 行）
+- 从模板目录复制 `node_modules` 和 `.npmrc`
+- 也创建 `.plugins-installed` 标记文件
+- **问题**：只复制了 `node_modules`，没有复制完整的 Profile 目录
+
+### 现有代码冲突分析
+
+#### ️ 冲突 1：`.plugins-installed` 标记文件重复创建
+
+| 函数 | 创建标记文件 | 位置 |
+|------|------------|------|
+| `copyPreinstalledPlugins()` | 第 276 行 | `homePath/.plugins-installed` |
+| `installDefaultPlugins()` | 第 215 行 | `homePath/.plugins-installed` |
+| `spawn.ts startInstance()` | 第 89 行 | `homePath/.plugins-installed` |
+
+**问题**：如果 `copyPreinstalledPlugins()` 成功，会创建标记文件，导致 `installDefaultPlugins()` 和 `spawn.ts` 中的安装逻辑都被跳过。但如果复制不完整（只复制了 `node_modules`），插件可能无法正常工作。
+
+#### ️ 冲突 2：`copyPreinstalledPlugins()` 复制不完整
+
+**当前复制内容**：
+- ✅ `node_modules/` 中的插件
+- ✅ `.npmrc`
+
+**遗漏内容**（根据 DSH Profile 标准结构）：
+-  `profiles/web/package.json`
+- ❌ `profiles/web/dsh.profile`
+- ❌ `profiles/web/pnpm-lock.yaml`
+- ❌ `profiles/web/pnpm-workspace.yaml`
+- ❌ `profiles/web/cordis.patch.yml`
+
+#### ️ 冲突 3：`DEFAULT_PLUGINS` 常量重复定义
+
+- `instances.ts` 第 19-25 行定义了一次
+- `spawn.ts` 第 16-22 行又定义了一次
+
+**问题**：两处定义完全相同，但维护时容易不同步。
+
+### 本项目特殊性
+
+本项目采用**每实例独立 DSH_HOME** 架构，每个实例拥有独立的 Profile 目录：
+
+```
+<dataDir>/users/<dir_name>/instances/<instanceId>/home/
+└── profiles/
+    └── web/                    ← 每个实例的 Profile 路径不同
+        ├── package.json
+        ├── dsh.profile
+        └── node_modules/
+```
+
+这与 DSH 默认的全局 `~/.dsh/profiles/` 不同，模板方案需要适配这种独立路径架构。
 
 ## What Changes（做什么）
 
-采用**预置 DSH_HOME 模板**方案：
-1. 制作一个标准模板 DSH_HOME 目录（`/opt/dsh-home-template/`），预装所有基础插件
-2. 用户购买会员后，直接复制模板到实例的 `home/` 目录
-3. 修改新实例的配置（用户标识等）
-4. 启动实例
+采用**方案 A（保留现有架构，修复复制逻辑）**：
 
-## ⚠️ 项目特殊性：每实例独立 DSH_HOME
-
-**关键架构**：本项目中，每个 DSH 实例拥有独立的 `DSH_HOME` 目录：
-
-```
-<dataDir>/users/<dir_name>/instances/<instanceId>/
-├── home/           = DSH_HOME（每实例独立）
-│   ├── profiles/
-│   │   └── web/    # Profile 在这里
-│   ├── .credentials.yaml
-│   └── .env
-├── workspace/      = dsh 进程 cwd
-└── logs/
-```
-
-**这意味着**：
-- 模板是完整的 `DSH_HOME` 目录（不是 `~/.dsh/profiles/`）
-- 复制目标是每个实例的 `home/` 目录
-- 每个实例的 Profile 路径不同：`<instance_home>/profiles/web/`
+1. **修复 `copyPreinstalledPlugins()` 函数**：复制完整的 Profile 目录，而不仅仅是 `node_modules`
+2. **删除 `installDefaultPlugins()` 函数**：不再需要逐个安装插件
+3. **删除 `spawn.ts` 中的插件安装兜底逻辑**：模板复制已确保插件就绪
+4. **统一 `DEFAULT_PLUGINS` 常量定义**：提取到公共文件，用于文档说明
 
 ## Impact（影响范围）
 
 - **影响文件**：
-  - `dsh-hub/src/instances.ts` - 实例创建逻辑（`copyPreinstalledPlugins` 函数）
-  - `dsh-hub/src/membership.ts` - 会员激活逻辑
-  - 可能需要新增 `dsh-hub/src/profile-template.ts` - 模板管理模块
-- **影响流程**：会员激活 → 实例创建流程
-- **风险等级**：中（涉及实例创建核心流程）
-- **向后兼容**：需保留原有创建方式作为 fallback
+  - `dsh-hub/src/instances.ts`（修改 `copyPreinstalledPlugins()`，删除 `installDefaultPlugins()`）
+  - `dsh-hub/src/supervisor/spawn.ts`（删除插件安装兜底逻辑）
+  - `dsh-hub/src/config.ts`（新增 `DEFAULT_PLUGINS` 常量）
+- **影响功能**：会员购买后实例创建流程
+- **风险等级**：中（涉及实例创建流程改造）
+- **向后兼容**：兼容（保留标记文件检查逻辑）
 
 ## 方案对比
 
-### 方案一：自动化脚本（不推荐）
-- 每次创建需执行 `dsh plugin add` 命令
-- 耗时长，用户体验差
-- 依赖外部命令，失败风险高
+### 方案 A：保留现有架构，修复复制逻辑（推荐）
 
-### 方案二：预置 DSH_HOME 模板（推荐）
-- 直接复制模板目录，秒级完成
-- 稳定可靠，不依赖外部命令
-- 用户体验好，支付后立即获得可用实例
+**调整内容**：
+1. 修改 `copyPreinstalledPlugins()` 复制完整的 Profile 目录
+2. 删除 `installDefaultPlugins()` 函数
+3. 删除 `spawn.ts` 中的插件安装兜底逻辑
+4. 统一 `DEFAULT_PLUGINS` 常量定义
 
-## ️ 重要发现：当前实现的遗漏
+**优点**：
+- 改动最小，风险可控
+- 不依赖外部工具（`dshp` 可能不可用）
+- 保留现有的异步创建流程
 
-根据 DSH 官方文档，Profile 目录结构包含以下关键文件：
+**缺点**：
+- 仍然依赖模板目录的完整性
 
-```
-<DSH_HOME>/profiles/web/
-├── package.json          # 依赖清单：树外插件声明
-├── dsh.profile           # profile 清单：bundles 列表
-── pnpm-lock.yaml        # 插件锁定
-├── pnpm-workspace.yaml   # pnpm workspace 配置
-├── cordis.patch.yml      # 定制配置层
-└── node_modules/         # 插件 bundle 实际位置
-```
+### 方案 B：完全重构，使用 `dshp` 工具
 
-**当前实现问题**：
-- `copyPreinstalledPlugins` 函数只复制了 `node_modules/` 和 `.npmrc`
-- **遗漏了**：`package.json`、`dsh.profile`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`cordis.patch.yml`
+**调整内容**：
+1. 新增 `initInstanceFromTemplate()` 函数
+2. 使用 `dshp import` 命令从模板创建实例
+3. 删除所有现有的插件安装逻辑
 
-**风险**：
-- 简单的 `cp -r node_modules` 可能不完整
-- 缺少 `package.json` 可能导致依赖解析问题
-- 缺少 `pnpm-lock.yaml` 可能导致版本不一致
+**优点**：
+- 最可靠，由 DSH 官方工具处理
+- 代码最简洁
 
-**建议方案**：
-1. **优先使用 `dshp` 工具**（如果可用）：
-   ```bash
-   # 导出模板
-   npx dshp export web -o template.dshp --home /opt/dsh-home-template
-   # 为实例导入
-   npx dshp import template.dshp --as web --home <instance_home>
-   ```
-
-2. **如果 `dshp` 不可用，确保复制整个 DSH_HOME 目录**：
-   - 复制整个 `profiles/web/` 目录（不仅仅是 `node_modules`）
-   - 清除敏感信息（`.credentials.yaml`、`.env`）
-   - 修改实例特定配置
+**缺点**：
+- 依赖 `dshp` 工具可用
+- 需要改变实例创建流程

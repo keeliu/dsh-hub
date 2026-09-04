@@ -1,228 +1,224 @@
-# 技术方案：会员实例预置 DSH_HOME 模板
+# 技术方案：会员实例预置模板
 
-## 架构设计
+## 现有代码问题
 
-### 核心组件
+### 问题 1：`copyPreinstalledPlugins()` 复制不完整
 
-```
-┌─────────────────────────────────────────────────────────
-│  会员激活流程                                             │
-─────────────────────────────────────────────────────────┤
-│  1. 支付成功回调                                          │
-│  2. 激活会员状态                                          │
-│  3. 触发实例创建                                          │
-│     ↓                                                   │
-│  4. 检查模板是否存在                                      │
-│     ├─ 存在 → 复制模板 → 修改配置 → 启动实例              │
-│     └─ 不存在 → 降级到原有创建方式                         │
-└─────────────────────────────────────────────────────────┘
-```
-
-### DSH_HOME 完整目录结构
-
-根据 DSH 官方文档和项目架构，每个实例的 `home/` 目录（DSH_HOME）包含：
-
-```
-<instance_home>/                    # = DSH_HOME
-├── profiles/
-│   └── web/                        # Profile 目录
-│       ├── package.json            # 依赖清单：树外插件声明
-│       ├── dsh.profile             # profile 清单：bundles 列表
-│       ├── pnpm-lock.yaml          # 插件锁定
-│       ├── pnpm-workspace.yaml     # pnpm workspace 配置
-│       ├── cordis.patch.yml        # 定制配置层
-│       └── node_modules/           # 插件 bundle 实际位置
-├── .credentials.yaml               # API keys（敏感，需清除）
-├── .env                            # 环境变量（敏感，需清除）
-└── .npmrc                          # npm 配置
-```
-
-**重要**：模板是完整的 `DSH_HOME` 目录，复制目标是每个实例的 `home/` 目录！
-
-### 目录结构对比
-
-```
-模板目录：
-/opt/dsh-home-template/
-── profiles/
-│   └── web/
-│       ├── package.json
-│       ├── dsh.profile
-│       ├── pnpm-lock.yaml
-│       ├── pnpm-workspace.yaml
-│       ├── cordis.patch.yml
-│       └── node_modules/
-│           ├── dsh-cost-meter/
-│           ── ...
-└── .npmrc
-
-实例目录（复制后）：
-<dataDir>/users/<dir_name>/instances/<instanceId>/home/
-├── profiles/
-│   ── web/
-│       ├── package.json
-│       ├── dsh.profile
-│       ├── pnpm-lock.yaml
-│       ├── pnpm-workspace.yaml
-│       ├── cordis.patch.yml
-│       └── node_modules/
-│           ├── dsh-cost-meter/
-│           └── ...
-└── .npmrc
-```
-
-## 实现方案
-
-### 1. 模板管理模块（profile-template.ts）
-
+**当前实现**（`instances.ts` 第 226-283 行）：
 ```typescript
-// 核心函数
-- initTemplate(): Promise<void>           // 初始化模板
-- copyTemplate(instanceHome: string): Promise<void>  // 复制模板到实例 home
-- isTemplateReady(): boolean              // 检查模板是否就绪
-- updateTemplate(): Promise<void>         // 更新模板
-- clearSensitiveInfo(homePath: string): void  // 清除敏感信息
+// 只复制了 node_modules 和 .npmrc
+const templateNodeModules = join(templateHome, 'node_modules');
+const targetNodeModules = join(homePath, 'node_modules');
+// ... 复制 node_modules ...
+
+// 复制 .npmrc
+const templateNpmrc = join(templateHome, '.npmrc');
+// ... 复制 .npmrc ...
 ```
 
-### 2. 模板初始化流程
+**问题**：遗漏了 Profile 目录的其他关键文件。
 
-```bash
-#!/bin/bash
-# scripts/init-dsh-home-template.sh
+### 问题 2：插件安装逻辑重复
 
-TEMPLATE_DIR="/opt/dsh-home-template"
+**三处创建 `.plugins-installed` 标记**：
+1. `copyPreinstalledPlugins()` - 第 276 行
+2. `installDefaultPlugins()` - 第 215 行
+3. `spawn.ts startInstance()` - 第 89 行
 
-# 创建模板目录
-mkdir -p "$TEMPLATE_DIR/profiles/web"
+**问题**：逻辑冗余，维护困难。
 
-# 初始化 web profile
-dsh plugin --profile web init --home "$TEMPLATE_DIR"
+### 问题 3：`DEFAULT_PLUGINS` 常量重复定义
 
-# 安装基础插件
-dsh plugin --profile web add dsh-cost-meter --home "$TEMPLATE_DIR"
-dsh plugin --profile web add dshmarket --home "$TEMPLATE_DIR"
-# ... 添加其他基础插件
+- `instances.ts` 第 19-25 行
+- `spawn.ts` 第 16-22 行
 
-echo "DSH_HOME template initialized at $TEMPLATE_DIR"
+**问题**：两处定义完全相同，但维护时容易不同步。
+
+## 解决方案
+
+### 方案选择：方案 A（保留现有架构，修复复制逻辑）
+
+**理由**：
+1. 改动最小，风险可控
+2. 不依赖外部工具（`dshp` 可能不可用）
+3. 保留现有的异步创建流程
+
+### 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  模板目录（/opt/dsh-home-template）                          │
+│  ├── profiles/                                               │
+│  │   └── web/                                                │
+│  │       ├── package.json                                    │
+│  │       ├── dsh.profile                                     │
+│  │       ├── pnpm-lock.yaml                                  │
+│  │       ├── pnpm-workspace.yaml                             │
+│  │       ├── cordis.patch.yml                                │
+│  │       └── node_modules/                                   │
+│  └── .npmrc                                                  │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            │ copyPreinstalledPlugins()
+                            │ 复制整个 profiles/web 目录
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  实例 home 目录（<dataDir>/users/<dir>/instances/<id>/home） │
+│  ├── profiles/                                               │
+│  │   └── web/                                                │
+│  │       ├── package.json                                    │
+│  │       ├── dsh.profile                                     │
+│  │       ├── pnpm-lock.yaml                                  │
+│  │       ├── pnpm-workspace.yaml                             │
+│  │       ├── cordis.patch.yml                                │
+│  │       └── node_modules/                                   │
+│  ├── .npmrc                                                  │
+│  └── .plugins-installed  ← 标记文件                          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 3. 实例创建流程改造
+### 实现方案
 
-**修改前**（原有逻辑）：
+#### 1. 修改 `copyPreinstalledPlugins()` 函数
+
+**修改位置**：`dsh-hub/src/instances.ts` 第 226-283 行
+
+**修改前**：
 ```typescript
-async function createInstance(userId: string) {
-  // 1. 创建 Profile
-  // 2. 安装插件（耗时）
-  // 3. 启动实例
+function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean {
+  const templateHome = process.env.TEMPLATE_DSH_HOME || '/opt/dsh-home-template';
+  
+  // 只复制 node_modules 和 .npmrc
+  const templateNodeModules = join(templateHome, 'node_modules');
+  const targetNodeModules = join(homePath, 'node_modules');
+  // ... 复制逻辑 ...
 }
 ```
 
-**修改后**（模板方案）：
+**修改后**：
 ```typescript
-async function createInstance(userId: string) {
-  const instanceHome = getInstanceHome(userId);
+function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean {
+  const templateHome = process.env.TEMPLATE_DSH_HOME || '/opt/dsh-home-template';
   
-  if (isTemplateReady()) {
-    // 快速路径：复制整个 DSH_HOME 模板
-    await copyTemplate(instanceHome);
-    clearSensitiveInfo(instanceHome);  // 清除敏感信息
-    await startInstance(instanceHome);
-  } else {
-    // 降级路径：原有逻辑
-    await createInstanceLegacy(userId);
+  // 检查模板目录是否存在
+  if (!existsSync(templateHome)) {
+    console.log(`[instances] Template directory not found: ${templateHome}, falling back to install`);
+    return false;
+  }
+  
+  console.log(`[instances] Copying pre-installed profile from template for instance ${instanceId}...`);
+  
+  try {
+    // 复制整个 profiles/web 目录（包含所有配置文件和 node_modules）
+    const templateProfileDir = join(templateHome, 'profiles', 'web');
+    const targetProfileDir = join(homePath, 'profiles', 'web');
+    
+    if (existsSync(templateProfileDir)) {
+      if (!existsSync(targetProfileDir)) {
+        mkdirSync(targetProfileDir, { recursive: true });
+      }
+      
+      // 复制整个 profiles/web 目录
+      cpSync(templateProfileDir, targetProfileDir, { recursive: true });
+      console.log(`[instances] ✅ Copied profiles/web directory`);
+    } else {
+      console.log(`[instances] ⚠️  Template profile directory not found: ${templateProfileDir}`);
+      return false;
+    }
+    
+    // 复制 .npmrc
+    const templateNpmrc = join(templateHome, '.npmrc');
+    if (existsSync(templateNpmrc)) {
+      cpSync(templateNpmrc, join(homePath, '.npmrc'));
+      console.log(`[instances] ✅ Copied .npmrc`);
+    }
+    
+    // 创建标记文件
+    writeFileSync(join(homePath, '.plugins-installed'), new Date().toISOString());
+    console.log(`[instances] Pre-installed profile copied successfully for instance ${instanceId}`);
+    return true;
+  } catch (err) {
+    console.error(`[instances] Failed to copy pre-installed profile:`, err);
+    return false;
   }
 }
 ```
 
-### 4. 配置修改
+#### 2. 删除 `installDefaultPlugins()` 函数
 
-复制模板后需修改的配置：
-- 清除 `.credentials.yaml`（API keys）
-- 清除 `.env`（环境变量）
-- 端口分配（从端口池获取）
-- 工作目录路径
-- 日志目录路径
+**删除位置**：`dsh-hub/src/instances.ts` 第 172-220 行
 
-## 关键决策
-
-### 1. 模板复制方式
-
-**优先方案：使用 `dshp` 工具**（如果可用）
-
-```bash
-# 导出模板
-npx dshp export web -o template.dshp --home /opt/dsh-home-template
-
-# 为实例导入
-npx dshp import template.dshp --as web --home <instance_home>
+**删除调用**：`dsh-hub/src/instances.ts` 第 94 行
+```typescript
+// 删除这行
+installDefaultPlugins(homePath, workspacePath, id).catch(err => 
+  console.error(`[instances] Failed to install default plugins:`, err)
+);
 ```
 
-优势：
-- 自动处理所有依赖和配置
-- 官方推荐，可靠性高
-- 支持 `dshp clone` 快速复制、`dshp diff` 对比配置
+#### 3. 删除 `spawn.ts` 中的插件安装兜底逻辑
 
-**备选方案：手动复制整个目录**
+**删除位置**：`dsh-hub/src/supervisor/spawn.ts` 第 55-94 行
 
-如果 `dshp` 不可用，必须复制整个 DSH_HOME 目录：
-
+**删除内容**：
 ```typescript
-function copyDshHomeTemplate(srcDir: string, destDir: string): void {
-  // 复制所有文件（不仅仅是 node_modules）
-  cpSync(srcDir, destDir, {
-    recursive: true,
-    filter: (src) => {
-      // 排除敏感文件
-      const basename = path.basename(src);
-      return !basename.startsWith('.credentials') && 
-             !basename.startsWith('.env');
-    }
-  });
+// 删除这段代码
+const pluginInstallFlag = join(record.home_path, '.plugins-installed');
+if (!existsSync(pluginInstallFlag)) {
+  console.log(`[spawn] Installing default plugins for instance ${record.id}...`);
+  // ... 插件安装逻辑 ...
 }
 ```
 
-**必须复制的文件**：
-- `profiles/web/package.json` - 依赖清单
-- `profiles/web/dsh.profile` - profile 清单
-- `profiles/web/pnpm-lock.yaml` - 插件锁定
-- `profiles/web/pnpm-workspace.yaml` - pnpm workspace 配置
-- `profiles/web/cordis.patch.yml` - 定制配置层
-- `profiles/web/node_modules/` - 插件 bundle
-- `.npmrc` - npm 配置
+#### 4. 统一 `DEFAULT_PLUGINS` 常量定义
 
-### 2. 模板存储位置
-**选择**：`/opt/dsh-home-template/`
-- 与实例目录分离，便于管理
-- 使用环境变量 `TEMPLATE_DSH_HOME` 配置
+**新增位置**：`dsh-hub/src/config.ts`
 
-### 3. 模板更新策略
-**选择**：手动更新 + 版本标记
-- 管理员手动执行更新脚本
-- 模板目录记录创建/更新时间
-- 已创建实例不受影响
+```typescript
+// 默认插件列表（用于文档说明和模板初始化）
+export const DEFAULT_PLUGINS = [
+  'dshmarket',
+  'github:omdsh-dev/DSH-better-sidebar#main',
+  '@xmanrui/dsh-im',
+  'github:Han-1413141/dsh-cost-meter#main',
+  'dsh-visualize',
+];
+```
 
-### 4. 降级策略
-**选择**：模板不存在时回退到原有逻辑
-- 记录错误日志
-- 通知管理员（可选）
-- 不影响用户购买流程
+**删除位置**：
+- `dsh-hub/src/instances.ts` 第 19-25 行
+- `dsh-hub/src/supervisor/spawn.ts` 第 16-22 行
 
-### 5. 敏感信息清除
-复制模板后必须清除：
-- `.credentials.yaml` - API keys
-- `.env` - 环境变量
-- 其他用户特定的配置
+### 关键决策
 
-## 测试策略
+#### 1. 为什么选择方案 A 而不是方案 B？
 
-1. **单元测试**：模板复制、配置修改、敏感信息清除逻辑
-2. **集成测试**：完整创建流程（模板存在/不存在）
-3. **性能测试**：创建耗时对比（模板 vs 动态安装）
-4. **压力测试**：并发创建多个实例
+- **方案 A（修复复制逻辑）**：改动最小，不依赖外部工具
+- **方案 B（使用 dshp 工具）**：需要 `dshp` 工具可用，且可能改变实例创建流程
 
-## 回滚方案
+**决策**：选择方案 A，保留现有架构，只修复复制逻辑。
 
-如果模板方案出现问题：
-1. 设置配置开关 `USE_DSH_HOME_TEMPLATE = false`
-2. 回退到原有创建逻辑
-3. 修复模板后重新启用
+#### 2. 为什么删除 `installDefaultPlugins()` 函数？
+
+- 模板复制已确保插件就绪，不再需要逐个安装
+- 删除后简化代码逻辑，减少维护成本
+
+#### 3. 为什么删除 `spawn.ts` 中的兜底逻辑？
+
+- 模板复制是同步的，在实例创建时已完成
+- 不再需要启动时的兜底检查
+
+#### 4. 为什么统一 `DEFAULT_PLUGINS` 常量？
+
+- 避免两处定义不同步
+- 用于文档说明和模板初始化参考
+
+### 回滚方案
+
+如果新方案出现问题，可以回滚到修改前的代码：
+
+1. 恢复 `installDefaultPlugins()` 函数
+2. 恢复 `spawn.ts` 中的插件安装兜底逻辑
+3. 恢复 `instances.ts` 和 `spawn.ts` 中的 `DEFAULT_PLUGINS` 定义
+
+回滚后，系统将恢复到逐个安装插件的模式。

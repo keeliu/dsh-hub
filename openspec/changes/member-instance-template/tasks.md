@@ -1,101 +1,90 @@
-# 实施清单：会员实例预置 DSH_HOME 模板
+# 实施清单：会员实例预置模板
 
-## 阶段 0：环境检查
+## 阶段 1：环境准备
 
-- [ ] 0.1 检查 `dshp` 工具是否可用
-  - 运行 `npx dshp --version` 或 `dshp --version`
-  - 如果可用，优先使用 `dshp export/import` 方案
-  - 如果不可用，使用手动复制方案
+- [ ] 1.1 创建模板目录
+  - 在服务器上创建 `/opt/dsh-home-template` 目录
+  - 设置正确的权限（755）
 
-- [ ] 0.2 确认 DSH_HOME 目录结构
-  - 检查现有实例的 `home/` 目录结构
-  - 确认 Profile 包含所有必要文件（package.json、dsh.profile 等）
+- [ ] 1.2 初始化模板 Profile
+  - 手动创建一个临时 DSH 实例
+  - 安装所有默认插件（`dshmarket`、`DSH-better-sidebar`、`dsh-im`、`dsh-cost-meter`、`dsh-visualize`）
+  - 验证插件安装成功
 
-- [ ] 0.3 确认用户路径独立性
-  - 验证每个用户的实例路径：`<dataDir>/users/<dir_name>/instances/<instanceId>/home/`
-  - 确认模板复制时目标是每个实例的 `home/` 目录
+- [ ] 1.3 导出模板
+  - 将临时实例的 `home/` 目录复制到 `/opt/dsh-home-template`
+  - 清除敏感信息（`.credentials.yaml`、`.env` 等）
+  - 验证模板目录结构完整
 
-## 阶段 1：模板管理模块
+## 阶段 2：代码修改 - 修复复制逻辑
 
-- [ ] 1.1 创建 `dsh-hub/src/profile-template.ts` 模块
-  - `initTemplate()` - 初始化模板
-  - `copyTemplate(instanceHome: string)` - 复制模板到实例 home（**必须复制整个目录**）
-  - `isTemplateReady()` - 检查模板状态
-  - `updateTemplate()` - 更新模板
-  - `clearSensitiveInfo(homePath: string)` - 清除敏感信息
+- [ ] 2.1 修改 `copyPreinstalledPlugins()` 函数
+  - 文件：`dsh-hub/src/instances.ts`
+  - 修改：复制整个 `profiles/web` 目录，而不仅仅是 `node_modules`
+  - 验证：复制后目录结构与模板一致
 
-- [ ] 1.2 创建模板初始化脚本
-  - `scripts/init-dsh-home-template.sh`
-  - 预装基础插件（dsh-cost-meter 等）
-  - 验证模板目录完整性
+- [ ] 2.2 删除 `installDefaultPlugins()` 函数
+  - 文件：`dsh-hub/src/instances.ts`
+  - 删除：第 172-220 行的函数定义
+  - 删除：第 94 行的函数调用
 
-- [ ] 1.3 创建插件配置文件
-  - `config/member-plugins.json`
-  - 定义基础插件列表
+- [ ] 2.3 删除 `spawn.ts` 中的插件安装兜底逻辑
+  - 文件：`dsh-hub/src/supervisor/spawn.ts`
+  - 删除：第 55-94 行的插件安装检查逻辑
+  - 保留：`ensureInstanceDirs()` 和启动逻辑
 
-## 阶段 2：实例创建流程改造
+## 阶段 3：代码修改 - 统一常量
 
-- [ ] 2.1 修改 `dsh-hub/src/instances.ts`
-  - 改造 `copyPreinstalledPlugins` 函数
-  - **关键**：复制整个 DSH_HOME 目录，不仅仅是 `node_modules`
-  - 添加降级处理（模板不存在时使用原有逻辑）
+- [ ] 3.1 在 `config.ts` 中新增 `DEFAULT_PLUGINS` 常量
+  - 文件：`dsh-hub/src/config.ts`
+  - 新增：导出 `DEFAULT_PLUGINS` 数组
+  - 用途：文档说明和模板初始化参考
 
-- [ ] 2.2 修改 `dsh-hub/src/membership.ts`
-  - 会员激活后调用新的实例创建流程
+- [ ] 3.2 删除 `instances.ts` 中的 `DEFAULT_PLUGINS` 定义
+  - 文件：`dsh-hub/src/instances.ts`
+  - 删除：第 19-25 行的常量定义
 
-- [ ] 2.3 修改配置管理
-  - `dsh-hub/src/config.ts` 添加模板相关配置
-  - `USE_DSH_HOME_TEMPLATE` 开关
-  - `TEMPLATE_DSH_HOME` 模板路径（默认 `/opt/dsh-home-template`）
-
-## 阶段 3：配置修改与敏感信息清除
-
-- [ ] 3.1 实现 DSH_HOME 配置修改
-  - 清除 `.credentials.yaml`（API keys）
-  - 清除 `.env`（环境变量）
-  - 分配端口（从端口池获取）
-  - 设置工作目录路径
-  - 设置日志目录路径
-
-- [ ] 3.2 实现敏感信息清除（**重要**）
-  - 清除 `.credentials.yaml`（API keys）
-  - 清除 `.env`（环境变量）
-  - 清除其他用户特定的配置
-  - 验证清除后的配置文件完整性
+- [ ] 3.3 删除 `spawn.ts` 中的 `DEFAULT_PLUGINS` 定义
+  - 文件：`dsh-hub/src/supervisor/spawn.ts`
+  - 删除：第 16-22 行的常量定义
 
 ## 阶段 4：验证
 
 - [ ] 4.1 类型检查
   - 运行 `npx tsc -p . --noEmit`
+  - 确认无类型错误
 
-- [ ] 4.2 单元测试
-  - 模板复制逻辑测试
-  - 配置修改逻辑测试
-  - 敏感信息清除测试
+- [ ] 4.2 单元测试（如有）
+  - 运行相关单元测试
+  - 确认测试通过
 
-- [ ] 4.3 集成测试（需要 DSH 环境）
-  - 初始化模板
-  - 创建实例（模板存在）
-  - 创建实例（模板不存在，降级）
-  - 验证实例隔离性
-  - **验证不同用户路径独立**
+- [ ] 4.3 手动验证 - 模板目录检查
+  - 检查 `/opt/dsh-home-template` 目录结构
+  - 确认包含完整的 Profile 文件
 
-- [ ] 4.4 性能测试
-  - 对比模板方案 vs 动态安装的创建耗时
-  - 目标：模板方案 < 10 秒
+- [ ] 4.4 手动验证 - 实例创建流程
+  - 创建测试用户
+  - 触发实例创建
+  - 验证实例 `home/profiles/web/` 目录完整
+  - 验证 `.plugins-installed` 标记文件创建
+
+- [ ] 4.5 手动验证 - 用户路径独立性
+  - 创建两个不同用户的实例
+  - 比较两个实例的 Profile 目录路径
+  - 确认路径完全不同且相互隔离
+
+- [ ] 4.6 手动验证 - 代码清理
+  - 确认 `installDefaultPlugins()` 函数已删除
+  - 确认 `spawn.ts` 中的插件安装兜底逻辑已删除
+  - 确认 `DEFAULT_PLUGINS` 只在 `config.ts` 中定义
 
 ## 阶段 5：文档与归档
 
 - [ ] 5.1 更新 AGENTS.md
-  - 记录模板方案实现
+  - 在"当前进度"中添加会员实例预置模板完成记录
 
-- [ ] 5.2 创建运维文档
-  - 模板初始化步骤
-  - 模板更新步骤
-  - 故障排查指南
+- [ ] 5.2 提交代码
+  - commit message: `feat(member): 实现会员实例预置模板方案，修复 Profile 复制逻辑`
 
-- [ ] 5.3 提交代码
-  - commit message: `feat(member): 实现会员实例预置 DSH_HOME 模板方案`
-
-- [ ] 5.4 归档变更
+- [ ] 5.3 归档变更
   - 将 `openspec/changes/member-instance-template/` 移至 `openspec/changes/archive/`

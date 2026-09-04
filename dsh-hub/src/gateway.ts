@@ -400,12 +400,138 @@ function rewriteCssPaths(css: string, prefix: string): string {
 }
 
 /**
- * 注入 __DSH_DEPLOYMENT__ 配置
+ * 注入 __DSH_DEPLOYMENT__ 配置和导航栏
  * 在 <head> 中插入 <script>window.__DSH_DEPLOYMENT__ = {...}</script>
+ * 在 <body> 开头插入导航栏
  */
-function injectDeploymentConfig(html: string, prefix: string): string {
+function injectDeploymentConfig(html: string, prefix: string, user?: { nickname: string; slug: string }): string {
+  // 注入 __DSH_DEPLOYMENT__ 配置
   const configScript = `<script>window.__DSH_DEPLOYMENT__ = { apiBase: '${prefix}', wsBase: '${prefix}' };</script>`;
-  return html.replace('<head>', `<head>${configScript}`);
+  let result = html.replace('<head>', `<head>${configScript}`);
+  
+  // 注入导航栏样式
+  const navStyle = `
+<style>
+#dsh-hub-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: #1a1a1a;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  z-index: 10000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+#dsh-hub-navbar .brand {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+}
+#dsh-hub-navbar .nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+#dsh-hub-navbar .user-menu {
+  position: relative;
+}
+#dsh-hub-navbar .user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #0066cc;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+#dsh-hub-navbar .dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  min-width: 160px;
+  overflow: hidden;
+  z-index: 10001;
+}
+#dsh-hub-navbar .dropdown-menu.show {
+  display: block;
+}
+#dsh-hub-navbar .dropdown-item {
+  display: block;
+  padding: 0.75rem 1rem;
+  color: #1a1a1a !important;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+#dsh-hub-navbar .dropdown-item:hover {
+  background: #f5f5f5;
+  color: #1a1a1a !important;
+}
+#dsh-hub-navbar .dropdown-divider {
+  height: 1px;
+  background: #e5e5e5;
+  margin: 0;
+}
+#dsh-hub-navbar .dropdown-item-danger {
+  color: var(--danger, #dc3545) !important;
+}
+#dsh-hub-navbar .workspace-content {
+  margin-top: 60px;
+  height: calc(100vh - 60px);
+  overflow: hidden;
+}
+</style>
+<script>
+// 点击外部关闭下拉菜单
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('user-dropdown');
+  if (menu && !e.target.closest('.user-menu')) {
+    menu.classList.remove('show');
+  }
+});
+</script>`;
+  result = result.replace('</head>', `${navStyle}</head>`);
+  
+  // 注入导航栏 HTML
+  if (user) {
+    const initial = user.nickname.charAt(0).toUpperCase();
+    const navHtml = `
+<div id="dsh-hub-navbar">
+  <a href="/" class="brand">乌鸦 work</a>
+  <div class="nav-right">
+    <div class="user-menu">
+      <div class="user-avatar" onclick="document.getElementById('user-dropdown').classList.toggle('show')">${initial}</div>
+      <div id="user-dropdown" class="dropdown-menu">
+        <a href="/profile" class="dropdown-item">个人中心</a>
+        <a href="/instances" class="dropdown-item">实例管理</a>
+        <div class="dropdown-divider"></div>
+        <a href="/logout" class="dropdown-item dropdown-item-danger">退出系统</a>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="workspace-content">`;
+    result = result.replace('<body>', `<body>${navHtml}`);
+    result = result.replace('</body>', `</div></body>`);
+  }
+  
+  return result;
 }
 
 /**
@@ -506,8 +632,8 @@ pollStatus();
     // 5. 重写 HTML 中所有资源路径
     html = rewriteHtmlPaths(html, WORKSPACE_PREFIX);
 
-    // 6. 注入 __DSH_DEPLOYMENT__ 配置
-    html = injectDeploymentConfig(html, WORKSPACE_PREFIX);
+    // 6. 注入 __DSH_DEPLOYMENT__ 配置和导航栏
+    html = injectDeploymentConfig(html, WORKSPACE_PREFIX, auth.user);
 
     // 7. 返回修改后的 HTML
     res.writeHead(200, {

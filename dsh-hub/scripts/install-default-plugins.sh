@@ -6,10 +6,10 @@ set -e
 
 # 默认插件列表
 DEFAULT_PLUGINS=(
-  "dsh-market"
-  "dsh-better-sidebar"
-  "dsh-im"
-  "dsh-cost-meter"
+  "dshmarket"
+  "github:omdsh-dev/DSH-better-sidebar#main"
+  "@xmanrui/dsh-im"
+  "github:Han-1413141/dsh-cost-meter#main"
   "dsh-visualize"
 )
 
@@ -29,10 +29,19 @@ install_plugins() {
   # 安装每个插件
   for plugin in "${DEFAULT_PLUGINS[@]}"; do
     echo "[plugin-installer] Installing ${plugin}..."
-    if ${DSH_BIN} install "${plugin}" 2>&1; then
-      echo "[plugin-installer] ✅ ${plugin} installed successfully"
+    # dsh-im 需要 -w 参数（workspace 模式）
+    if [[ "$plugin" == *"dsh-im"* ]]; then
+      if ${DSH_BIN} plugin --profile web add -w "${plugin}" 2>&1; then
+        echo "[plugin-installer] ✅ ${plugin} installed successfully"
+      else
+        echo "[plugin-installer] ❌ Failed to install ${plugin}"
+      fi
     else
-      echo "[plugin-installer] ❌ Failed to install ${plugin}"
+      if ${DSH_BIN} plugin --profile web add "${plugin}" 2>&1; then
+        echo "[plugin-installer] ✅ ${plugin} installed successfully"
+      else
+        echo "[plugin-installer] ❌ Failed to install ${plugin}"
+      fi
     fi
   done
   

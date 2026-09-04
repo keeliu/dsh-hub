@@ -14,10 +14,10 @@ import { getDshBin } from '../config.ts';
 
 // 默认插件列表（实例创建时自动安装）
 const DEFAULT_PLUGINS = [
-  'dsh-market',
-  'dsh-better-sidebar',
-  'dsh-im',
-  'dsh-cost-meter',
+  'dshmarket',
+  'github:omdsh-dev/DSH-better-sidebar#main',
+  '@xmanrui/dsh-im',
+  'github:Han-1413141/dsh-cost-meter#main',
   'dsh-visualize',
 ];
 
@@ -69,7 +69,12 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
       for (const plugin of DEFAULT_PLUGINS) {
         console.log(`[spawn] Installing plugin: ${plugin}`);
         try {
-          execSync(`${bin} install ${plugin}`, {
+          const isImPlugin = plugin.includes('dsh-im');
+          const cmd = isImPlugin
+            ? `${bin} plugin --profile web add -w ${plugin}`
+            : `${bin} plugin --profile web add ${plugin}`;
+          
+          execSync(cmd, {
             cwd: record.workspace_path,
             env: { ...process.env, DSH_HOME: record.home_path },
             stdio: 'pipe',

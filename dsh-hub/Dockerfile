@@ -8,7 +8,7 @@ RUN npm i -g @deepseek-ai/dsh@0.1.0-rc.7
 
 # 预装默认插件到模板目录（可选，失败不阻断构建）
 ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template
-RUN mkdir -p $TEMPLATE_DSH_HOME \
+RUN mkdir -p $TEMPLATE_DSH_HOME/profiles/web \
     && echo "ignore-scripts=false" > $TEMPLATE_DSH_HOME/.npmrc \
     && export DSH_HOME=$TEMPLATE_DSH_HOME \
     && (dsh plugin --profile web add dshmarket || echo "WARN: dshmarket pre-install failed") \

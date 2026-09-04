@@ -662,7 +662,7 @@ export function renderPaymentReturnPage(
       </div>
       
       <div class="payment-return-actions">
-        <a href="/" class="btn btn-primary">进入首页</a>
+        <a href="/workspace" class="btn btn-primary">进入工作区</a>
         <a href="/profile" class="btn btn-secondary">查看个人中心</a>
       </div>
     </div>

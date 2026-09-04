@@ -204,7 +204,7 @@ page('POST', '/login', async ({ db, req, res }) => {
     } else {
       // 会员系统：无有效会员的用户重定向到会员购买页面
       const hasMembership = hasActiveMembership(db, result.user.id);
-      redirect(res, hasMembership ? '/' : '/membership');
+      redirect(res, hasMembership ? '/workspace' : '/membership');
     }
   } catch (e) {
     if (e instanceof HttpError) {
@@ -399,9 +399,8 @@ page('GET', '/', ({ db, req, res }) => {
   if (!auth) { redirect(res, '/login'); return; }
   // 会员系统：无有效会员重定向到购买页面
   if (!hasActiveMembership(db, auth.user.id)) { redirect(res, '/membership'); return; }
-  const instances = listInstances(db, auth.user.id);
-  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
-  sendHtml(res, 200, renderInstancesPage(auth.user, instances, undefined, csrf));
+  // 有会员用户直接重定向到 Workspace
+  redirect(res, '/workspace');
 });
 
 // GET /instances/new - 新建实例页面

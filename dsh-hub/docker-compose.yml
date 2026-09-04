@@ -32,3 +32,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      1panel-network:
+        ipv4_address: 172.18.0.100
+
+networks:
+  1panel-network:
+    external: true

@@ -210,11 +210,20 @@ body {
   font-size: var(--font-size-base);
 }
 
-/* 容器 */
+/* 容器 - 普通页面使用居中留白布局 */
 .container {
-  max-width: 1200px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: 2rem 1.5rem;
+}
+
+/* Workspace 页面使用满屏布局 */
+.workspace-container {
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  height: calc(100vh - 60px);
+  overflow: hidden;
 }
 
 /* 卡片 */

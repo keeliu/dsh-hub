@@ -6,17 +6,17 @@ RUN npm i -g pnpm
 # 装 dsh（数据面；pin 死版本，别用 latest）
 RUN npm i -g @deepseek-ai/dsh@0.1.0-rc.7
 
-# 预装默认插件到模板目录
+# 预装默认插件到模板目录（可选，失败不阻断构建）
 ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template
 RUN mkdir -p $TEMPLATE_DSH_HOME \
     && echo "ignore-scripts=false" > $TEMPLATE_DSH_HOME/.npmrc \
     && export DSH_HOME=$TEMPLATE_DSH_HOME \
-    && dsh plugin --profile web add dsh-market \
-    && dsh plugin --profile web add dsh-better-sidebar \
-    && dsh plugin --profile web add dsh-im \
-    && dsh plugin --profile web add dsh-cost-meter \
-    && dsh plugin --profile web add dsh-visualize \
-    && echo "Plugins pre-installed successfully"
+    && (dsh plugin --profile web add dsh-market || echo "WARN: dsh-market pre-install failed") \
+    && (dsh plugin --profile web add dsh-better-sidebar || echo "WARN: dsh-better-sidebar pre-install failed") \
+    && (dsh plugin --profile web add dsh-im || echo "WARN: dsh-im pre-install failed") \
+    && (dsh plugin --profile web add dsh-cost-meter || echo "WARN: dsh-cost-meter pre-install failed") \
+    && (dsh plugin --profile web add dsh-visualize || echo "WARN: dsh-visualize pre-install failed") \
+    && echo "Plugin pre-install step completed (success or skipped)"
 
 WORKDIR /app
 COPY package.json package-lock.json ./

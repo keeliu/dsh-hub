@@ -212,9 +212,9 @@ body {
 
 /* 容器 - 普通页面使用居中留白布局 */
 .container {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
+  max-width: 960px !important;
+  margin: 0 auto !important;
+  padding: 2rem 1.5rem !important;
 }
 
 /* Workspace 页面使用满屏布局 */

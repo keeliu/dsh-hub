@@ -22,10 +22,10 @@ import { instanceDir, instanceHome, instanceWorkspace, INSTANCE_SUBDIRS, userDir
 
 // 默认插件列表（实例创建时自动安装）
 const DEFAULT_PLUGINS = [
-  'dsh-market',
-  'dsh-better-sidebar',
-  'dsh-im',
-  'dsh-cost-meter',
+  'dshmarket',
+  'github:omdsh-dev/DSH-better-sidebar#main',
+  '@xmanrui/dsh-im',
+  'github:Han-1413141/dsh-cost-meter#main',
   'dsh-visualize',
 ];
 import { shortId, type UserRow } from './users.ts';
@@ -193,7 +193,13 @@ async function installDefaultPlugins(homePath: string, workspacePath: string, in
     for (const plugin of DEFAULT_PLUGINS) {
       console.log(`[instances] Installing plugin: ${plugin}`);
       try {
-        execSync(`${bin} install ${plugin}`, {
+        // dsh-im 需要 -w 参数（workspace 模式）
+        const isImPlugin = plugin.includes('dsh-im');
+        const cmd = isImPlugin
+          ? `${bin} plugin --profile web add -w ${plugin}`
+          : `${bin} plugin --profile web add ${plugin}`;
+        
+        execSync(cmd, {
           cwd: workspacePath,
           env: { ...process.env, DSH_HOME: homePath },
           stdio: 'pipe',
@@ -238,16 +244,24 @@ function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean 
         mkdirSync(targetNodeModules, { recursive: true });
       }
       
-      // 复制每个插件
-      for (const plugin of DEFAULT_PLUGINS) {
-        const srcPlugin = join(templateNodeModules, plugin);
-        const destPlugin = join(targetNodeModules, plugin);
+      // 复制每个插件（需要处理不同的包名）
+      const pluginMap: Record<string, string> = {
+        'dshmarket': 'dshmarket',
+        'github:omdsh-dev/DSH-better-sidebar#main': 'dsh-better-sidebar',
+        '@xmanrui/dsh-im': '@xmanrui/dsh-im',
+        'github:Han-1413141/dsh-cost-meter#main': 'dsh-cost-meter',
+        'dsh-visualize': 'dsh-visualize',
+      };
+      
+      for (const [pluginKey, pluginDir] of Object.entries(pluginMap)) {
+        const srcPlugin = join(templateNodeModules, pluginDir);
+        const destPlugin = join(targetNodeModules, pluginDir);
         
         if (existsSync(srcPlugin)) {
           cpSync(srcPlugin, destPlugin, { recursive: true });
-          console.log(`[instances] ✅ Copied plugin: ${plugin}`);
+          console.log(`[instances] ✅ Copied plugin: ${pluginDir}`);
         } else {
-          console.log(`[instances] ⚠️  Plugin not found in template: ${plugin}`);
+          console.log(`[instances] ⚠️  Plugin not found in template: ${pluginDir}`);
         }
       }
     }

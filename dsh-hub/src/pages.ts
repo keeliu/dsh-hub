@@ -297,6 +297,22 @@ page('POST', '/register', async ({ db, req, res }) => {
   }
 });
 
+// GET /logout - 登出（导航栏链接）
+page('GET', '/logout', ({ db, req, res }) => {
+  const cookies: Record<string, string> = {};
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    for (const pair of cookieHeader.split(';')) {
+      const idx = pair.indexOf('=');
+      if (idx > 0) cookies[pair.slice(0, idx).trim()] = pair.slice(idx + 1).trim();
+    }
+  }
+  const token = cookies[SESSION_COOKIE];
+  if (token) destroySession(db, token);
+  clearSessionCookie(res);
+  redirect(res, '/login');
+});
+
 // POST /api/auth/logout - 登出（页面表单提交）
 page('POST', '/api/auth/logout', ({ db, req, res }) => {
   const cookies: Record<string, string> = {};

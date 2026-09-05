@@ -26,19 +26,18 @@
   - 预创建 `$TEMPLATE_DSH_HOME/profiles/web` 目录
   - 确保 `dsh plugin --profile web add` 不因目录缺失而失败
 
+- **固定 dsh-hub 静态 IP 以解决 OpenResty 代理问题**
+  - 加入 1panel-network 网络
+  - 固定 IP: 172.18.0.100
+  - 每次重建容器自动获得相同 IP
+  - OpenResty 可通过固定 IP 可靠代理
+
 ### 文档更新
 - **完善会员实例预置模板方案**
   - 补充现有代码冲突分析和整合方案
   - 明确 DSH_HOME 目录结构和用户路径独立性
   - 补充 Profile 目录完整性要求
   - 创建会员实例预置模板方案 OpenSpec 规范文档
-
-### 基础设施
-- **固定 dsh-hub 静态 IP 以解决 OpenResty 代理问题**
-  - 加入 1panel-network 网络
-  - 固定 IP: 172.18.0.100
-  - 每次重建容器自动获得相同 IP
-  - OpenResty 可通过固定 IP 可靠代理
 
 ### UI 优化
 - **修复实例管理页面导航栏重复渲染**
@@ -124,8 +123,6 @@
   - .admin-layout: 添加 max-width: 100%
   - .admin-sidebar: 添加 flex-shrink: 0 防止侧边栏被压缩
   - .admin-content: padding 从 1.5rem 改为 2rem 1.5rem，添加 min-width: 0
-
-- **强制.container 样式生效，添加!important**
 
 ### 问题修复
 - **修复实例详情页日志刷新按钮链接**
@@ -253,24 +250,163 @@
 
 ---
 
-## 2026-09-01 及之前
+## 2026-09-01
 
-### 已完成功能
-- **M0-M2.1**: 调研/脚手架/认证/生命周期/安全修复
-- **M3**: 鉴权网关（子域路由 + 所有权校验 + WS 隧道）
-- **代码质量优化**:
+### 核心功能
+- **集成虎皮椒支付系统**
+  - 支付模块（payment.ts：虎皮椒签名生成/验证、发起支付、查询订单、退款）
+  - 配置管理（settings.ts 新增 xunhupay_appid/appsecret，管理后台支付配置表单）
+  - 订单流程改造（创建订单为 pending 状态，支付回调后激活会员）
+  - API 路由（POST /api/payment/create、POST /api/payment/notify、GET /api/payment/query/:orderId）
+  - 前端支付流程（AJAX 创建订单 → 二维码弹窗 → 轮询支付状态 → 成功跳转）
+  - 支付成功返回页（/payment/return）
+
+- **完成 UI 视觉风格重设计**
+  - CSS 变量与设计系统重写（主色 #0066cc，圆角输入框，卡片阴影）
+  - 导航栏更新（黑色背景，"乌鸦 work" 品牌名，用户头像）
+  - 认证页面重设计（登录/注册/忘记密码/重置密码，居中卡片布局）
+  - 会员购买页重设计（三栏定价卡片，推荐高亮）
+  - 个人中心页重设计（会员状态卡片，订单表格）
+  - 管理后台页面重设计（侧边栏导航，表格布局）
+
+- **会员系统与订单管理功能**
+  - 数据库 Migration v4（users 新增会员字段 + memberships/orders 表）
+  - 会员核心逻辑（membership.ts：激活/到期检查/管理员设置）
+  - 订单逻辑（创建订单为 pending 状态，支付成功后激活会员）
+  - 定时任务（scheduler.ts：每日 0 点检查会员到期）
+  - 页面路由（/membership 购买页、/profile 个人中心、/admin/membership 管理）
+  - 注册/登录流程调整（无会员重定向到购买页）
+  - 会员激活后自动创建 DSH 实例
+  - 网关会员检查（非会员访问实例重定向到购买页）
+  - API 路由（/api/membership/plans、/api/me/membership、/api/me/orders、/admin/api/orders）
+  - 管理员用户管理页面显示会员标识 + 设置会员
+  - 管理员创建用户时可选会员身份
+
+### 问题修复
+- **修复 WebSocket 代理中 targetPath 变量引用顺序错误**
+- **代理 DSH WebSocket 事件通道到用户实例**
+  - /api/events.mux、/api/events.host 代理到用户实例
+  - 修复设置页面加载失败问题
+- **buildInstanceUrl 剥离 domain 协议前缀**
+- **修复实例路径解析错误导致网关 404**
+- **实例链接使用 instance.trusted_host 替代 config.hubDomain**
+- **/dsh-deployment.js 添加 Cache-Control 头**
+- **剥离并重写 Origin 头与 Host 一致**
+- **Hub 层直接提供 /dsh-deployment.js**
+- **添加 /dsh-deployment.js 静态资源 fallback 代理**
+- **用 http.request 替代 fetch，保留原始 Host 头**
+- **添加 DSH API fallback 代理（/api/host.* 等）**
+- **端口范围避开 4000（DSH 内部插件端口）**
+- **添加静态资源 fallback 代理（/assets/ 和 /plugins/）**
+- **修复 trusted_host 格式，dsh 只接受 host[:port] 格式**
+- **修复 Trusted Host 显示为完整路径格式**
+- **管理员创建用户表单增加账号字段**
+- **管理后台用户列表增加账号字段**
+- **网关从子域名路由改为路径路由**
+- **getUserByAccount 支持 nickname 向后兼容**
+- **部署脚本默认 DSH_HUB_DOMAIN 为 hub.wuyajun.cn**
+- **撤销 /setup 自动创建实例，仅 /register 注册后自动创建**
+- **/setup 创建管理员后自动创建实例**
+- **修复退出登录后跳转到错误 URL**
+- **修复部署时 /mnt/data 权限问题**
+- **修复部署后数据丢失问题，使用持久化存储**
+- **注册表单内容保留 + 退出登录统一跳转**
+- **修复 /setup 创建管理员时未设置 username 导致无法登录**
+- **修复 dsh 不存在时 spawn 导致进程崩溃**
+- **修复部署时数据目录创建失败问题**
+
+### 移动端适配
+- **移动端适配 + 认证增强**
+  - 响应式布局
+  - username/email/找回密码功能
+
+### Docker 优化
+- **添加 Dockerfile 和 .dockerignore**
+- **添加 TRUST_PROXY 和 COOKIE_SECURE 环境变量默认值**
+
+---
+
+## 2026-08-31
+
+### 代码质量优化
+- **完成 P0-P3 代码优化任务**
   - P0: gateway-auth-fix 网关鉴权缺陷修复
   - P1: page-csrf-protection 页面表单 CSRF 全覆盖
   - P1: logic-dedup 提取 attemptLogin、disableUser、createUserRow
   - P2: supervisor-modularization supervisor 拆分为 7 个子模块
   - P3: proxy-streaming HTTP 代理改流式转发 + WS close frame
-  - P3: db-schema-versioning Schema 迁移版本化
-  - P3: instance-state-machine 实例状态机形式化
+  - P3: db-schema-versioning Schema 迁移版本化（schema_version 表）
+  - P3: instance-state-machine 实例状态机形式化（transitionStatus）
 
-- **会员系统**: 会员/订单/到期检查/定时任务/页面路由
-- **支付集成**: 虎皮椒签名/API 封装/订单流程/前端支付流程
-- **UI 视觉风格重设计**: CSS 变量/导航栏/认证页面/会员购买页/个人中心/管理后台
-- **生产环境问题修复**: 实例路径解析/静态资源 404/DSH API 404/代理层 403/端口冲突/实例链接/ WebSocket 事件通道
+### 架构改进
+- **实例状态机形式化**
+  - transitionStatus + forceStatus
+  - 状态转换校验
+  - stale 状态校正
+
+- **Schema 迁移版本化**
+  - schema_version 表
+  - 增量迁移机制
+
+- **HTTP 代理改流式转发**
+  - WebSocket close frame 支持
+  - 流式转发优化
+
+- **supervisor 拆分为子模块**
+  - probe/lock/pidfile/log/spawn/stop/reclaim
+  - 模块化设计
+
+### 网关改进
+- **实现 M3 鉴权网关**
+  - 子域路由 + WS 隧道 + 自动实例
+  - 所有权校验
+  - WebSocket 隧道
+
+- **网关从子域名路由改为路径路由**
+  - 更灵活的路由方式
+  - 支持多实例
+
+### 部署优化
+- **添加升级和回滚脚本**
+- **修复部署时数据目录创建失败问题**
+- **修复部署时 /mnt/data 权限问题**
+
+### 认证增强
+- **注册表单内容保留 + 退出登录统一跳转**
+- **移动端适配 + 认证增强（username/email/找回密码）**
+
+### Web UI
+- **实现 Web UI MVP（服务端渲染方案）**
+  - 服务端渲染
+  - 页面模板系统
+
+---
+
+## 2026-08-23
+
+### 发布准备
+- **发布准备（push-release 脚本 + 文档）**
+- **M2.1: 安全修复与结构优化**
+
+---
+
+## 2026-08-22
+
+### 核心功能
+- **M2: 实例生命周期 + 昵称目录**
+  - 29/29 冒烟测试通过
+  - 真实 dsh web 实例支持
+  - 昵称目录隔离
+
+- **M1: 认证与用户体系**
+  - 24/24 冒烟测试通过
+  - 首位注册 root 专项通过
+  - 用户注册/登录/登出
+
+- **M0: 调研文档 + dsh-hub 脚手架 + Spike S1-S5 全部完成**
+  - 调研文档
+  - 脚手架搭建
+  - Spike 验证（S1-S5）
 
 ---
 
@@ -301,7 +437,7 @@
     ├── scripts/             # 冒烟测试与运维脚本
     ├── Dockerfile           # Docker 镜像构建
     ├── docker-compose.yml   # Docker 编排配置
-    ── package.json
+    └── package.json
 ```
 
 ---

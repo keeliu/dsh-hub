@@ -115,6 +115,7 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 实例链接不完整（buildInstanceUrl 剥离协议前缀）
   - WebSocket 事件通道断裂（/api/events.mux、/api/events.host 未代理到 DSH 实例）
   - WebSocket 代理 Host/Origin 头不一致（与 HTTP 代理统一修复）
+  - **退出登录 404**：网关注入的工作区导航「退出系统」原用 `GET /logout`；生产旧版本未注册该路由导致 404。已改为 `POST /api/auth/logout`（表单提交，实测 303→/login 且 session 正确清除）。`GET /logout` 路由仍保留（浏览器直接访问兜底）。
 - **会员系统已完成**（openspec/changes/membership-system/）：
   - 数据库 Migration v4（users 新增会员字段 + memberships/orders 表）
   - 会员核心逻辑（membership.ts：激活/到期检查/管理员设置）

@@ -521,7 +521,9 @@ document.addEventListener('click', function(e) {
         <a href="/profile" class="dropdown-item">个人中心</a>
         <a href="/instances" class="dropdown-item">实例管理</a>
         <div class="dropdown-divider"></div>
-        <a href="/logout" class="dropdown-item dropdown-item-danger">退出系统</a>
+        <form method="POST" action="/api/auth/logout" style="margin:0">
+          <button type="submit" class="dropdown-item dropdown-item-danger" style="width:100%;text-align:left">退出系统</button>
+        </form>
       </div>
     </div>
   </div>

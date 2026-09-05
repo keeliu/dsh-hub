@@ -1,7 +1,7 @@
 # DSH Hub 系统迭代记录
 
 > 本文档记录 DSH Hub 项目的所有功能迭代和修复，按日期倒序排列。
-> 最后更新：2026-09-05
+> 最后更新：2026-09-06
 
 ---
 
@@ -14,12 +14,23 @@
   - 用户点击后直接进入 Workspace 页面（带导航栏）
   - 不再直接访问 DSH 实例页面
 
+- **会员实例预置插件完整性校验与标记乐观化（openspec/changes/member-instance-template 阶段6）**
+  - `DEFAULT_PLUGINS` 的 2 个 `github:` 源改为 npm 包（`dsh-better-sidebar`/`dsh-cost-meter`），规避 pnpm 对 git 依赖 build 脚本的拦截
+  - 新增 `templateHasAllPlugins()`：`copyPreinstalledPlugins` 复制前校验模板 `dependencies` 覆盖全部默认插件，缺插件返回 `false` 走运行时真装
+  - `installDefaultPlugins`/`spawn.ts` 只在全部插件成功后写 `.plugins-installed`（失败不写、可重试），不再"空模板+完成标记"锁死
+  - Dockerfile `template-builder` 去掉 `|| echo WARN`（任一插件失败即构建失败）+ 构建期校验模板完整
+
 ### 问题修复
 - **添加 GET /logout 路由修复退出登录报错**
   - 导航栏下拉菜单使用 `<a href="/logout">` 是 GET 请求
   - 之前只有 POST /api/auth/logout 路由
   - 新增 GET /logout 路由处理导航栏退出请求
   - 销毁 session 并重定向到 /login
+
+- **退出登录 404：工作区导航「退出系统」改为 POST /api/auth/logout**
+  - 网关注入的工作区导航原用 `GET /logout`；生产旧版本未注册该路由导致 404
+  - 改为与后台一致的 `<form method="POST" action="/api/auth/logout">`；实测 303→/login 且 session 正确清除
+  - `GET /logout` 路由仍保留（浏览器直接访问兜底）
 
 - **Dockerfile 预创建 profiles/web 目录以支持 dsh plugin add**
   - 根据 dsh-plugin-install-fix 规范文档

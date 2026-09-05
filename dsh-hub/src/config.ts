@@ -34,12 +34,17 @@ export interface SmtpConfig {
   secure: boolean;
 }
 
-/** 实例创建时预置的默认插件（单一真相源，instances.ts / spawn.ts 均从此导入）。 */
+/**
+ * 实例创建时预置的默认插件（单一真相源，instances.ts / spawn.ts 均从此导入）。
+ * 全部走 npm registry（已实测可解析）。原 2 个 `github:` 源（dsh-better-sidebar、
+ * dsh-cost-meter）在镜像内构建失败（git-dep prepare 被 pnpm 拦截 / ref 不可解析），
+ * 已替换为对应 npm 包，避免"模板装不全 + 复制不校验"导致的实例缺插件问题。
+ */
 export const DEFAULT_PLUGINS = [
   'dshmarket',
-  'github:omdsh-dev/DSH-better-sidebar#main',
+  'dsh-better-sidebar',
   '@xmanrui/dsh-im',
-  'github:Han-1413141/dsh-cost-meter#main',
+  'dsh-cost-meter',
   'dsh-visualize',
 ] as const;
 

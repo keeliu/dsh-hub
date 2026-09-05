@@ -174,12 +174,13 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 修复 `/instances` 页面出现两个顶部导航栏的问题
   - 移除 `pages.ts` 中多余的 `layout` 包裹
   - 与其他页面渲染方式保持一致
-- **会员实例预置插件自动装载**（openspec/changes/member-instance-template/）：
+- **会员实例预置插件自动装载**（openspec/changes/member-instance-template/）：**已修复（A/B/C），待生产验证**（阶段 6 修正已落地；镜像构建/实测未在本环境执行）
   - Docker 多阶段构建：`template-builder` 阶段预装 5 个默认插件到 `/opt/dsh-home-template`，最终镜像 `COPY --from` 该模板（清理 `.credentials.yaml`/`sessions`/`workspace`）
   - 修复 `copyPreinstalledPlugins()`：复制整棵 `profiles/` 到 `homePath/profiles/`（DSH 真实布局），不再错位复制到 `homePath/node_modules`
   - 统一单一真相源：`DEFAULT_PLUGINS` 与 `getTemplateDshHome()` 收敛到 `config.ts`，`instances.ts`/`spawn.ts` 删除本地重复定义与 `process.env` 直接读取
   - 保留降级链路：模板缺失/不完整 → `installDefaultPlugins()` 异步逐包安装；`spawn.ts` 启动兜底，均受 `.plugins-installed` marker 门控
   - 软链处理：`verbatimSymlinks: true` 保留 pnpm 相对软链（每实例自包含），`profiles/node_modules` 绝对软链由启动期 `healProfilesModuleFallback` 重指向
+  - ✅ **阶段 6 修正（生产根因）**：a) `DEFAULT_PLUGINS` 的 2 个 `github:` 源改为 npm 源（`dsh-better-sidebar`/`dsh-cost-meter`）；b) 新增 `templateHasAllPlugins()`，`copyPreinstalledPlugins` 复制前校验模板 dependencies 覆盖全部插件，缺插件返回 `false` 走真装；c) `installDefaultPlugins`/`spawn.ts` 只在全部插件成功后才写 `.plugins-installed`（失败可重试）；d) Dockerfile `template-builder` 去掉 `|| echo WARN` + 构建期校验模板完整。**存量实例（如 `i-c723a367`）需删除重建或手动补装**；镜像构建 + `tsc` 通过，**生产实测通过前勿归档**
 
 ## 架构要点
 

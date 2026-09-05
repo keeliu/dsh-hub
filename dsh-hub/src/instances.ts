@@ -11,7 +11,7 @@
  * - 目录创建失败补偿删除（不残留孤儿目录）。
  * 启停交给 supervisor.ts；这里只管数据与目录。
  */
-import { existsSync, mkdirSync, chmodSync, rmSync, writeFileSync, cpSync } from 'node:fs';
+import { existsSync, mkdirSync, chmodSync, rmSync, writeFileSync, cpSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
@@ -182,6 +182,7 @@ async function installDefaultPlugins(homePath: string, workspacePath: string, in
       console.log(`[instances] Created .npmrc to allow build scripts`);
     }
     
+    let allOk = true;
     for (const plugin of DEFAULT_PLUGINS) {
       console.log(`[instances] Installing plugin: ${plugin}`);
       try {
@@ -199,16 +200,46 @@ async function installDefaultPlugins(homePath: string, workspacePath: string, in
         });
         console.log(`[instances] ✅ Plugin ${plugin} installed successfully`);
       } catch (err) {
+        // 只记录失败不中断：但必须让 allOk=false，避免"失败也写标记"锁死下次重试
+        allOk = false;
         console.error(`[instances] ❌ Failed to install plugin ${plugin}:`, err);
       }
     }
-    
-    // 创建标记文件，避免重复安装
-    writeFileSync(pluginInstallFlag, new Date().toISOString());
-    console.log(`[instances] Default plugins installation completed for instance ${instanceId}`);
+
+    // 只在全部插件到位后写标记（失败不写 → 下次可重试）
+    if (allOk) {
+      writeFileSync(pluginInstallFlag, new Date().toISOString());
+      console.log(`[instances] Default plugins installation completed for instance ${instanceId}`);
+    } else {
+      console.log(`[instances] Some plugins failed; marker not written for instance ${instanceId} (will retry)`);
+    }
   } catch (err) {
     console.error(`[instances] Plugin installation error:`, err);
   }
+}
+
+/** 把插件 spec（如 `github:owner/repo#ref`）归一化为 `package.json` 里的包名。 */
+function toPackageName(spec: string): string {
+  const gh = spec.match(/^github:[^/]+\/([^#]+)(?:#.*)?$/);
+  return gh ? gh[1]! : spec;
+}
+
+/**
+ * 校验模板是否包含全部默认插件。
+ * 判据：`profiles/web/package.json` 的 `dependencies` 覆盖全部插件包名。
+ * 不再以 `existsSync(profiles/web/node_modules)` 作为"完整"判据——否则缺插件的
+ * 模板会被当成已装好，从而锁死降级/启动兜底（生产实测根因）。
+ */
+function templateHasAllPlugins(templateHome: string, plugins: readonly string[]): boolean {
+  const pkgPath = join(templateHome, 'profiles', 'web', 'package.json');
+  if (!existsSync(pkgPath)) return false;
+  let pkg: { dependencies?: Record<string, unknown> };
+  try {
+    pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+  } catch {
+    return false;
+  }
+  return plugins.every(p => !!pkg.dependencies?.[toPackageName(p)]);
 }
 
 /**
@@ -216,7 +247,9 @@ async function installDefaultPlugins(homePath: string, workspacePath: string, in
  *
  * 复制整棵 profiles/（含 web/ 的插件与配置、profiles/node_modules/ 共享依赖），
  * 目标路径是 homePath/profiles/（DSH 真实布局），而非旧的 homePath/node_modules。
- * 成功写 .plugins-installed 标记；模板缺失/不完整或复制抛错返回 false，触发降级安装。
+ * 【关键】复制前先用 templateHasAllPlugins 校验模板确实装齐全部默认插件：
+ * 只有模板确证完整才复制并写 `.plugins-installed`；模板缺失 / 插件不全 / 复制抛错
+ * 一律返回 false，触发运行时逐个真装，避免"不完整模板被当已安装"（生产根因）。
  */
 function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean {
   const templateHome = getTemplateDshHome();
@@ -225,13 +258,13 @@ function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean 
     return false;
   }
 
-  const srcProfiles = join(templateHome, 'profiles');
-  // 模板必须含 profiles/web/node_modules（插件本体）；缺了视为不完整，走降级安装
-  if (!existsSync(join(srcProfiles, 'web', 'node_modules'))) {
-    console.log(`[instances] Template profile incomplete (missing profiles/web/node_modules), falling back to install`);
+  // ① 先校验模板完整性：全部默认插件必须已登记，否则视为不完整 → 降级真装
+  if (!templateHasAllPlugins(templateHome, DEFAULT_PLUGINS)) {
+    console.log(`[instances] Template profile incomplete (missing plugins), falling back to install`);
     return false;
   }
 
+  const srcProfiles = join(templateHome, 'profiles');
   console.log(`[instances] Copying pre-installed profile from template for instance ${instanceId}...`);
   try {
     const dstProfiles = join(homePath, 'profiles');
@@ -244,6 +277,7 @@ function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean 
     const srcNpmrc = join(templateHome, '.npmrc');
     if (existsSync(srcNpmrc)) cpSync(srcNpmrc, join(homePath, '.npmrc'));
 
+    // ② 模板已校验齐全 + 复制成功 → 才写标记（否则锁死后续真装）
     writeFileSync(join(homePath, '.plugins-installed'), new Date().toISOString());
     console.log(`[instances] Pre-installed profile copied successfully for instance ${instanceId}`);
     return true;

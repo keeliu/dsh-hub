@@ -57,6 +57,7 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
         console.log(`[spawn] Created .npmrc to allow build scripts`);
       }
       
+      let allOk = true;
       for (const plugin of DEFAULT_PLUGINS) {
         console.log(`[spawn] Installing plugin: ${plugin}`);
         try {
@@ -73,12 +74,17 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
           });
           console.log(`[spawn] ✅ Plugin ${plugin} installed successfully`);
         } catch (err) {
+          allOk = false;
           console.error(`[spawn] ❌ Failed to install plugin ${plugin}:`, err);
         }
       }
-      // 创建标记文件，避免重复安装
-      writeFileSync(pluginInstallFlag, new Date().toISOString());
-      console.log(`[spawn] Default plugins installation completed for instance ${record.id}`);
+      // 只在全部插件到位后写标记（失败不写 → 下次可重试）
+      if (allOk) {
+        writeFileSync(pluginInstallFlag, new Date().toISOString());
+        console.log(`[spawn] Default plugins installation completed for instance ${record.id}`);
+      } else {
+        console.log(`[spawn] Some plugins failed; marker not written for instance ${record.id} (will retry)`);
+      }
     } catch (err) {
       console.error(`[spawn] Plugin installation error:`, err);
       // 插件安装失败不阻塞实例启动

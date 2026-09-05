@@ -98,3 +98,56 @@
 **Given** 实例创建完成（模板复制成功）
 **When** `startInstance()` 以 `DSH_HOME=<home>` 启动 `dsh web`
 **Then** `dsh web` 从 `profiles/web` 启动，预设插件已加载（无需再安装）
+
+---
+
+# 补充验收：生产根因修正（A/B/C）
+
+## 场景 13：模板完整性与插件齐全
+
+**Given** 镜像构建完成
+**When** 检查 `/opt/dsh-home-template/profiles/web/package.json` 的 `dependencies`
+**Then** 覆盖**全部 `DEFAULT_PLUGINS`**
+**And** 不再因 `|| echo WARN` 而静默容忍缺插件（任一插件安装失败即构建失败）
+**And** `dsh.profile.bundles` 也包含全部默认插件
+
+## 场景 14：复制前校验完整性
+
+**Given** 模板存在但**缺插件**（`web/package.json` 的 `dependencies` 未覆盖全部 `DEFAULT_PLUGINS`）
+**When** `copyPreinstalledPlugins()` 执行
+**Then** 返回 `false`
+**And** **不写** `.plugins-installed`
+**And** 控制台输出 `Template profile incomplete (missing plugins), falling back to install`
+**And** 走 `installDefaultPlugins()` 逐个真装
+
+## 场景 15：标记只在齐全后写
+
+**Given** 进行 `copyPreinstalledPlugins()` / `installDefaultPlugins()` / `spawn.ts` 安装
+**When** 任一 `DEFAULT_PLUGINS` 安装失败
+**Then** **不写** `.plugins-installed`，记录失败，下次可重试
+**When** 全部插件到位
+**Then** 才写 `.plugins-installed`
+
+## 场景 16：github 源插件可安装或已替换
+
+**Given** `DEFAULT_PLUGINS` 含 `github:` 源插件
+**When** 安装
+**Then** 该源的 build/prepare 脚本已被允许（profile 的 `pnpm-workspace.yaml` 配了 `allowBuilds`）
+**And** 其 git ref 可解析（不存在 `Could not resolve ... to a commit` 错误）
+**Or** `github:` 源已替换为/等价于 npm 源，全部插件可从 npm registry 成功安装
+
+## 场景 17：存量实例处理
+
+**Given** 既有实例 `i-*` 早期在空/缺插件模板下创建、且已带 `.plugins-installed`
+**When** 采用本修正
+**Then** 该实例被删除重建，或手动 `dsh plugin --profile web add` 逐个补齐并处理 `allowBuilds`
+**And** 补装后 `web/package.json` 的 `dependencies` 覆盖全部 `DEFAULT_PLUGINS`
+
+## 场景 18：端到端生效
+
+**Given** 修正完成并重建镜像/清理存量
+**When** 新建一个实例并启动 `dsh web`
+**Then** `home/profiles/web/package.json` 含全部 `DEFAULT_PLUGINS`
+**And** `home/profiles/web/node_modules/` 有对应插件包
+**And** `dsh web` 启动日志无"模块/依赖解析失败"
+**And** 实例运行时预设插件可用

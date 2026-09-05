@@ -53,6 +53,25 @@
 - [ ] 4.7 验收 `spawn.ts`：已无本地 `DEFAULT_PLUGINS`，启动兜底仍在且受 marker 门控
 - [ ] 4.8 运行既有冒烟测试：`bash dsh-hub/scripts/m1-smoke.sh`、`m2-smoke.sh`、`security-regression.sh`
 
+## 阶段 6：生产修复（基于实测根因，A/B/C）
+
+> 背景：1.1 / 2.1 等"已完成"仅在**结构层面**落地；生产实测发现**未生效**（模板只装 3/5、复制不校验、标记锁死）。以下为修正项，全部完成后重新验证。
+
+### A. 复制不做假完成（系统性）
+- [x] 6.1 `copyPreinstalledPlugins()`（`dsh-hub/src/instances.ts`）复制前**校验全部 `DEFAULT_PLUGINS` 已登记**到 `web/package.json` 依赖（或 `web/node_modules` 含对应包）；缺失任一 → 返回 `false`，走运行时真装
+  - 新增 `templateHasAllPlugins(templateHome, plugins)` 辅助函数（解析 `web/package.json` 的 `dependencies`）
+  - 不再以 `existsSync(profiles/web/node_modules)` 作为"完整"判据（改用 `templateHasAllPlugins`）
+- [x] 6.2 **只在全部插件到位后写 `.plugins-installed`**；`installDefaultPlugins()`、`spawn.ts` 同步改为"成功才写标记、失败不写可重试"（`allOk` 门控）
+
+### B. 插件清单与可安装性
+- [x] 6.3 `dsh-hub/src/config.ts`：`DEFAULT_PLUGINS` 里 2 个 `github:` 源**替换为可用 npm 源**（`dsh-better-sidebar`、`dsh-cost-meter` 均已实测 npm 可解析）；全部插件走 npm registry
+- [x] 6.4 不再保留 `github:` 源 → `allowBuilds` 场景不再触发（5 个 npm 包均无 `postinstall`，`prepare` 不随 registry 安装执行，pnpm git-deps 拦截已规避）
+- [x] 6.5 `dsh-hub/Dockerfile`：`template-builder` 阶段**去掉 `|| echo WARN`**，任一插件安装失败即构建失败（`&&` 短路）；并新增构建期校验模板 `dependencies` 覆盖全部 `DEFAULT_PLUGINS`
+  - `git` 已在构建镜像安装（`/usr/bin/git` 已实测存在）
+
+### C. 存量实例
+- [ ] 6.6 对被"空模板 + 完成标记"锁死的存量实例：**删除重建**，或手动 `dsh plugin --profile web add` 逐个补齐（`i-c723a367` 需处理）
+
 ## 阶段 5：文档与归档
 
 - [x] 5.1 更新 `AGENTS.md`「当前进度」，记录会员实例预置模板完成

@@ -1,24 +1,67 @@
 # 实施清单：会员实例预置模板
 
-## 阶段 1：环境准备
+## 阶段 1：环境准备（手动执行）
 
-- [ ] 1.1 创建模板目录
-  - 在服务器上创建 `/opt/dsh-home-template` 目录
-  - 设置正确的权限（755）
+> **重要**：此阶段需要在服务器上手动执行，创建包含所有预置插件的模板目录。
 
-- [ ] 1.2 初始化模板 Profile
-  - 手动创建一个临时 DSH 实例
-  - 安装所有默认插件（`dshmarket`、`DSH-better-sidebar`、`dsh-im`、`dsh-cost-meter`、`dsh-visualize`）
-  - 验证插件安装成功
+- [ ] 1.1 创建临时 DSH 实例
+  ```bash
+  # 在服务器上执行
+  mkdir -p /tmp/dsh-template-home
+  export DSH_HOME=/tmp/dsh-template-home
+  
+  # 初始化 web profile（会启动实例）
+  dsh --profile web --no-open
+  ```
+  - 等待实例启动完成
+  - 验证 `profiles/web/` 目录已创建
+
+- [ ] 1.2 安装所有默认插件
+  ```bash
+  # 在另一个终端执行（保持实例运行）
+  export DSH_HOME=/tmp/dsh-template-home
+  
+  dsh plugin --profile web add dshmarket
+  dsh plugin --profile web add DSH-better-sidebar
+  dsh plugin --profile web add dsh-im
+  dsh plugin --profile web add dsh-cost-meter
+  dsh plugin --profile web add dsh-visualize
+  ```
+  - 验证每个插件安装成功
   - **关键**：确保 `profiles/node_modules/` 目录存在（由 `healProfilesModuleFallback` 机制创建）
 
-- [ ] 1.3 导出模板
-  - 将临时实例的 `home/` 目录复制到 `/opt/dsh-home-template`
-  - 清除敏感信息（`.credentials.yaml`、`.env` 等）
-  - 验证模板目录结构完整，包含：
-    - `profiles/web/` 目录（包含所有配置文件和插件）
-    - `profiles/node_modules/` 目录（共享依赖）
-    - `.npmrc` 文件
+- [ ] 1.3 停止临时实例并清除敏感信息
+  ```bash
+  # 停止实例（Ctrl+C 或 kill 进程）
+  
+  # 清除敏感信息
+  rm -f /tmp/dsh-template-home/.credentials.yaml
+  rm -f /tmp/dsh-template-home/.env
+  rm -rf /tmp/dsh-template-home/sessions/
+  rm -rf /tmp/dsh-template-home/workspace/
+  ```
+
+- [ ] 1.4 导出模板到正式目录
+  ```bash
+  # 复制到模板目录
+  cp -r /tmp/dsh-template-home /opt/dsh-home-template
+  
+  # 设置权限
+  chmod -R 755 /opt/dsh-home-template
+  
+  # 清理临时目录
+  rm -rf /tmp/dsh-template-home
+  ```
+
+- [ ] 1.5 验证模板目录结构完整
+  确认包含以下内容：
+  - `profiles/web/package.json` - 依赖清单
+  - `profiles/web/cordis.patch.yml` - 插件配置
+  - `profiles/web/pnpm-lock.yaml` - 依赖锁定
+  - `profiles/web/pnpm-workspace.yaml` - pnpm workspace 配置
+  - `profiles/web/node_modules/` - 插件 bundle（实际代码）
+  - `profiles/node_modules/` - 共享依赖（重要！）
+  - `.npmrc` - npm 配置
 
 ## 阶段 2：代码修改 - 修复复制逻辑
 

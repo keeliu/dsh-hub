@@ -34,6 +34,15 @@ export interface SmtpConfig {
   secure: boolean;
 }
 
+/** 实例创建时预置的默认插件（单一真相源，instances.ts / spawn.ts 均从此导入）。 */
+export const DEFAULT_PLUGINS = [
+  'dshmarket',
+  'github:omdsh-dev/DSH-better-sidebar#main',
+  '@xmanrui/dsh-im',
+  'github:Han-1413141/dsh-cost-meter#main',
+  'dsh-visualize',
+] as const;
+
 const here = dirname(fileURLToPath(import.meta.url));
 
 function loadConfig(): Config {
@@ -77,6 +86,11 @@ export function getDshBin(): string | null {
   const guess = join(dirname(process.execPath), '..', 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
   if (existsSync(guess)) return guess;
   return null;
+}
+
+/** 获取预置插件模板目录（Docker 构建期产出），默认 /opt/dsh-home-template。 */
+export function getTemplateDshHome(): string {
+  return process.env.TEMPLATE_DSH_HOME ?? '/opt/dsh-home-template';
 }
 
 /** 获取会员到期检查间隔（毫秒），默认 1 小时 */

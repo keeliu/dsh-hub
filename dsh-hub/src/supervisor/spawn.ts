@@ -10,16 +10,7 @@ import { clearPidfile, readPidfile, writePidfile } from './pidfile.ts';
 import { instanceLogDir, rotateLog, writeFailureSnapshot, tailLog } from './log.ts';
 import { stopProcessGroup } from './stop.ts';
 import { isValidHarnessVersion } from '../version.ts';
-import { getDshBin } from '../config.ts';
-
-// 默认插件列表（实例创建时自动安装）
-const DEFAULT_PLUGINS = [
-  'dshmarket',
-  'github:omdsh-dev/DSH-better-sidebar#main',
-  '@xmanrui/dsh-im',
-  'github:Han-1413141/dsh-cost-meter#main',
-  'dsh-visualize',
-];
+import { getDshBin, DEFAULT_PLUGINS } from '../config.ts';
 
 export interface StartResult {
   status: 'running' | 'failed';

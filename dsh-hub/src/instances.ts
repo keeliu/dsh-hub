@@ -16,18 +16,10 @@ import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { withTx } from './db.ts';
-import { config, getDshBin } from './config.ts';
+import { config, getDshBin, DEFAULT_PLUGINS, getTemplateDshHome } from './config.ts';
 import { allocatePort } from './port.ts';
 import { instanceDir, instanceHome, instanceWorkspace, INSTANCE_SUBDIRS, userDir } from './paths.ts';
 
-// 默认插件列表（实例创建时自动安装）
-const DEFAULT_PLUGINS = [
-  'dshmarket',
-  'github:omdsh-dev/DSH-better-sidebar#main',
-  '@xmanrui/dsh-im',
-  'github:Han-1413141/dsh-cost-meter#main',
-  'dsh-visualize',
-];
 import { shortId, type UserRow } from './users.ts';
 import type { InstanceRecord } from './supervisor/index.ts';
 
@@ -220,64 +212,43 @@ async function installDefaultPlugins(homePath: string, workspacePath: string, in
 }
 
 /**
- * 从模板目录复制预装插件到实例（实例创建后自动调用）
- * 同步执行，确保实例创建完成时插件已就绪
+ * 从模板目录复制预置 profile 到实例（实例创建后自动调用，同步执行）。
+ *
+ * 复制整棵 profiles/（含 web/ 的插件与配置、profiles/node_modules/ 共享依赖），
+ * 目标路径是 homePath/profiles/（DSH 真实布局），而非旧的 homePath/node_modules。
+ * 成功写 .plugins-installed 标记；模板缺失/不完整或复制抛错返回 false，触发降级安装。
  */
 function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean {
-  const templateHome = process.env.TEMPLATE_DSH_HOME || '/opt/dsh-home-template';
-  
-  // 检查模板目录是否存在
+  const templateHome = getTemplateDshHome();
   if (!existsSync(templateHome)) {
     console.log(`[instances] Template directory not found: ${templateHome}, falling back to install`);
     return false;
   }
-  
-  console.log(`[instances] Copying pre-installed plugins from template for instance ${instanceId}...`);
-  
+
+  const srcProfiles = join(templateHome, 'profiles');
+  // 模板必须含 profiles/web/node_modules（插件本体）；缺了视为不完整，走降级安装
+  if (!existsSync(join(srcProfiles, 'web', 'node_modules'))) {
+    console.log(`[instances] Template profile incomplete (missing profiles/web/node_modules), falling back to install`);
+    return false;
+  }
+
+  console.log(`[instances] Copying pre-installed profile from template for instance ${instanceId}...`);
   try {
-    // 复制插件目录（node_modules 中的插件）
-    const templateNodeModules = join(templateHome, 'node_modules');
-    const targetNodeModules = join(homePath, 'node_modules');
-    
-    if (existsSync(templateNodeModules)) {
-      if (!existsSync(targetNodeModules)) {
-        mkdirSync(targetNodeModules, { recursive: true });
-      }
-      
-      // 复制每个插件（需要处理不同的包名）
-      const pluginMap: Record<string, string> = {
-        'dshmarket': 'dshmarket',
-        'github:omdsh-dev/DSH-better-sidebar#main': 'dsh-better-sidebar',
-        '@xmanrui/dsh-im': '@xmanrui/dsh-im',
-        'github:Han-1413141/dsh-cost-meter#main': 'dsh-cost-meter',
-        'dsh-visualize': 'dsh-visualize',
-      };
-      
-      for (const [pluginKey, pluginDir] of Object.entries(pluginMap)) {
-        const srcPlugin = join(templateNodeModules, pluginDir);
-        const destPlugin = join(targetNodeModules, pluginDir);
-        
-        if (existsSync(srcPlugin)) {
-          cpSync(srcPlugin, destPlugin, { recursive: true });
-          console.log(`[instances] ✅ Copied plugin: ${pluginDir}`);
-        } else {
-          console.log(`[instances] ⚠️  Plugin not found in template: ${pluginDir}`);
-        }
-      }
-    }
-    
-    // 复制 .npmrc
-    const templateNpmrc = join(templateHome, '.npmrc');
-    if (existsSync(templateNpmrc)) {
-      cpSync(templateNpmrc, join(homePath, '.npmrc'));
-    }
-    
-    // 创建标记文件
+    const dstProfiles = join(homePath, 'profiles');
+    mkdirSync(dstProfiles, { recursive: true });
+    // verbatimSymlinks: true（默认）保留软链原样：
+    // - profiles/web/node_modules 内 pnpm 的相对软链指向实例自身 .pnpm 仓库 → 每实例独立；
+    // - profiles/node_modules 内指向全局 dsh 安装的绝对软链由启动期 healProfilesModuleFallback 重指向。
+    cpSync(srcProfiles, dstProfiles, { recursive: true, verbatimSymlinks: true });
+
+    const srcNpmrc = join(templateHome, '.npmrc');
+    if (existsSync(srcNpmrc)) cpSync(srcNpmrc, join(homePath, '.npmrc'));
+
     writeFileSync(join(homePath, '.plugins-installed'), new Date().toISOString());
-    console.log(`[instances] Pre-installed plugins copied successfully for instance ${instanceId}`);
+    console.log(`[instances] Pre-installed profile copied successfully for instance ${instanceId}`);
     return true;
   } catch (err) {
-    console.error(`[instances] Failed to copy pre-installed plugins:`, err);
+    console.error(`[instances] Failed to copy pre-installed profile:`, err);
     return false;
   }
 }

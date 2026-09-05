@@ -1,222 +1,44 @@
-# 会员实例预置模板方案
+# 变更提案：会员实例预置插件自动装载
 
 ## Why（为什么做）
 
-当前会员购买后创建 DSH 实例时，需要逐个安装插件（`dsh plugin add`），耗时较长（可能数分钟），用户体验差。
+用户创建 DSH 实例后，默认需要**逐个安装预设插件**（`dsh plugin add`），每个插件可能来自 npm 或 GitHub，且部分含原生编译（如 `node-pty`），单实例耗时可达数分钟。用户从「创建实例」到「能正常使用带插件的工作空间」等待过长，体验差，也容易在启动阶段因插件未就绪而失败。
 
-### 现有代码分析
+**目标**：在实例创建阶段就**自动、快速、可靠**地把一整套预设插件装载进该用户实例的独立 `DSH_HOME`，保证实例首次启动即可用。
 
-#### 两处插件安装逻辑
+## 现状：三层递进装载，但复制不完整、常量重复
 
-**位置 1：`instances.ts` - `installDefaultPlugins()` 函数（第 172-220 行）**
-- 在 `createInstance()` 中被调用（第 94 行）
-- 异步执行，不阻塞实例创建
-- 使用 `dsh plugin --profile web add` 命令逐个安装插件
-- 创建 `.plugins-installed` 标记文件
+当前 `instances.ts` + `supervisor/spawn.ts` 已经实现「模板复制 → 异步安装 → 启动兜底」三层机制（见 `instances.ts:copyPreinstalledPlugins` / `installDefaultPlugins`、`spawn.ts:startInstance`），但存在两个缺陷：
 
-**位置 2：`spawn.ts` - `startInstance()` 函数（第 55-94 行）**
-- 在首次启动时检查 `.plugins-installed` 标记
-- 如果标记不存在，再次执行插件安装
-- 这是**兜底逻辑**，防止 `createInstance` 中的异步安装未完成
+1. **复制不完整**：`copyPreinstalledPlugins()` 只复制 `模板/node_modules` 和 `.npmrc`，且把插件复制到 `homePath/node_modules`（顶层），而 DSH 实际从 `$DSH_HOME/profiles/web/node_modules` 加载插件。复制目标路径与 DSH 真实 profile 布局不一致；也没有复制 `profiles/web/*.{json,yml,yaml}` 配置文件与关键的 `profiles/node_modules/` 共享依赖。
+2. **常量重复**：`DEFAULT_PLUGINS` 在 `instances.ts` 与 `spawn.ts` 各定义一份，容易不同步；`TEMPLATE_DSH_HOME` 在 `instances.ts` 直接读 `process.env`，违反 `standards.md` §4.2「除 config.ts 外任何模块不得直接访问 process.env」。
 
-#### 新增的 `copyPreinstalledPlugins()` 函数（第 226-283 行）
+因为复制不完整，真正把插件装进 `profiles/web` 的往往是异步安装/启动兜底（逐包 `dsh plugin add`），而「模板快复制」只在少数路径下提前写好 `.plugins-installed`，反而可能跳过完整安装 —— 属于「想快但复制不全」的中间态。
 
-- 在 `createInstance()` 中被调用（第 88 行）
-- 从模板目录复制 `node_modules` 和 `.npmrc`
-- 也创建 `.plugins-installed` 标记文件
-- **问题**：只复制了 `node_modules`，没有复制完整的 Profile 目录
+## 方案决策（两根轴，分别选择）
 
-### 现有代码冲突分析
-
-#### ⚠️ 冲突 1：`.plugins-installed` 标记文件重复创建
-
-| 函数 | 创建标记文件 | 位置 |
-|------|------------|------|
-| `copyPreinstalledPlugins()` | 第 276 行 | `homePath/.plugins-installed` |
-| `installDefaultPlugins()` | 第 215 行 | `homePath/.plugins-installed` |
-| `spawn.ts startInstance()` | 第 89 行 | `homePath/.plugins-installed` |
-
-**问题**：如果 `copyPreinstalledPlugins()` 成功，会创建标记文件，导致 `installDefaultPlugins()` 和 `spawn.ts` 中的安装逻辑都被跳过。但如果复制不完整（只复制了 `node_modules`），插件可能无法正常工作。
-
-#### ⚠️ 冲突 2：`copyPreinstalledPlugins()` 复制不完整
-
-**当前复制内容**：
-- ✅ `node_modules/` 中的插件
-- ✅ `.npmrc`
-
-**遗漏内容**（根据 DSH Profile 标准结构和启动链路分析）：
-
-| 文件/目录 | 作用 | 来源 |
-|----------|------|------|
-| `profiles/web/package.json` | 依赖清单（由 dsh plugin 管理） | DSH 官方文档 |
-| `profiles/web/cordis.patch.yml` | 插件配置（用户可自定义） | DSH 启动链路分析 |
-| `profiles/web/pnpm-lock.yaml` | 插件版本锁定 | pnpm 标准 |
-| `profiles/web/pnpm-workspace.yaml` | pnpm workspace 配置 | pnpm 标准 |
-| `profiles/node_modules/` | **共享依赖**（Cordis 实例共享） | `healProfilesModuleFallback` 机制 |
-
-**关键发现**：根据 DSH 启动链路分析文章第 4.2 节：
-
-> `healProfilesModuleFallback` 会把 dsh 安装的依赖闭包镜像到 `$DSH_HOME/profiles/node_modules`（符号链接），让 profile 里的插件和 dsh 共享同一个 Cordis 实例。
-
-这意味着模板目录**必须包含** `profiles/node_modules/`，否则插件可能无法正确加载 Cordis 实例。
-
-#### ⚠️ 冲突 3：`DEFAULT_PLUGINS` 常量重复定义
-
-- `instances.ts` 第 19-25 行定义了一次
-- `spawn.ts` 第 16-22 行又定义了一次
-
-**问题**：两处定义完全相同，但维护时容易不同步。
-
-### 本项目特殊性
-
-本项目采用**每实例独立 DSH_HOME** 架构，每个实例拥有独立的 Profile 目录：
-
-```
-<dataDir>/users/<dir_name>/instances/<instanceId>/home/
-└── profiles/
-    ├── web/                        ← 每个实例的 Profile 路径不同
-    │   ├── package.json            # 依赖清单
-    │   ├── cordis.patch.yml        # 插件配置
-    │   ├── pnpm-lock.yaml          # 版本锁定
-    │   ├── pnpm-workspace.yaml     # workspace 配置
-    │   └── node_modules/           # 插件 bundle
-    └── node_modules/               ← 共享依赖（Cordis 实例共享）
-```
-
-这与 DSH 默认的全局 `~/.dsh/profiles/` 不同，模板方案需要适配这种独立路径架构。
-
-### 模板目录完整结构
-
-根据 DSH 启动链路分析，模板目录应包含：
-
-```
-/opt/dsh-home-template/
-├── profiles/
-│   ├── web/
-│   │   ├── package.json          # 依赖清单（由 dsh plugin 管理）
-│   │   ├── cordis.patch.yml      # 插件配置（用户可自定义）
-│   │   ├── pnpm-lock.yaml        # 版本锁定
-│   │   ├── pnpm-workspace.yaml   # workspace 配置
-│   │   └── node_modules/         # 插件 bundle
-│   └── node_modules/             # 共享依赖（healProfilesModuleFallback 机制）
-└── .npmrc                        # npm 配置
-```
-
-**关键**：`profiles/node_modules/` 是共享依赖目录，由 `healProfilesModuleFallback` 机制创建，让所有 profile 共享同一个 Cordis 实例。
-
-## 模板准备方案对比
-
-### 方案 A：手动准备（当前方案）
-
-**流程**：
-1. 在服务器上手动创建临时 DSH 实例
-2. 安装所有默认插件
-3. 清除敏感信息
-4. 复制到模板目录
-
-**优点**：
-- 简单直接，立即可用
-- 不依赖构建流程
-
-**缺点**：
-- 需要手动操作，容易出错
-- 难以版本控制和追溯
-- 更新插件列表需要重新手动操作
-- 依赖服务器上的 DSH 安装
-
-### 方案 B：Docker 多阶段构建（推荐）
-
-**流程**：
-1. 在 Dockerfile 中添加模板构建阶段
-2. `docker build` 时自动安装插件
-3. 从构建阶段复制模板到最终镜像
-
-**优点**：
-- 完全自动化，集成到现有构建流程
-- 可重复，每次构建结果一致
-- 版本可控，模板版本与代码版本绑定
-- 不依赖服务器上的 DSH 安装
-
-**缺点**：
-- 需要修改 Dockerfile
-- 构建时间增加（约 5-10 分钟）
-
-### 方案 C：CI/CD 预构建 tarball
-
-**流程**：
-1. 在 CI/CD 中运行脚本生成模板
-2. 打包成 tarball 上传到对象存储
-3. 部署时下载并解压
-
-**优点**：
-- 部署速度快（下载 vs 构建）
-- 模板独立于代码版本
-- 可单独更新模板
-
-**缺点**：
-- 需要额外的 CI/CD 配置
-- 需要对象存储
-- 版本管理复杂
-
-### 推荐方案：方案 B（Docker 多阶段构建）
-
-**理由**：
-1. **完全自动化** - 集成到现有 Dockerfile，`docker build` 时自动准备
-2. **可重复** - 每次构建结果一致，消除人为错误
-3. **版本可控** - 模板版本与代码版本绑定，便于追溯
-4. **路径无关** - 在容器内构建，使用统一的临时路径，天然支持路径无关
-
----
+| 决策轴 | 结论 | 选择理由 |
+|---|---|---|
+| **模板如何生产** | **方案 B：Docker 多阶段构建** | 全自动、可重复、模板版本与镜像版本绑定、构建期路径无关，不依赖服务器上已有的 DSH 安装 |
+| **运行时如何装载** | **方案 A：保留复制架构，只修复复制逻辑** | 改动最小、不引入外部 `dshp` 工具依赖、保留现有异步创建流程；方案 B（`dshp import` 重构）改动大且依赖工具可用性 |
 
 ## What Changes（做什么）
 
-采用**方案 B（Docker 多阶段构建）**：
+1. **模板生产（Docker）**：在 `dsh-hub/Dockerfile` 增加 `template-builder` 阶段，用 `DSH_HOME=/opt/dsh-home-template` 预装全部默认插件，产出 `/opt/dsh-home-template`；最终镜像 `COPY` 该目录，并设置 `TEMPLATE_DSH_HOME` 环境变量。
+2. **修复 `copyPreinstalledPlugins()`**：改为复制**整个 `profiles/` 目录树**（含 `profiles/web/*` 配置与插件、以及 `profiles/node_modules/` 共享依赖），并校正目标路径到 `homePath/profiles/`；用 `verbatimSymlinks: false` 让每次复制得到独立实目录而非符号链接。
+3. **统一单一真相源**：把 `DEFAULT_PLUGINS` 收敛到 `config.ts` 导出（删除 `instances.ts` / `spawn.ts` 里的重复定义）；`TEMPLATE_DSH_HOME` 也经由 `config.ts` 读取（符合 standards §4.2）。
+4. **保底降级路径**：模板缺失或复制失败时，保留 `installDefaultPlugins()` 作为降级（异步逐包 `dsh plugin --profile web add`），并用 `.plugins-installed` 标记门控，避免重复安装。保留 `spawn.ts` 启动兜底作为最后安全网。
 
-1. **修改 Dockerfile** - 添加模板构建阶段
-2. **修复 `copyPreinstalledPlugins()` 函数** - 复制完整的 Profile 目录
-3. **删除 `installDefaultPlugins()` 函数** - 不再需要逐个安装插件
-4. **删除 `spawn.ts` 中的插件安装兜底逻辑** - 模板复制已确保插件就绪
-5. **统一 `DEFAULT_PLUGINS` 常量定义** - 提取到公共文件，用于文档说明
+> 注：`openspec/changes/dsh-plugin-install-fix/` 已先行定义了正确的插件安装命令（`dsh plugin --profile web add`），本提案沿用该命令，不改命令语法。
 
 ## Impact（影响范围）
 
-- **影响文件**：
-  - `dsh-hub/src/instances.ts`（修改 `copyPreinstalledPlugins()`，删除 `installDefaultPlugins()`）
-  - `dsh-hub/src/supervisor/spawn.ts`（删除插件安装兜底逻辑）
-  - `dsh-hub/src/config.ts`（新增 `DEFAULT_PLUGINS` 常量）
-- **影响功能**：会员购买后实例创建流程
-- **风险等级**：中（涉及实例创建流程改造）
-- **向后兼容**：兼容（保留标记文件检查逻辑）
-
-## 方案对比
-
-### 方案 A：保留现有架构，修复复制逻辑（推荐）
-
-**调整内容**：
-1. 修改 `copyPreinstalledPlugins()` 复制完整的 Profile 目录
-2. 删除 `installDefaultPlugins()` 函数
-3. 删除 `spawn.ts` 中的插件安装兜底逻辑
-4. 统一 `DEFAULT_PLUGINS` 常量定义
-
-**优点**：
-- 改动最小，风险可控
-- 不依赖外部工具（`dshp` 可能不可用）
-- 保留现有的异步创建流程
-
-**缺点**：
-- 仍然依赖模板目录的完整性
-
-### 方案 B：完全重构，使用 `dshp` 工具
-
-**调整内容**：
-1. 新增 `initInstanceFromTemplate()` 函数
-2. 使用 `dshp import` 命令从模板创建实例
-3. 删除所有现有的插件安装逻辑
-
-**优点**：
-- 最可靠，由 DSH 官方工具处理
-- 代码最简洁
-
-**缺点**：
-- 依赖 `dshp` 工具可用
-- 需要改变实例创建流程
+- **受影响文件**：
+  - `dsh-hub/Dockerfile`（新增模板构建阶段）
+  - `dsh-hub/src/instances.ts`（修复 `copyPreinstalledPlugins()`，删除重复 `DEFAULT_PLUGINS`）
+  - `dsh-hub/src/supervisor/spawn.ts`（删除重复 `DEFAULT_PLUGINS`，保留启动兜底）
+  - `dsh-hub/src/config.ts`（新增 `DEFAULT_PLUGINS`、`templateDshHome`）
+  - `dsh-hub/scripts/install-default-plugins.sh`（保持一致，可选）
+- **影响功能**：会员购买/新建实例后的插件预置流程。
+- **风险等级**：中（涉及实例创建与首次启动路径，需回归冒烟测试）。
+- **向后兼容**：兼容。保留 `.plugins-installed` 标记检查逻辑；旧实例已安装的不受影响。

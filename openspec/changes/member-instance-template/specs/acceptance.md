@@ -1,119 +1,100 @@
-# 验收规范：会员实例预置模板
+# 验收规范：会员实例预置插件自动装载
 
-## 场景 1：模板目录初始化
+## 场景 1：模板目录结构完整
 
-**Given** 服务器上存在 `/opt/dsh-home-template` 目录
-**When** 目录包含完整的 Profile 结构（`profiles/` 及其所有子目录）
-**Then** 目录结构符合 DSH Profile 标准：
-- `profiles/web/package.json` 存在
-- `profiles/web/cordis.patch.yml` 存在
-- `profiles/web/pnpm-lock.yaml` 存在
-- `profiles/web/pnpm-workspace.yaml` 存在
-- `profiles/web/node_modules/` 包含所有默认插件
-- `profiles/node_modules/` 存在（共享依赖，由 `healProfilesModuleFallback` 机制创建）
+**Given** 镜像构建完成
+**When** 检查 `/opt/dsh-home-template` 目录
+**Then** 存在：
+- `profiles/web/package.json`
+- `profiles/web/cordis.patch.yml`
+- `profiles/web/pnpm-lock.yaml`
+- `profiles/web/pnpm-workspace.yaml`
+- `profiles/web/node_modules/`（包含所有默认插件）
+- `profiles/node_modules/`（共享依赖，`healProfilesModuleFallback` 机制产物）
+- `.npmrc`
 
-## 场景 2：会员购买后快速创建实例
+## 场景 2：新建实例复制完整 Profile
 
-**Given** 用户购买会员并触发实例创建
-**When** `createInstance()` 被调用
-**Then** 实例创建流程执行以下步骤：
-1. 创建用户目录和实例目录
-2. 调用 `copyPreinstalledPlugins()` 从模板复制完整 Profile
-3. 创建 `.plugins-installed` 标记文件
-4. 实例创建完成，无需等待插件安装
+**Given** 用户创建新实例
+**When** `createInstance()` 调用 `copyPreinstalledPlugins()`
+**Then**：
+1. 实例 `home/profiles/` 存在
+2. `home/profiles/web/` 完整（配置 + 插件），内容与模板一致
+3. `home/profiles/node_modules/` 存在且为**实目录**（非符号链接）
+4. `.npmrc` 已复制到 `home/`
+5. `.plugins-installed` 标记已写
 
-**And** 实例的 `home/profiles/web/` 目录包含所有配置文件和插件
-**And** 实例的 `home/profiles/node_modules/` 目录包含共享依赖
+**And** 插件落盘位置为 `home/profiles/web/node_modules/`，**不是** `home/node_modules/`。
 
-## 场景 3：模板目录不存在时降级处理
+## 场景 3：复制不完整时会降级安装
 
-**Given** 模板目录 `/opt/dsh-home-template` 不存在
-**When** `copyPreinstalledPlugins()` 被调用
-**Then** 函数返回 `false`
-**And** 控制台输出降级日志：`Template directory not found, falling back to install`
-**And** 实例创建流程继续（不阻塞）
+**Given** 模板目录 `/opt/dsh-home-template` 不存在，或 `copyPreinstalledPlugins()` 抛错
+**When** `copyPreinstalledPlugins()` 执行
+**Then** 返回 `false`
+**And** 不写 `.plugins-installed`
+**And** 控制台输出 `Template directory not found, falling back to install`（或复制失败日志）
+**And** 调用方走 `installDefaultPlugins()` 降级，实例创建不阻塞
 
-## 场景 4：实例目录完整性验证
+## 场景 4：降级安装命令正确
 
-**Given** 实例创建完成
-**When** 检查实例的 `home/profiles/` 目录
-**Then** 目录包含以下文件：
+**Given** 进入 `installDefaultPlugins()` 降级路径
+**When** 遍历 `DEFAULT_PLUGINS` 逐个安装
+**Then** 每条命令为 `dsh plugin --profile web add [-w] <pkg>`，`DSH_HOME=homePath`、`cwd=workspacePath`
+**And** `dsh-im`（`@xmanrui/dsh-im`）使用 `-w`
+**And** 安装超时 120 秒
+**And** 完成后写 `.plugins-installed`
 
-### `profiles/web/` 目录
-- `package.json`
-- `cordis.patch.yml`
-- `pnpm-lock.yaml`
-- `pnpm-workspace.yaml`
-- `node_modules/` 包含所有默认插件
+## 场景 5：首次启动兜底
 
-### `profiles/node_modules/` 目录
-- 共享依赖（Cordis 实例共享）
-- 内容与模板目录中的对应文件一致
+**Given** 实例首次 `startInstance()`，且 `home/.plugins-installed` 不存在
+**When** 启动流程进入插件检查
+**Then** 执行与场景 3/4 相同的降级安装（受 marker 门控），完成后写标记再继续启动
+**And** 插件安装失败不阻塞实例启动
 
-**And** 每个文件的内容与模板目录中的对应文件一致
+## 场景 6：重复创建标记检查
 
-## 场景 5：用户路径独立性验证
+**Given** 实例已有 `.plugins-installed`
+**When** 再次执行 `copyPreinstalledPlugins()` / `installDefaultPlugins()` / 启动兜底
+**Then** 安装逻辑被跳过（不重复安装），仅覆盖复制 Profile / 更新标记时间戳
 
-**Given** 两个不同用户的实例
-**When** 比较两个实例的 `home/profiles/web/` 目录路径
+## 场景 7：用户路径独立性
+
+**Given** 用户 A 与用户 B 各有一个实例
+**When** 比较两者 Profile 路径
 **Then** 路径完全不同：
-- 用户 A：`<dataDir>/users/<dir_a>/instances/<id_a>/home/profiles/web/`
-- 用户 B：`<dataDir>/users/<dir_b>/instances/<id_b>/home/profiles/web/`
+- `…/users/<dir_a>/instances/<id_a>/home/profiles/web/`
+- `…/users/<dir_b>/instances/<id_b>/home/profiles/web/`
+**And** 各自隔离、互不影响
 
-**And** 每个实例的 Profile 目录相互隔离，互不影响
+## 场景 8：符号链接解引用
 
-## 场景 6：重复创建标记文件检查
+**Given** 模板中 `profiles/node_modules/` 是符号链接
+**When** `copyPreinstalledPlugins()`（`verbatimSymlinks: false`）
+**Then** 实例中对应目录为**实目录**（非符号链接），依赖文件完整
+**原因**：每实例需独立依赖副本，避免多实例共享同一目录产生冲突。
 
-**Given** 实例已创建完成（`.plugins-installed` 标记文件存在）
-**When** 再次调用 `copyPreinstalledPlugins()`
-**Then** 函数正常执行（不检查标记文件）
-**And** 覆盖复制 Profile 目录
-**And** 更新 `.plugins-installed` 标记文件的时间戳
+## 场景 9：单一真相源
 
-## 场景 7：代码清理验证
+**When** 检查 `config.ts`
+**Then** `DEFAULT_PLUGINS` 已定义于此
+**And** `instances.ts` 与 `spawn.ts` 中**不存在** `DEFAULT_PLUGINS` 本地定义（改为 import）
+**And** `templateDshHome`/`getTemplateDshHome()` 读取 `TEMPLATE_DSH_HOME`，`instances.ts` 不直接读 `process.env.TEMPLATE_DSH_HOME`
 
-**Given** 代码重构完成
-**When** 检查 `instances.ts` 文件
-**Then** `installDefaultPlugins()` 函数已被删除
-**And** `createInstance()` 中不再调用 `installDefaultPlugins()`
+## 场景 10：敏感信息不复制
 
-**When** 检查 `spawn.ts` 文件
-**Then** 插件安装兜底逻辑已被删除
-**And** 只保留 `ensureInstanceDirs()` 和启动逻辑
+**Given** 模板含 `.credentials.yaml`、`sessions/`、`workspace/`
+**When** 模板生产阶段与运行时复制
+**Then** 上述敏感内容不出现在实例 `home/`（构建期已清理；复制仅限 `profiles/ + .npmrc`）
 
-**When** 检查 `config.ts` 文件
-**Then** `DEFAULT_PLUGINS` 常量已定义
-**And** `instances.ts` 和 `spawn.ts` 中不再定义 `DEFAULT_PLUGINS`
+## 场景 11：模板更新后新实例生效
 
-## 场景 8：模板更新后新实例使用新模板
-
-**Given** 模板目录 `/opt/dsh-home-template` 已更新（添加新插件）
+**Given** `/opt/dsh-home-template` 更新（新增插件）
 **When** 创建新实例
-**Then** 新实例的 Profile 目录包含更新后的插件
-**And** 已创建的旧实例不受影响（保持创建时的状态）
+**Then** 新实例 Profile 包含更新后的插件
+**And** 已创建旧实例保持创建时状态不受影响
 
-## 场景 9：敏感信息清除
+## 场景 12：首次启动即可用
 
-**Given** 模板目录包含敏感信息（如 `.credentials.yaml`、`.env`）
-**When** `copyPreinstalledPlugins()` 执行复制
-**Then** 敏感文件不应被复制到实例目录
-**And** 或复制后自动清除敏感信息
-
-## 场景 10：共享依赖目录复制验证
-
-**Given** 模板目录包含 `profiles/node_modules/` 目录
-**When** `copyPreinstalledPlugins()` 执行复制
-**Then** 实例的 `home/profiles/node_modules/` 目录存在
-**And** 目录内容与模板目录一致
-**And** 如果模板中的 `profiles/node_modules/` 是符号链接，复制后应为实际目录（非符号链接）
-
-**理由**：根据 `healProfilesModuleFallback` 机制，`profiles/node_modules/` 可能是符号链接。复制时应使用 `verbatimSymlinks: false` 选项，确保复制实际内容而非链接本身。
-
-## 场景 11：符号链接处理验证
-
-**Given** 模板目录中的 `profiles/node_modules/` 是符号链接
-**When** `copyPreinstalledPlugins()` 执行复制
-**Then** 实例目录中的 `profiles/node_modules/` 是实际目录（非符号链接）
-**And** 目录内容完整，包含所有依赖文件
-
-**理由**：每个实例应有独立的依赖副本，避免多个实例共享同一目录导致的冲突。
+**Given** 实例创建完成（模板复制成功）
+**When** `startInstance()` 以 `DSH_HOME=<home>` 启动 `dsh web`
+**Then** `dsh web` 从 `profiles/web` 启动，预设插件已加载（无需再安装）

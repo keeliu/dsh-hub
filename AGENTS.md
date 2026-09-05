@@ -174,6 +174,12 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
   - 修复 `/instances` 页面出现两个顶部导航栏的问题
   - 移除 `pages.ts` 中多余的 `layout` 包裹
   - 与其他页面渲染方式保持一致
+- **会员实例预置插件自动装载**（openspec/changes/member-instance-template/）：
+  - Docker 多阶段构建：`template-builder` 阶段预装 5 个默认插件到 `/opt/dsh-home-template`，最终镜像 `COPY --from` 该模板（清理 `.credentials.yaml`/`sessions`/`workspace`）
+  - 修复 `copyPreinstalledPlugins()`：复制整棵 `profiles/` 到 `homePath/profiles/`（DSH 真实布局），不再错位复制到 `homePath/node_modules`
+  - 统一单一真相源：`DEFAULT_PLUGINS` 与 `getTemplateDshHome()` 收敛到 `config.ts`，`instances.ts`/`spawn.ts` 删除本地重复定义与 `process.env` 直接读取
+  - 保留降级链路：模板缺失/不完整 → `installDefaultPlugins()` 异步逐包安装；`spawn.ts` 启动兜底，均受 `.plugins-installed` marker 门控
+  - 软链处理：`verbatimSymlinks: true` 保留 pnpm 相对软链（每实例自包含），`profiles/node_modules` 绝对软链由启动期 `healProfilesModuleFallback` 重指向
 
 ## 架构要点
 

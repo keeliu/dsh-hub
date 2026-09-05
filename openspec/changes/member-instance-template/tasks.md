@@ -1,165 +1,60 @@
-# 实施清单：会员实例预置模板
+# 实施清单：会员实例预置插件自动装载
 
-## 阶段 1：Docker 多阶段构建（自动化）
+> 规范先行：本清单是 `proposal.md` / `design.md` 的实施步骤，全部完成后归档到
+> `openspec/changes/archive/`，并把涉及的功能规范合并入库。实现必须**先通过 `tsc -p . --noEmit`**。
 
-> **重要**：此阶段通过修改 Dockerfile 实现自动化，`docker build` 时自动准备模板。
+## 阶段 1：模板生产（Docker 多阶段构建）
 
-- [ ] 1.1 修改 Dockerfile，添加模板构建阶段
-  - 文件：`dsh-hub/Dockerfile`
-  - 添加 `template-builder` 阶段：
-    ```dockerfile
-    FROM node:24-slim AS template-builder
-    
-    # 安装依赖
-    RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
-    RUN npm i -g pnpm @deepseek-ai/dsh
-    
-    # 创建临时 home（路径固定，不影响最终模板）
-    ENV DSH_HOME=/tmp/dsh-template
-    RUN mkdir -p $DSH_HOME
-    
-    # 初始化 profile 并安装插件
-    RUN dsh --profile web --no-open &
-    RUN sleep 10 && \
-        dsh plugin --profile web add dshmarket && \
-        dsh plugin --profile web add DSH-better-sidebar && \
-        dsh plugin --profile web add dsh-im && \
-        dsh plugin --profile web add dsh-cost-meter && \
-        dsh plugin --profile web add dsh-visualize
-    
-    # 清除敏感信息
-    RUN rm -f $DSH_HOME/.credentials.yaml && \
-        rm -rf $DSH_HOME/sessions && \
-        rm -rf $DSH_HOME/workspace
-    ```
-  - 在最终镜像阶段复制模板：
-    ```dockerfile
-    COPY --from=template-builder /tmp/dsh-template /opt/dsh-home-template
-    RUN chmod -R 755 /opt/dsh-home-template
-    ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template
-    ```
+- [x] 1.1 在 `dsh-hub/Dockerfile` 增加 `template-builder` 阶段
+  - 安装 `git`、`pnpm`、`@deepseek-ai/dsh`
+  - `ENV DSH_HOME=/opt/dsh-home-template`
+  - `mkdir -p $DSH_HOME/profiles/web && echo "ignore-scripts=false" > $DSH_HOME/.npmrc`
+  - 逐个 `dsh plugin --profile web add [-w] <pkg>`（`|| echo WARN` 不阻断）
+  - 清敏感信息：`rm -f .credentials.yaml && rm -rf sessions workspace`
+- [x] 1.2 最终镜像阶段 `COPY --from=template-builder /opt/dsh-home-template /opt/dsh-home-template`
+  - `RUN chmod -R 755 /opt/dsh-home-template`
+  - `ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template`
+- [ ] 1.3 验证模板结构（`ls` 校验）：
+  - `/opt/dsh-home-template/profiles/web/{package.json,cordis.patch.yml,pnpm-lock.yaml,pnpm-workspace.yaml,node_modules/}`
+  - `/opt/dsh-home-template/profiles/node_modules/`（**共享依赖必须存在**）
+  - `/opt/dsh-home-template/.npmrc`
 
-- [ ] 1.2 验证 Docker 构建
-  ```bash
-  # 构建镜像
-  docker build -t dsh-hub:latest -f dsh-hub/Dockerfile dsh-hub/
-  
-  # 验证模板目录存在
-  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/
-  
-  # 验证模板内容完整
-  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/profiles/
-  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/profiles/web/
-  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/profiles/node_modules/
-  ```
+## 阶段 2：代码 - 修复复制逻辑
 
-- [ ] 1.3 验证路径无关性
-  - 确认模板中的配置文件使用相对路径
-  - 确认没有硬编码的绝对路径
-  - 确认 `DSH_HOME` 在运行时可动态设置
-  rm -rf /tmp/dsh-template-home/workspace/
-  ```
+- [x] 2.1 修改 `copyPreinstalledPlugins()`（`dsh-hub/src/instances.ts`）
+  - 复制**整个 `profiles/` 目录**到 `homePath/profiles/`（校正目标路径，不再复制到 `homePath/node_modules`）
+  - 使用 `cpSync(src, dst, { recursive: true, verbatimSymlinks: true })` 复制整棵 `profiles/`（保留软链，保证每实例自包含）
+  - `profiles/web/node_modules/` 的 pnpm 相对软链保留（指向实例自身 `.pnpm` 仓库）；`profiles/node_modules/` 绝对软链由启动期 `healProfilesModuleFallback` 重指向
+  - 复制 `.npmrc`；成功则写 `.plugins-installed`
+  - 模板缺失/不完整或复制抛错 → 返回 `false`（触发降级）
+  - > 注：design.md 原写 `verbatimSymlinks: false`「解引用」，实测 Node 24 的 `cpSync` 该选项并不解引用、反而会把相对软链改写成模板绝对路径；故改为 `verbatimSymlinks: true` 保留软链原样。
+- [x] 2.2 `createInstance()` 保持现有调用顺序：先 `copyPreinstalledPlugins()`，返回 `false` 走 `installDefaultPlugins()` 降级
+- [x] 2.3 保留 `installDefaultPlugins()`（`instances.ts`）作为模板缺失时的降级（异步逐包安装，受 marker 门控）
+- [x] 2.4 保留 `spawn.ts` 启动兜底（受 marker 门控）
 
-- [ ] 1.4 导出模板到正式目录
-  ```bash
-  # 复制到模板目录
-  cp -r /tmp/dsh-template-home /opt/dsh-home-template
-  
-  # 设置权限
-  chmod -R 755 /opt/dsh-home-template
-  
-  # 清理临时目录
-  rm -rf /tmp/dsh-template-home
-  ```
+## 阶段 3：代码 - 统一单一真相源
 
-- [ ] 1.5 验证模板目录结构完整
-  确认包含以下内容：
-  - `profiles/web/package.json` - 依赖清单
-  - `profiles/web/cordis.patch.yml` - 插件配置
-  - `profiles/web/pnpm-lock.yaml` - 依赖锁定
-  - `profiles/web/pnpm-workspace.yaml` - pnpm workspace 配置
-  - `profiles/web/node_modules/` - 插件 bundle（实际代码）
-  - `profiles/node_modules/` - 共享依赖（重要！）
-  - `.npmrc` - npm 配置
-
-## 阶段 2：代码修改 - 修复复制逻辑
-
-- [ ] 2.1 修改 `copyPreinstalledPlugins()` 函数
-  - 文件：`dsh-hub/src/instances.ts`
-  - 修改：复制整个 `profiles/` 目录（包括 `web/` 和 `node_modules/`）
-  - **关键**：使用 `verbatimSymlinks: false` 选项处理符号链接
-  - 验证：复制后目录结构与模板一致
-  - 验证：`profiles/node_modules/` 是实际目录（非符号链接）
-
-- [ ] 2.2 删除 `installDefaultPlugins()` 函数
-  - 文件：`dsh-hub/src/instances.ts`
-  - 删除：第 172-220 行的函数定义
-  - 删除：第 94 行的函数调用
-
-- [ ] 2.3 删除 `spawn.ts` 中的插件安装兜底逻辑
-  - 文件：`dsh-hub/src/supervisor/spawn.ts`
-  - 删除：第 55-94 行的插件安装检查逻辑
-  - 保留：`ensureInstanceDirs()` 和启动逻辑
-
-## 阶段 3：代码修改 - 统一常量
-
-- [ ] 3.1 在 `config.ts` 中新增 `DEFAULT_PLUGINS` 常量
-  - 文件：`dsh-hub/src/config.ts`
-  - 新增：导出 `DEFAULT_PLUGINS` 数组
-  - 用途：文档说明和模板初始化参考
-
-- [ ] 3.2 删除 `instances.ts` 中的 `DEFAULT_PLUGINS` 定义
-  - 文件：`dsh-hub/src/instances.ts`
-  - 删除：第 19-25 行的常量定义
-
-- [ ] 3.3 删除 `spawn.ts` 中的 `DEFAULT_PLUGINS` 定义
-  - 文件：`dsh-hub/src/supervisor/spawn.ts`
-  - 删除：第 16-22 行的常量定义
+- [x] 3.1 `dsh-hub/src/config.ts`
+  - 新增导出 `DEFAULT_PLUGINS`（5 个默认插件）
+  - 新增 `getTemplateDshHome()` 读取 `TEMPLATE_DSH_HOME`（默认 `/opt/dsh-home-template`）
+- [x] 3.2 `instances.ts` 删除本地 `DEFAULT_PLUGINS` 定义，改为 `import { DEFAULT_PLUGINS } from './config.ts'`
+- [x] 3.3 `spawn.ts` 删除本地 `DEFAULT_PLUGINS` 定义，改为 `import { DEFAULT_PLUGINS } from '../config.ts'`
+- [x] 3.4 删除 `instances.ts` 中直接 `process.env.TEMPLATE_DSH_HOME` 读取，改用 `config`/`getTemplateDshHome()`
+- [x] 3.5 可选：`scripts/install-default-plugins.sh` 的插件清单与 `DEFAULT_PLUGINS` 保持一致
 
 ## 阶段 4：验证
 
-- [ ] 4.1 类型检查
-  - 运行 `npx tsc -p . --noEmit`
-  - 确认无类型错误
-
-- [ ] 4.2 单元测试（如有）
-  - 运行相关单元测试
-  - 确认测试通过
-
-- [ ] 4.3 手动验证 - 模板目录检查
-  - 检查 `/opt/dsh-home-template` 目录结构
-  - 确认包含完整的 Profile 文件
-  - **关键**：确认 `profiles/node_modules/` 目录存在
-
-- [ ] 4.4 手动验证 - 实例创建流程
-  - 创建测试用户
-  - 触发实例创建
-  - 验证实例 `home/profiles/web/` 目录完整
-  - **关键**：验证实例 `home/profiles/node_modules/` 目录存在且内容完整
-  - 验证 `.plugins-installed` 标记文件创建
-
-- [ ] 4.5 手动验证 - 用户路径独立性
-  - 创建两个不同用户的实例
-  - 比较两个实例的 Profile 目录路径
-  - 确认路径完全不同且相互隔离
-
-- [ ] 4.6 手动验证 - 代码清理
-  - 确认 `installDefaultPlugins()` 函数已删除
-  - 确认 `spawn.ts` 中的插件安装兜底逻辑已删除
-  - 确认 `DEFAULT_PLUGINS` 只在 `config.ts` 中定义
-
-- [ ] 4.7 手动验证 - 符号链接处理
-  - 检查模板目录中的 `profiles/node_modules/` 是否为符号链接
-  - 如果是符号链接，验证实例目录中的对应目录是实际目录（非符号链接）
-  - 验证实例目录中的依赖文件完整
+- [x] 4.1 `npx tsc -p . --noEmit` 通过，无类型错误
+- [ ] 4.2 构建镜像并验证模板目录存在且完整（`profiles/web/*` + `profiles/node_modules/`）
+- [ ] 4.3 创建测试用户并触发实例创建；校验实例 `home/profiles/web/` 完整、`home/profiles/node_modules/` 为实目录且内容与模板一致、`.plugins-installed` 已写
+- [ ] 4.4 两个不同用户实例路径完全不同、相互隔离
+- [ ] 4.5 模拟 `TEMPLATE_DSH_HOME` 不存在 → `copyPreinstalledPlugins()` 返回 `false`，走 `installDefaultPlugins()` 降级，实例创建不阻塞
+- [ ] 4.6 验收 `instances.ts`：已无本地 `DEFAULT_PLUGINS`、无直接 `process.env.TEMPLATE_DSH_HOME`
+- [ ] 4.7 验收 `spawn.ts`：已无本地 `DEFAULT_PLUGINS`，启动兜底仍在且受 marker 门控
+- [ ] 4.8 运行既有冒烟测试：`bash dsh-hub/scripts/m1-smoke.sh`、`m2-smoke.sh`、`security-regression.sh`
 
 ## 阶段 5：文档与归档
 
-- [ ] 5.1 更新 AGENTS.md
-  - 在"当前进度"中添加会员实例预置模板完成记录
-
-- [ ] 5.2 提交代码
-  - commit message: `feat(member): 实现会员实例预置模板方案，修复 Profile 复制逻辑`
-
-- [ ] 5.3 归档变更
-  - 将 `openspec/changes/member-instance-template/` 移至 `openspec/changes/archive/`
+- [x] 5.1 更新 `AGENTS.md`「当前进度」，记录会员实例预置模板完成
+- [ ] 5.2 提交（`feat(member): 实例预置插件自动装载（模板复制 + 降级安装 + 单一真相源）`）
+- [ ] 5.3 把本变更合并到 `openspec/changes/archive/`，功能规范补充到 `openspec/specs/`

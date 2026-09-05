@@ -1,0 +1,212 @@
+0. 结论先行
+pnpm dsh web 的完整含义是：通过 pnpm 运行根目录 package.json 里的 dsh 脚本，把 web 作为参数传入，最终启动一个Cordis 插件树，在本地监听 HTTP 端口（默认 127.0.0.1:3080），把 apps/web 构建出的前端 dist 通过静态服务器回传，并打开浏览器。
+整条链路可以概括为五段：
+pnpm dsh web
+  → (1) pnpm 脚本 → node --import tsx/esm apps/cli/src/bin.ts web
+  → (2) 参数解析 args.ts：web 是 --profile web 的别名
+  → (3) 环境快照 + profile 解析 + patch 层组合
+  → (4) Cordis Loader boot：挂载 dsh-base + dsh-web-app 两个 bundle 的插件树
+  → (5) web 运行时插件：绑定 HTTP 服务、注入 __DSH_BOOT__、打印 URL、打开浏览器
+1. pnpm 层：从脚本名到 Node 入口
+根目录 package.json 第 153 行：
+”dsh”: ”node --import tsx/esm apps/cli/src/bin.ts”
+所以 pnpm dsh web 实际执行的是：
+node --import tsx/esm apps/cli/src/bin.ts web
+--import tsx/esm
+：用 tsx 的 ESM-only loader 钩子，让 Node 直接运行 TypeScript 源码（见 apps/cli/src/bin.ts）。
+web
+是传给脚本的第一个参数，进入 process.argv.slice(2)。
+2. bin.ts：读取版本、解析参数、分发
+apps/cli/src/bin.ts：
+readVersion()
+读取 apps/cli/package.json 的 version 字段（供 --version 用）。
+parseDshArgs(process.argv.slice(2), readVersion())
+解析 ['web']。
+根据返回的 invocation.mode 走 switch：
+- 'profile' → 动态 import('./profile-boot.ts') 并 runProfile(...)。
+- 'plugin' → runPlugin(...)（dsh plugin 命令）。
+- 'dump-config' → runDumpConfig(...)（--dump-config 命令）。
+web 会落到 mode: 'profile' 分支。
+3. args.ts：web 是 --profile web 的硬编码别名
+apps/cli/src/args.ts的核心设计是「launcher 只解析自己的 flag，其余参数原样交给被启动的应用」。
+第 156 行定义子命令：
+const web = program.command('web')
+  .description('boot the web profile (alias of --profile web); the web app\'s own flags follow')
+web 子命令的 action（第 166 行）调用 resolveBoot(web, 'web', options, args)。由于没有 --dump-config / --dump-default-config，resolveBoot 返回：
+{ mode: 'profile', profile: 'web', patches: [], args: [] }
+关键点：
+launcher 的 --patch、--dump-config 等必须在 web之前；web 之后的所有 token 都是「内部参数」，原样传进树（例如 dsh web --port 8080 --no-open 中，--port / --no-open 属于 web 应用自己的 flag，由后文 web-startup 插件解析）。
+因此 dsh web -h 打印的是web 应用自己的帮助（dsh --profile web），而不是 launcher 的帮助。
+4. runProfile：环境快照 + profile 解析 + patch 组合
+apps/cli/src/profile-boot.ts的 runProfile 是真正的主干，分几个阶段。
+4.1 环境快照 loadLayeredEnv('dsh')
+在packages/boot/app-boot/src/index.ts的 loadLayeredEnv：
+resolveDshHome()
+解析 Harness home（见 packages/util/home-paths/src/index.ts），优先级：显式配置 > $DSH_HOME > ~/.dsh。
+读取两层 .env：当前工作目录的.env（project layer）和home 的.env（user layer，若与 cwd 相同则跳过）。
+拒绝 bootstrap-only 变量（如 PATH、NODE_OPTIONS、DEEPSEEK_BASE_URL、所有 DSH_* 前缀等，见 BOOTSTRAP_NAMES / BOOTSTRAP_PREFIXES），这些只能来自启动进程环境。
+生成不可变的 LaunchEnvironmentSnapshot（packages/util/launch-environment/src/index.ts），记录每个值来自 process / project-env / user-env 哪一层。
+4.2 composeProfile('web', [])
+composeProfile 内部调用：
+prepareProfile(name)（第 118 行）→ loadProfile('dsh', 'web', INSTALL_ANCHOR)：
+在 packages/boot/app-boot/src/profile.ts 中，resolveProfileDir('web') = $DSH_HOME/profiles/web。
+若 profile 目录没有 package.json，用内置模板初始化。web的模板（PROFILE_TEMPLATES，第 142 行）：
+web: {
+  bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
+  patchReload: 'live',
+},
+initProfile
+写入：
+逐个 bundle 用 resolveBundleDir 解析包目录（先安装锚点 apps/cli，再 profile 目录），读取每个包 package.json 的 dsh.bundle.patch 字段（即 ./cordis.patch.yml），用 loadOverlayPatches 解析成 PatchOptions[]。
+读取 profile 自己的 cordis.patch.yml（用户层，可缺省）。
+prepareProfile 还会重写 profile 目录下的cordis.yml为空的[]（PROFILE_ROOT_CONFIG）——因为整个树是「在空根上打 patch」组成的，Loader 需要一个真实的 include 根来锚定 baseUrl。
+healProfilesModuleFallback（profile.ts 第 579 行）：
+把 dsh 安装的依赖闭包镜像到 $DSH_HOME/profiles/node_modules（符号链接；打包可执行文件用 ESM proxy），让 profile 里的插件和 dsh 共享同一个 Cordis 实例。
+对只由选中 bundle 携带的包，在 profile 目录内做 profile-local 链接。
+home 层与 overlay 层（composeProfile 第 162–173 行）：
+homePatches
+= $DSH_HOME/cordis.patch.yml（机器级用户层，优先级高于 profile 自己的层）。
+overlays
+= --patch 文件（dsh web 无，为空）。
+bundlePatches
+= 两个 bundle 的 patch 列表（[dsh-base, dsh-web-app] 顺序）。
+用 composeEntries 跑一遍 applyEntryPatches 得到 rows map，仅为判断 session-telemetry-otel 行是否存在（给遥测开关用）。
+4.3 组合出的 patch 应用顺序
+allPatches（第 136 行）顺序 =后写覆盖前写：
+dsh-base bundle patch (insert 核心行)
+→ dsh-web-app bundle patch (override + insert web 行 + disable agent-plane 行)
+→ profile 自己的 cordis.patch.yml (用户层)
+→ $DSH_HOME/cordis.patch.yml (home 用户层)
+→ --patch overlay 文件 (本次无)
+→ DSH_TELEMETRY_DISABLED 遥测开关 patch (按需)
+5. boot()：Cordis Loader 挂载插件树
+apps/cli/src/profile-boot.ts第 251 行调用 boot(...)，实现在packages/boot/app-boot/src/index.ts第 772 行：
+new Context()
+建立根上下文。
+ctx.baseUrl
+指向 profile 目录（决定相对插件名怎么解析）。
+ctx.provide('dshHomePath', dshHomePath)
+注入 home 路径解析器，供 patch 里 !!js dshHomePath('sessions') 使用。
+await ctx.plugin(Loader)
+安装 Cordis Loader。
+prepare
+回调（第 786 行）在任何 config 树条目挂载之前执行：
+- hostCtx.provide(DSH_LAUNCH_ENVIRONMENT_KEY, options.environment)：注入启动环境快照。
+- provideCmdline(hostCtx, { args, exit, ready })：注入 cmdlineArgs / appExit / appReady 三个 launcher 事实（见 packages/boot/cmdline/src/index.ts）。
+mountRootInclude(...)
+（第 501 行）：
+- 设置 ctx.loader.builtins.include = Include（include 插件，负责解析 patch 列表）、ctx.loader.builtins.group = Group。
+- 创建一个固定 id 为 include 的根条目 cordis:include，config 里带 path（空根 cordis.yml）和 patches（4.3 组合出的完整 patch 列表）。
+await ctx.get('loader')?.await()
+：等待整棵树 settle（Loader 并发挂载条目，按服务可用性驱动激活）。
+assertEntriesActivated(...)
+：审计每个启用的条目都已激活（FIBER_ACTIVE），否则失败并打印缺的服务/失败原因。
+若 boot 中途失败，boot 会 dispose 部分上下文并抛出带 dsh: host preparation failed / plugin tree failed to load 前缀的错误。
+6. 两个 bundle 各自贡献了什么
+6.1 dsh-base（packages/bundle/base/cordis.patch.yml）
+一个大的 insert 列表，插入核心行（只列代表性条目）：
+基础设施：timer、hmr（默认 disabled）、llm、typert / typert-loader / typert-gateway。
+会话/持久化：session、session-log-deepseek、session-persistence-jsonl（root: !!js dshHomePath('sessions')）、session-query-sqlite、storage 家族。
+权限/沙箱：sandbox、sandbox-policy（mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'）、approval、permission。
+模型/工具：llm-deepseek、tools、system-prompt（persona: ''）、agent-loop（agents: []）、大量 tool-*。
+shell-env
+（bash 环境变量服务）、subprocess 等。
+6.2 dsh-web-app（packages/bundle/web-app/cordis.patch.yml）
+三部分：
+覆盖 base 行（按 id 替换整个 config）：
+- system-prompt → web 编码 agent persona。
+- session-query-sqlite → path: ':memory:'、openAt: never。
+- tools → mode: !!js process.env.DSH_TOOLS_MODE。
+insert web 专属行（关键几个）：
+- web-startup：@deepseek-ai/dsh-web-app/startup —— 解析 web flag、提供 webStartup 服务。
+- webserver：@deepseek-ai/dsh-host-webserver，inject: [webStartup]，config 用 !!js ctx.webStartup.host ?? '127.0.0.1' 和 port ?? 3080。
+- web-runtime：@deepseek-ai/dsh-web-app，inject: [webStartup]。
+- modules：@deepseek-ai/dsh-client-modules（扫描 dsh.client 包、生成 window.__DSH_BOOT__）。
+- connection：@deepseek-ai/dsh-client-connection，inject: [webRuntime]，trustedHosts: !!js ctx.webRuntime.trustedHosts。
+- client-hmr、api-remotes、cordis-client-runner 以及一整套 ui-* 浏览器 roster 行。
+- agent-presets：@deepseek-ai/dsh-agent-presets，default: standard。
+disable（不是删除）agent-plane 行：
+- tool-bash、tool-pwsh、tool-fs、tool-skill、tool-goal、tool-web、tool-subagent*、tool-workflow、plan-mode、compaction-basic 等。
+- 注释说明：base 为 TUI（单会话、进程级组合）保留这些行；Web 把它们 disabled，改由每个 session 的agent preset挂载对应工具。
+7. Web 运行时插件链（第 5 段，核心行为）
+激活顺序由 Cordis 的 inject（服务依赖）驱动，而不是 patch 里的行顺序。
+7.1 web-startup 提供 webStartup 服务
+packages/bundle/web-app/src/startup.ts：
+inject: ['cmdlineArgs']
+（launcher 注入的）。
+apply
+用 parseCmdline(ctx, webCommand()) 解析 web 应用自己的 flag：
+解析成功后 ctx.provide(WEB_STARTUP_SERVICE, {...})，即 webStartup 服务，供 webserver / web-runtime 用 !!js 惰性读取。
+--help
+或参数错误时走 ctx.appExit，不提供该服务，因此「不 bind 任何端口」。
+7.2 webserver 绑定 HTTP 服务
+packages/host/webserver/src/index.ts：
+WebServer extends Service
+，config 默认 host: '127.0.0.1'、port: 3080、compression: gzip（由 web-app patch 提供）。
+[Service.init]
+（第 220 行）用 node:http 的 createServer 监听，成功后记录 listenedPort（port 0 时是 OS 分配的），提供 webServer 服务。
+提供路由注册 API：
+监听失败 → init 拒绝 → FAILED fiber → boot 审计报错。
+7.3 web-runtime：提供 webRuntime、挂静态服务、注册 prompt、打印 URL、开浏览器
+packages/bundle/web-app/src/index.ts的 apply：
+resolveLanTrust(ctx.webServer.host, config.trustedHosts)
+：若 bind 0.0.0.0 则采样本机所有非内部 IPv4 地址；得到 webRuntime（lanAddresses + trustedHosts）。
+ctx.provide('webRuntime', runtime)
+—— 供 connection 行读取信任围栏。
+ctx.plugin(FrontendStatic, { distIndex: resolveDistIndex() })
+：
+- resolveDistIndex() 用 require.resolve('@deepseek-ai/dsh-web-frontend/package.json') 定位 apps/web 包，拼接 dist/index.html。
+若 surfaceContext：注册
+- app:web-surface prompt 段（告诉模型「你正在通过 Web GUI 交互」）。
+- DSH_WEB_URL shell 环境变量（web-runtime 注册，值为 loopback URL）。
+若 printUrl 或要开浏览器：ctx.inject(['connection'])，等 Loader settle 后：
+- 打印 dsh web: http://127.0.0.1:（LAN 存在时附加 (LAN: ...)）。
+- 若非 SSH 启动且 openBrowser，用 open 模块（子进程，scrubbedParentEnv 剥凭证）打开默认浏览器。
+7.4 frontend-static：兜底静态服务器
+packages/host/frontend-static/src/index.ts：
+inject: ['webServer', 'connection']
+。
+用 ctx.webServer.registerFallback(...) 抢占兜底座位。
+serveStatic
+：
+7.5 connection：/api 传输层 + 信任围栏 + 浏览器认证
+packages/client/connection/src/index.ts：
+inject: ['webServer', 'credentials']
+。
+config trustedHosts 来自 webRuntime（LAN 地址 + --trusted-host）。
+创建 HostConnectionService + BrowserAuth（cookie 会话，默认 30 天）。
+注册 prefix 路由 /api，每个请求先 requestRejection(req)（Host/Origin 信任围栏 + 认证），再 bridge 转发到 API gateway（Typert Remote）。
+7.6 modules：生成 window.DSH_BOOT 并服务客户端 bundle
+packages/client/modules/src/index.ts：
+inject: ['webServer', 'loader']
+。
+扫描 Loader 所有条目，找 package.json 里声明 dsh.client（platform: 'web'）的包。
+按模块图拓扑排序，组成 WebBootGraph。
+通过 webserver/index-inject 事件注入：
+注册 /plugins 前缀路由，服务合并的 client.js bundle 和 sourcemap。
+若 client bundle 缺失，抛 MissingClientBundleError（提示 run pnpm run build before launch）。
+8. Boot 之后的收尾：live reload + 生命周期
+回到profile-boot.ts第 270–305 行：
+因为 web profile 的 patchReload: 'live'：
+- 若树里没有 hmr 服务（base 里 hmr 默认 disabled），先挂 timer + 一个 root: [] 的 watch-only hmr。
+- watchUserPatches 同时 watch profile 的 cordis.patch.yml 和 home 的 cordis.patch.yml，改动时事务性重读并重挂 include 的 patch（实现热重载）。
+appReady.commit()
+：树 settle 后触发 ready 监听（其它 stdio 型应用用它做 EOF 退出绑定）。
+进程生命周期交给挂载的插件（web server 会 keep-alive）。
+信号与失败处理（runProfile 第 213–228 行）：
+SIGTERM
+→ interrupt(0)（supervisor 正常停止，退出码 0）。
+SIGINT
+→ interrupt(130)。
+installFailLoud
+：捕获 boot 后迟到的 unhandledRejection，打印 dsh: fatal load failure 并 exit(1)。
+createProcessShutdown
+（apps/cli/src/process-shutdown.ts）：5 秒优雅 dispose 超时，超时强制退出；dispose 会关闭 HTTP server、close 所有连接和升级 socket。
+9. 相邻命令分支（便于对比）
+dsh --profile web
+—— 与 dsh web 完全等价（web 只是别名）。
+dsh web --dump-config
+—— 走 dump-config 分支（apps/cli/src/dump-config.ts），只组合 patch 层、渲染 YAML，不 boot、不求值!!js。
+dsh plugin --profile web
+—— 走 apps/cli/src/plugin.ts，转发到 profile 目录里的 pnpm 管理插件依赖。
+前端 apps/web 的 Vite 入口（apps/web/vite.config.ts、apps/web/src/main.ts）明确拒绝 standalone 启动：它只构建 dist shell，window.__DSH_BOOT__ 只有 dsh web 注入。

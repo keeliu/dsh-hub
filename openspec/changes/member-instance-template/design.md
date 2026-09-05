@@ -49,33 +49,44 @@ const templateNpmrc = join(templateHome, '.npmrc');
 ┌─────────────────────────────────────────────────────────────┐
 │  模板目录（/opt/dsh-home-template）                          │
 │  ├── profiles/                                               │
-│  │   └── web/                                                │
-│  │       ├── package.json                                    │
-│  │       ├── dsh.profile                                     │
-│  │       ├── pnpm-lock.yaml                                  │
-│  │       ├── pnpm-workspace.yaml                             │
-│  │       ├── cordis.patch.yml                                │
-│  │       └── node_modules/                                   │
+│  │   ├── web/                                                │
+│  │   │   ├── package.json                                    │
+│  │   │   ├── cordis.patch.yml                                │
+│  │   │   ├── pnpm-lock.yaml                                  │
+│  │   │   ├── pnpm-workspace.yaml                             │
+│  │   │   ── node_modules/                                   │
+│  │   └── node_modules/          ← 共享依赖（关键！）          │
 │  └── .npmrc                                                  │
-└─────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────
                             │
                             │ copyPreinstalledPlugins()
-                            │ 复制整个 profiles/web 目录
+                            │ 复制整个 profiles/ 目录
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  实例 home 目录（<dataDir>/users/<dir>/instances/<id>/home） │
 │  ├── profiles/                                               │
-│  │   └── web/                                                │
-│  │       ├── package.json                                    │
-│  │       ├── dsh.profile                                     │
-│  │       ├── pnpm-lock.yaml                                  │
-│  │       ├── pnpm-workspace.yaml                             │
-│  │       ├── cordis.patch.yml                                │
-│  │       └── node_modules/                                   │
+│  │   ├── web/                                                │
+│  │   │   ├── package.json                                    │
+│  │   │   ├── cordis.patch.yml                                │
+│  │   │   ├── pnpm-lock.yaml                                  │
+│  │   │   ├── pnpm-workspace.yaml                             │
+│  │   │   └── node_modules/                                   │
+│  │   └── node_modules/          ← 共享依赖（必须复制）        │
 │  ├── .npmrc                                                  │
 │  └── .plugins-installed  ← 标记文件                          │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### 关键发现：healProfilesModuleFallback 机制
+
+根据 DSH 启动链路分析文章第 4.2 节：
+
+> `healProfilesModuleFallback` 会把 dsh 安装的依赖闭包镜像到 `$DSH_HOME/profiles/node_modules`（符号链接），让 profile 里的插件和 dsh 共享同一个 Cordis 实例。
+
+**影响**：
+- 模板目录**必须包含** `profiles/node_modules/`
+- 复制时必须包含此目录，否则插件可能无法正确加载 Cordis 实例
+- 此目录可能是符号链接，复制时需要特殊处理
 
 ### 实现方案
 
@@ -109,20 +120,24 @@ function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean 
   console.log(`[instances] Copying pre-installed profile from template for instance ${instanceId}...`);
   
   try {
-    // 复制整个 profiles/web 目录（包含所有配置文件和 node_modules）
-    const templateProfileDir = join(templateHome, 'profiles', 'web');
-    const targetProfileDir = join(homePath, 'profiles', 'web');
+    // 复制整个 profiles/ 目录（包含 web profile 和共享依赖）
+    const templateProfilesDir = join(templateHome, 'profiles');
+    const targetProfilesDir = join(homePath, 'profiles');
     
-    if (existsSync(templateProfileDir)) {
-      if (!existsSync(targetProfileDir)) {
-        mkdirSync(targetProfileDir, { recursive: true });
+    if (existsSync(templateProfilesDir)) {
+      if (!existsSync(targetProfilesDir)) {
+        mkdirSync(targetProfilesDir, { recursive: true });
       }
       
-      // 复制整个 profiles/web 目录
-      cpSync(templateProfileDir, targetProfileDir, { recursive: true });
-      console.log(`[instances] ✅ Copied profiles/web directory`);
+      // 复制整个 profiles/ 目录（包括 web/ 和 node_modules/）
+      cpSync(templateProfilesDir, targetProfilesDir, { 
+        recursive: true,
+        // 处理符号链接：如果是符号链接，复制实际内容
+        verbatimSymlinks: false 
+      });
+      console.log(`[instances] ✅ Copied profiles/ directory`);
     } else {
-      console.log(`[instances] ⚠️  Template profile directory not found: ${templateProfileDir}`);
+      console.log(`[instances] ️  Template profiles directory not found: ${templateProfilesDir}`);
       return false;
     }
     
@@ -143,6 +158,11 @@ function copyPreinstalledPlugins(homePath: string, instanceId: string): boolean 
   }
 }
 ```
+
+**关键改动**：
+1. 复制整个 `profiles/` 目录（包括 `web/` 和 `node_modules/`）
+2. 使用 `verbatimSymlinks: false` 处理符号链接（复制实际内容而非链接）
+3. 确保 `profiles/node_modules/` 共享依赖被正确复制
 
 #### 2. 删除 `installDefaultPlugins()` 函数
 
@@ -212,6 +232,15 @@ export const DEFAULT_PLUGINS = [
 
 - 避免两处定义不同步
 - 用于文档说明和模板初始化参考
+
+#### 5. 如何处理 `profiles/node_modules/` 符号链接？
+
+根据 `healProfilesModuleFallback` 机制，`profiles/node_modules/` 可能是符号链接。
+
+**处理方案**：
+- 使用 `cpSync` 的 `verbatimSymlinks: false` 选项
+- 这会复制符号链接指向的实际内容，而非链接本身
+- 确保每个实例都有独立的依赖副本
 
 ### 回滚方案
 

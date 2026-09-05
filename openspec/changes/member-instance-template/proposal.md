@@ -28,7 +28,7 @@
 
 ### 现有代码冲突分析
 
-#### ️ 冲突 1：`.plugins-installed` 标记文件重复创建
+#### ⚠️ 冲突 1：`.plugins-installed` 标记文件重复创建
 
 | 函数 | 创建标记文件 | 位置 |
 |------|------------|------|
@@ -38,20 +38,29 @@
 
 **问题**：如果 `copyPreinstalledPlugins()` 成功，会创建标记文件，导致 `installDefaultPlugins()` 和 `spawn.ts` 中的安装逻辑都被跳过。但如果复制不完整（只复制了 `node_modules`），插件可能无法正常工作。
 
-#### ️ 冲突 2：`copyPreinstalledPlugins()` 复制不完整
+#### ⚠️ 冲突 2：`copyPreinstalledPlugins()` 复制不完整
 
 **当前复制内容**：
 - ✅ `node_modules/` 中的插件
 - ✅ `.npmrc`
 
-**遗漏内容**（根据 DSH Profile 标准结构）：
--  `profiles/web/package.json`
-- ❌ `profiles/web/dsh.profile`
-- ❌ `profiles/web/pnpm-lock.yaml`
-- ❌ `profiles/web/pnpm-workspace.yaml`
-- ❌ `profiles/web/cordis.patch.yml`
+**遗漏内容**（根据 DSH Profile 标准结构和启动链路分析）：
 
-#### ️ 冲突 3：`DEFAULT_PLUGINS` 常量重复定义
+| 文件/目录 | 作用 | 来源 |
+|----------|------|------|
+| `profiles/web/package.json` | 依赖清单（由 dsh plugin 管理） | DSH 官方文档 |
+| `profiles/web/cordis.patch.yml` | 插件配置（用户可自定义） | DSH 启动链路分析 |
+| `profiles/web/pnpm-lock.yaml` | 插件版本锁定 | pnpm 标准 |
+| `profiles/web/pnpm-workspace.yaml` | pnpm workspace 配置 | pnpm 标准 |
+| `profiles/node_modules/` | **共享依赖**（Cordis 实例共享） | `healProfilesModuleFallback` 机制 |
+
+**关键发现**：根据 DSH 启动链路分析文章第 4.2 节：
+
+> `healProfilesModuleFallback` 会把 dsh 安装的依赖闭包镜像到 `$DSH_HOME/profiles/node_modules`（符号链接），让 profile 里的插件和 dsh 共享同一个 Cordis 实例。
+
+这意味着模板目录**必须包含** `profiles/node_modules/`，否则插件可能无法正确加载 Cordis 实例。
+
+#### ⚠️ 冲突 3：`DEFAULT_PLUGINS` 常量重复定义
 
 - `instances.ts` 第 19-25 行定义了一次
 - `spawn.ts` 第 16-22 行又定义了一次
@@ -65,13 +74,35 @@
 ```
 <dataDir>/users/<dir_name>/instances/<instanceId>/home/
 └── profiles/
-    └── web/                    ← 每个实例的 Profile 路径不同
-        ├── package.json
-        ├── dsh.profile
-        └── node_modules/
+    ├── web/                        ← 每个实例的 Profile 路径不同
+    │   ├── package.json            # 依赖清单
+    │   ├── cordis.patch.yml        # 插件配置
+    │   ├── pnpm-lock.yaml          # 版本锁定
+    │   ├── pnpm-workspace.yaml     # workspace 配置
+    │   └── node_modules/           # 插件 bundle
+    └── node_modules/               ← 共享依赖（Cordis 实例共享）
 ```
 
 这与 DSH 默认的全局 `~/.dsh/profiles/` 不同，模板方案需要适配这种独立路径架构。
+
+### 模板目录完整结构
+
+根据 DSH 启动链路分析，模板目录应包含：
+
+```
+/opt/dsh-home-template/
+├── profiles/
+│   ├── web/
+│   │   ├── package.json          # 依赖清单（由 dsh plugin 管理）
+│   │   ├── cordis.patch.yml      # 插件配置（用户可自定义）
+│   │   ├── pnpm-lock.yaml        # 版本锁定
+│   │   ├── pnpm-workspace.yaml   # workspace 配置
+│   │   └── node_modules/         # 插件 bundle
+│   └── node_modules/             # 共享依赖（healProfilesModuleFallback 机制）
+└── .npmrc                        # npm 配置
+```
+
+**关键**：`profiles/node_modules/` 是共享依赖目录，由 `healProfilesModuleFallback` 机制创建，让所有 profile 共享同一个 Cordis 实例。
 
 ## What Changes（做什么）
 

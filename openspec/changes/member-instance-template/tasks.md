@@ -10,18 +10,24 @@
   - 手动创建一个临时 DSH 实例
   - 安装所有默认插件（`dshmarket`、`DSH-better-sidebar`、`dsh-im`、`dsh-cost-meter`、`dsh-visualize`）
   - 验证插件安装成功
+  - **关键**：确保 `profiles/node_modules/` 目录存在（由 `healProfilesModuleFallback` 机制创建）
 
 - [ ] 1.3 导出模板
   - 将临时实例的 `home/` 目录复制到 `/opt/dsh-home-template`
   - 清除敏感信息（`.credentials.yaml`、`.env` 等）
-  - 验证模板目录结构完整
+  - 验证模板目录结构完整，包含：
+    - `profiles/web/` 目录（包含所有配置文件和插件）
+    - `profiles/node_modules/` 目录（共享依赖）
+    - `.npmrc` 文件
 
 ## 阶段 2：代码修改 - 修复复制逻辑
 
 - [ ] 2.1 修改 `copyPreinstalledPlugins()` 函数
   - 文件：`dsh-hub/src/instances.ts`
-  - 修改：复制整个 `profiles/web` 目录，而不仅仅是 `node_modules`
+  - 修改：复制整个 `profiles/` 目录（包括 `web/` 和 `node_modules/`）
+  - **关键**：使用 `verbatimSymlinks: false` 选项处理符号链接
   - 验证：复制后目录结构与模板一致
+  - 验证：`profiles/node_modules/` 是实际目录（非符号链接）
 
 - [ ] 2.2 删除 `installDefaultPlugins()` 函数
   - 文件：`dsh-hub/src/instances.ts`
@@ -61,11 +67,13 @@
 - [ ] 4.3 手动验证 - 模板目录检查
   - 检查 `/opt/dsh-home-template` 目录结构
   - 确认包含完整的 Profile 文件
+  - **关键**：确认 `profiles/node_modules/` 目录存在
 
 - [ ] 4.4 手动验证 - 实例创建流程
   - 创建测试用户
   - 触发实例创建
   - 验证实例 `home/profiles/web/` 目录完整
+  - **关键**：验证实例 `home/profiles/node_modules/` 目录存在且内容完整
   - 验证 `.plugins-installed` 标记文件创建
 
 - [ ] 4.5 手动验证 - 用户路径独立性
@@ -77,6 +85,11 @@
   - 确认 `installDefaultPlugins()` 函数已删除
   - 确认 `spawn.ts` 中的插件安装兜底逻辑已删除
   - 确认 `DEFAULT_PLUGINS` 只在 `config.ts` 中定义
+
+- [ ] 4.7 手动验证 - 符号链接处理
+  - 检查模板目录中的 `profiles/node_modules/` 是否为符号链接
+  - 如果是符号链接，验证实例目录中的对应目录是实际目录（非符号链接）
+  - 验证实例目录中的依赖文件完整
 
 ## 阶段 5：文档与归档
 

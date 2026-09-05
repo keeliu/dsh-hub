@@ -3,14 +3,14 @@
 ## 场景 1：模板目录初始化
 
 **Given** 服务器上存在 `/opt/dsh-home-template` 目录
-**When** 目录包含完整的 Profile 结构（`profiles/web/` 及其所有文件）
+**When** 目录包含完整的 Profile 结构（`profiles/` 及其所有子目录）
 **Then** 目录结构符合 DSH Profile 标准：
 - `profiles/web/package.json` 存在
-- `profiles/web/dsh.profile` 存在
+- `profiles/web/cordis.patch.yml` 存在
 - `profiles/web/pnpm-lock.yaml` 存在
 - `profiles/web/pnpm-workspace.yaml` 存在
-- `profiles/web/cordis.patch.yml` 存在
 - `profiles/web/node_modules/` 包含所有默认插件
+- `profiles/node_modules/` 存在（共享依赖，由 `healProfilesModuleFallback` 机制创建）
 
 ## 场景 2：会员购买后快速创建实例
 
@@ -23,6 +23,7 @@
 4. 实例创建完成，无需等待插件安装
 
 **And** 实例的 `home/profiles/web/` 目录包含所有配置文件和插件
+**And** 实例的 `home/profiles/node_modules/` 目录包含共享依赖
 
 ## 场景 3：模板目录不存在时降级处理
 
@@ -35,14 +36,19 @@
 ## 场景 4：实例目录完整性验证
 
 **Given** 实例创建完成
-**When** 检查实例的 `home/profiles/web/` 目录
+**When** 检查实例的 `home/profiles/` 目录
 **Then** 目录包含以下文件：
+
+### `profiles/web/` 目录
 - `package.json`
-- `dsh.profile`
+- `cordis.patch.yml`
 - `pnpm-lock.yaml`
 - `pnpm-workspace.yaml`
-- `cordis.patch.yml`
 - `node_modules/` 包含所有默认插件
+
+### `profiles/node_modules/` 目录
+- 共享依赖（Cordis 实例共享）
+- 内容与模板目录中的对应文件一致
 
 **And** 每个文件的内容与模板目录中的对应文件一致
 
@@ -92,3 +98,22 @@
 **When** `copyPreinstalledPlugins()` 执行复制
 **Then** 敏感文件不应被复制到实例目录
 **And** 或复制后自动清除敏感信息
+
+## 场景 10：共享依赖目录复制验证
+
+**Given** 模板目录包含 `profiles/node_modules/` 目录
+**When** `copyPreinstalledPlugins()` 执行复制
+**Then** 实例的 `home/profiles/node_modules/` 目录存在
+**And** 目录内容与模板目录一致
+**And** 如果模板中的 `profiles/node_modules/` 是符号链接，复制后应为实际目录（非符号链接）
+
+**理由**：根据 `healProfilesModuleFallback` 机制，`profiles/node_modules/` 可能是符号链接。复制时应使用 `verbatimSymlinks: false` 选项，确保复制实际内容而非链接本身。
+
+## 场景 11：符号链接处理验证
+
+**Given** 模板目录中的 `profiles/node_modules/` 是符号链接
+**When** `copyPreinstalledPlugins()` 执行复制
+**Then** 实例目录中的 `profiles/node_modules/` 是实际目录（非符号链接）
+**And** 目录内容完整，包含所有依赖文件
+
+**理由**：每个实例应有独立的依赖副本，避免多个实例共享同一目录导致的冲突。

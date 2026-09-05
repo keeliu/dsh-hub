@@ -142,9 +142,8 @@ export function renderNewInstancePage(user: UserRow, error?: string, csrf?: stri
 
 /** 实例详情页（/instances/:id） */
 export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, logs: string, csrf?: string): string {
-  const instanceUrl = instance.status === 'running'
-    ? buildInstanceUrl(user.slug, instance.id, instance.trusted_host || config.hubDomain)
-    : null;
+  // 统一使用 /workspace 入口，不再直接访问 DSH 实例
+  const workspaceUrl = '/workspace';
 
   const content = `
     <div style="margin-bottom:1rem">
@@ -185,12 +184,12 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
       </table>
     </div>
 
-    ${instance.status === 'running' && instanceUrl ? `
+    ${instance.status === 'running' ? `
     <div class="card">
       <div class="card-title">访问实例</div>
       <p style="margin-bottom:0.5rem">通过网关访问：</p>
       <p style="margin:0">
-        <a href="${escapeHtml(instanceUrl)}" target="_blank" style="word-break:break-all">${escapeHtml(instanceUrl)}</a>
+        <a href="${workspaceUrl}" target="_blank" style="word-break:break-all">${workspaceUrl}</a>
       </p>
     </div>
     ` : ''}

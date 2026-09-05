@@ -36,18 +36,121 @@ const templateNpmrc = join(templateHome, '.npmrc');
 
 ## 解决方案
 
-### 方案选择：方案 A（保留现有架构，修复复制逻辑）
+### 方案选择：方案 B（Docker 多阶段构建）
 
 **理由**：
-1. 改动最小，风险可控
-2. 不依赖外部工具（`dshp` 可能不可用）
-3. 保留现有的异步创建流程
+1. **完全自动化** - 集成到现有 Dockerfile，`docker build` 时自动准备模板
+2. **可重复** - 每次构建结果一致，消除人为错误
+3. **版本可控** - 模板版本与代码版本绑定，便于追溯
+4. **路径无关** - 在容器内构建，使用统一的临时路径，天然支持路径无关
+
+### 路径无关性保证
+
+**关键发现**：根据 DSH 启动链路分析，DSH 的路径解析机制是：
+
+1. **`DSH_HOME` 环境变量** - 启动时设置，决定所有路径的根
+2. **相对路径** - Profile 内的配置使用相对路径（如 `./node_modules`）
+3. **动态解析** - `!!js dshHomePath('sessions')` 等函数在运行时解析
+
+**结论**：模板目录中的配置和代码**不包含硬编码路径**，都是相对路径或运行时动态解析，所以**天然支持路径无关**。
+
+### Docker 多阶段构建方案
+
+**Dockerfile 修改**：
+
+```dockerfile
+# 阶段 1：构建模板
+FROM node:24-slim AS template-builder
+
+# 安装依赖
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN npm i -g pnpm @deepseek-ai/dsh
+
+# 创建临时 home（路径固定，不影响最终模板）
+ENV DSH_HOME=/tmp/dsh-template
+RUN mkdir -p $DSH_HOME
+
+# 初始化 profile 并安装插件
+RUN dsh --profile web --no-open &
+RUN sleep 10 && \
+    dsh plugin --profile web add dshmarket && \
+    dsh plugin --profile web add DSH-better-sidebar && \
+    dsh plugin --profile web add dsh-im && \
+    dsh plugin --profile web add dsh-cost-meter && \
+    dsh plugin --profile web add dsh-visualize
+
+# 清除敏感信息
+RUN rm -f $DSH_HOME/.credentials.yaml && \
+    rm -rf $DSH_HOME/sessions && \
+    rm -rf $DSH_HOME/workspace
+
+# 阶段 2：最终镜像
+FROM node:24-slim
+
+# 安装 git（dsh plugin add github:xxx 需要）
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+# 装 pnpm（dsh plugin add 需要）
+RUN npm i -g pnpm
+
+# 从阶段 1 复制模板
+COPY --from=template-builder /tmp/dsh-template /opt/dsh-home-template
+
+# 设置权限
+RUN chmod -R 755 /opt/dsh-home-template
+
+# 设置环境变量
+ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template
+
+# ... 其余配置不变 ...
+```
 
 ### 架构设计
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  模板目录（/opt/dsh-home-template）                          │
+│  Docker 构建阶段 1（template-builder）                        │
+│                                                             │
+│  1. 安装 DSH 和 pnpm                                         │
+│  2. 设置 DSH_HOME=/tmp/dsh-template                         │
+│  3. 运行 dsh --profile web --no-open                        │
+│  4. 安装所有默认插件                                         │
+│  5. 清除敏感信息                                             │
+│                                                             │
+│  输出：/tmp/dsh-template（完整模板目录）                     │
+└─────────────────────────────────────────────────────────────
+                            │
+                            │ COPY
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  Docker 构建阶段 2（最终镜像）                                │
+│                                                             │
+│  /opt/dsh-home-template/                                    │
+│  ├── profiles/                                              │
+│  │   ├── web/                                               │
+│  │   │   ├── package.json                                   │
+│  │   │   ├── cordis.patch.yml                               │
+│  │   │   ├── pnpm-lock.yaml                                 │
+│  │   │   ├── pnpm-workspace.yaml                            │
+│  │   │   └── node_modules/                                  │
+│  │   └── node_modules/  ← 共享依赖                          │
+│  └── .npmrc                                                 │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            │ 运行时复制
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  用户实例（每个实例独立路径）                                 │
+│                                                             │
+│  <dataDir>/users/<dir_name>/instances/<id>/home/            │
+│  ├── profiles/                                              │
+│  │   ├── web/ (从模板复制)                                   │
+│  │   └── node_modules/ (从模板复制)                          │
+│  └── .npmrc (从模板复制)                                     │
+│                                                             │
+│  DSH_HOME=<dataDir>/users/<dir_name>/instances/<id>/home/   │
+└─────────────────────────────────────────────────────────────┘
+```
 │  ├── profiles/                                               │
 │  │   ├── web/                                                │
 │  │   │   ├── package.json                                    │

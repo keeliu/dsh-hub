@@ -1,43 +1,62 @@
 # 实施清单：会员实例预置模板
 
-## 阶段 1：环境准备（手动执行）
+## 阶段 1：Docker 多阶段构建（自动化）
 
-> **重要**：此阶段需要在服务器上手动执行，创建包含所有预置插件的模板目录。
+> **重要**：此阶段通过修改 Dockerfile 实现自动化，`docker build` 时自动准备模板。
 
-- [ ] 1.1 创建临时 DSH 实例
+- [ ] 1.1 修改 Dockerfile，添加模板构建阶段
+  - 文件：`dsh-hub/Dockerfile`
+  - 添加 `template-builder` 阶段：
+    ```dockerfile
+    FROM node:24-slim AS template-builder
+    
+    # 安装依赖
+    RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+    RUN npm i -g pnpm @deepseek-ai/dsh
+    
+    # 创建临时 home（路径固定，不影响最终模板）
+    ENV DSH_HOME=/tmp/dsh-template
+    RUN mkdir -p $DSH_HOME
+    
+    # 初始化 profile 并安装插件
+    RUN dsh --profile web --no-open &
+    RUN sleep 10 && \
+        dsh plugin --profile web add dshmarket && \
+        dsh plugin --profile web add DSH-better-sidebar && \
+        dsh plugin --profile web add dsh-im && \
+        dsh plugin --profile web add dsh-cost-meter && \
+        dsh plugin --profile web add dsh-visualize
+    
+    # 清除敏感信息
+    RUN rm -f $DSH_HOME/.credentials.yaml && \
+        rm -rf $DSH_HOME/sessions && \
+        rm -rf $DSH_HOME/workspace
+    ```
+  - 在最终镜像阶段复制模板：
+    ```dockerfile
+    COPY --from=template-builder /tmp/dsh-template /opt/dsh-home-template
+    RUN chmod -R 755 /opt/dsh-home-template
+    ENV TEMPLATE_DSH_HOME=/opt/dsh-home-template
+    ```
+
+- [ ] 1.2 验证 Docker 构建
   ```bash
-  # 在服务器上执行
-  mkdir -p /tmp/dsh-template-home
-  export DSH_HOME=/tmp/dsh-template-home
+  # 构建镜像
+  docker build -t dsh-hub:latest -f dsh-hub/Dockerfile dsh-hub/
   
-  # 初始化 web profile（会启动实例）
-  dsh --profile web --no-open
+  # 验证模板目录存在
+  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/
+  
+  # 验证模板内容完整
+  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/profiles/
+  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/profiles/web/
+  docker run --rm dsh-hub:latest ls -la /opt/dsh-home-template/profiles/node_modules/
   ```
-  - 等待实例启动完成
-  - 验证 `profiles/web/` 目录已创建
 
-- [ ] 1.2 安装所有默认插件
-  ```bash
-  # 在另一个终端执行（保持实例运行）
-  export DSH_HOME=/tmp/dsh-template-home
-  
-  dsh plugin --profile web add dshmarket
-  dsh plugin --profile web add DSH-better-sidebar
-  dsh plugin --profile web add dsh-im
-  dsh plugin --profile web add dsh-cost-meter
-  dsh plugin --profile web add dsh-visualize
-  ```
-  - 验证每个插件安装成功
-  - **关键**：确保 `profiles/node_modules/` 目录存在（由 `healProfilesModuleFallback` 机制创建）
-
-- [ ] 1.3 停止临时实例并清除敏感信息
-  ```bash
-  # 停止实例（Ctrl+C 或 kill 进程）
-  
-  # 清除敏感信息
-  rm -f /tmp/dsh-template-home/.credentials.yaml
-  rm -f /tmp/dsh-template-home/.env
-  rm -rf /tmp/dsh-template-home/sessions/
+- [ ] 1.3 验证路径无关性
+  - 确认模板中的配置文件使用相对路径
+  - 确认没有硬编码的绝对路径
+  - 确认 `DSH_HOME` 在运行时可动态设置
   rm -rf /tmp/dsh-template-home/workspace/
   ```
 

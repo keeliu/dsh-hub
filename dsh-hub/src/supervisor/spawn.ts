@@ -10,7 +10,7 @@ import { clearPidfile, readPidfile, writePidfile } from './pidfile.ts';
 import { instanceLogDir, rotateLog, writeFailureSnapshot, tailLog } from './log.ts';
 import { stopProcessGroup } from './stop.ts';
 import { isValidHarnessVersion } from '../version.ts';
-import { getDshBin, DEFAULT_PLUGINS } from '../config.ts';
+import { getDshBin, DEFAULT_PLUGINS, ensureProfileAllowBuilds } from '../config.ts';
 
 export interface StartResult {
   status: 'running' | 'failed';
@@ -50,7 +50,8 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
     try {
       const bin = resolveDshBin() || 'dsh';
       
-      // 配置 pnpm 允许 node-pty 等包的构建脚本
+      // 配置 pnpm 允许 node-pty 等包的原生构建脚本（pnpm v10+ 需 allowBuilds 批准）
+      ensureProfileAllowBuilds(record.home_path);
       const pnpmConfigPath = join(record.home_path, '.npmrc');
       if (!existsSync(pnpmConfigPath)) {
         writeFileSync(pnpmConfigPath, 'ignore-scripts=false\n');

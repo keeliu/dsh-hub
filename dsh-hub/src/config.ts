@@ -13,7 +13,7 @@
  */
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 export interface Config {
   host: string;
@@ -101,4 +101,30 @@ export function getTemplateDshHome(): string {
 /** 获取会员到期检查间隔（毫秒），默认 1 小时 */
 export function getExpiryCheckInterval(): number {
   return Number(process.env.DSH_HUB_EXPIRY_CHECK_INTERVAL ?? 3600000);
+}
+
+/**
+ * profile 里需要 pnpm 批准构建脚本的原生依赖（如 node-pty 需 node-gyp 编译）。
+ * pnpm v10+/11 默认不执行依赖生命周期脚本，必须显式 allowBuilds，否则
+ * `dsh plugin --profile web add` 装这些包时会因构建被忽略而失败。
+ */
+export const PROFILE_ALLOW_BUILDS = ['node-pty'] as const;
+
+/**
+ * 确保某实例/模板 profile 的 pnpm-workspace.yaml 已批准这些原生依赖的构建脚本。
+ * 写为 `allowBuilds:\n  <pkg>: true`（pnpm 11 认可，且按包名匹配、与版本无关）。
+ */
+export function ensureProfileAllowBuilds(homePath: string): void {
+  const profileDir = join(homePath, 'profiles', 'web');
+  mkdirSync(profileDir, { recursive: true });
+  const wsPath = join(profileDir, 'pnpm-workspace.yaml');
+  const block = `${PROFILE_ALLOW_BUILDS.map((p) => `  ${p}: true`).join('\n')}\n`;
+  const hay = `allowBuilds:\n${block}`;
+  if (existsSync(wsPath)) {
+    const cur = readFileSync(wsPath, 'utf8');
+    if (cur.includes('allowBuilds')) return; // 已配置，不重复
+    writeFileSync(wsPath, cur.replace(/\s*$/, '\n') + hay);
+  } else {
+    writeFileSync(wsPath, hay);
+  }
 }

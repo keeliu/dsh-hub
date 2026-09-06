@@ -17,10 +17,13 @@ RUN npm i -g pnpm @deepseek-ai/dsh@0.1.0-rc.7
 # 预装默认插件到模板目录。
 # 关键：不再用 `|| echo WARN` 静默吞失败——任一插件装失败即令构建失败（&& 短路），
 # 避免产出一个"缺插件的不完整模板"。5 个插件均为 npm 源（已实测可解析，无需 git)。
+# pnpm v10+/11 默认不执行依赖生命周期脚本；dsh-better-sidebar 的 node-pty 需 node-gyp 编译，
+# 必须在 profile 的 pnpm-workspace.yaml 里 allowBuilds 批准（否则安装被忽略而失败）。
 ENV DSH_HOME=/opt/dsh-home-template
 RUN mkdir -p $DSH_HOME/profiles/web \
     && echo "ignore-scripts=false" > $DSH_HOME/.npmrc \
     && dsh plugin --profile web add dshmarket \
+    && printf 'allowBuilds:\n  node-pty: true\n' >> $DSH_HOME/profiles/web/pnpm-workspace.yaml \
     && dsh plugin --profile web add dsh-better-sidebar \
     && dsh plugin --profile web add -w @xmanrui/dsh-im \
     && dsh plugin --profile web add dsh-cost-meter \

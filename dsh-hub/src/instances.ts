@@ -16,7 +16,7 @@ import { execSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { withTx } from './db.ts';
-import { config, getDshBin, DEFAULT_PLUGINS, getTemplateDshHome } from './config.ts';
+import { config, getDshBin, DEFAULT_PLUGINS, getTemplateDshHome, ensureProfileAllowBuilds } from './config.ts';
 import { allocatePort } from './port.ts';
 import { instanceDir, instanceHome, instanceWorkspace, INSTANCE_SUBDIRS, userDir } from './paths.ts';
 
@@ -175,7 +175,8 @@ async function installDefaultPlugins(homePath: string, workspacePath: string, in
   try {
     const bin = getDshBin() || 'dsh';
     
-    // 配置 pnpm 允许 node-pty 等包的构建脚本
+    // 配置 pnpm 允许 node-pty 等包的原生构建脚本（pnpm v10+ 需 allowBuilds 批准）
+    ensureProfileAllowBuilds(homePath);
     const pnpmConfigPath = join(homePath, '.npmrc');
     if (!existsSync(pnpmConfigPath)) {
       writeFileSync(pnpmConfigPath, 'ignore-scripts=false\n');

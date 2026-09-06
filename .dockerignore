@@ -1,0 +1,10 @@
+**/node_modules
+**/*.bak
+**/*.backup.*
+**/.env*
+**/Dockerfile.bak
+**/deploy.sh*
+**/docker-compose.yml.bak*
+**/docker-compose.yml.local-backup*
+**/docker-compose.yml.pre-upgrade*
+**/*.local-backup*

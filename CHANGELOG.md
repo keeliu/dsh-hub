@@ -1,3 +1,11 @@
+## 2026-09-06
+
+### Docker 构建修复
+- **问题**: `docker compose up --build` 失败，报错 `cannot replace to directory .../node_modules/@types/node with file`
+- **根因**: 仓库根缺少 `.dockerignore`，本地 `node_modules` 被纳入构建上下文，与容器内 `npm install` 生成的目录结构冲突
+- **修复**: 在 `/opt/dsh-hub/.dockerignore` 中添加 `**/node_modules` 及备份文件排除规则
+- **验证**: 镜像构建成功，容器 `dsh-hub` 已基于最新代码（commit 37d859d）重建并正常运行
+
 # DSH Hub 系统迭代记录
 
 > 本文档记录 DSH Hub 项目的所有功能迭代和修复，按日期倒序排列。

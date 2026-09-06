@@ -51,10 +51,13 @@ COPY --from=template-builder /opt/dsh-home-template /opt/dsh-home-template
 RUN chmod -R 755 /opt/dsh-home-template
 
 WORKDIR /app
-# 以下 COPY 均为仓库根相对路径
+# 以下 COPY 均为仓库根相对路径。
+# 只复制运行时需要的源码与配置，不用 `COPY dsh-hub/ ./`（那会把构建机 dsh-hub/node_modules
+# 一并带入 /app，覆盖 npm install 结果导致冲突）。
 COPY dsh-hub/package.json dsh-hub/package-lock.json ./
 RUN npm install
-COPY dsh-hub/ ./
+COPY dsh-hub/src ./src
+COPY dsh-hub/tsconfig.json ./tsconfig.json
 
 ENV NODE_ENV=production \
     DSH_HUB_DATA=/data \

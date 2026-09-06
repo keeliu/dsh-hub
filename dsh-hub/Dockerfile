@@ -1,3 +1,13 @@
+# DSH Hub 镜像。
+# ⚠️ 构建上下文必须是【本目录】（app 代码目录，含 Dockerfile 的这个目录）：
+#     COPY scripts/patch-dsh-client.sh、COPY package.json 等均为上下文相对路径。
+#     请从本目录构建，或使用仓库根 scripts/build-image.sh（内部会自动切到本目录）。
+#     TODO 反例（会报 "scripts/patch-dsh-client.sh not found"）：
+#       从仓库根执行 `docker build -f dsh-hub/Dockerfile .`（context 错为仓库根）。
+#     正确：
+#       cd dsh-hub/dsh-hub && docker build -t dsh-hub:latest .
+#       （或） docker compose up --build -d   # compose 在此目录，build: .
+
 # 阶段 1：template-builder —— 构建期预装默认插件模板
 FROM node:24-slim AS template-builder
 

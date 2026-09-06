@@ -1,12 +1,9 @@
 # DSH Hub 镜像。
-# ⚠️ 构建上下文必须是【本目录】（app 代码目录，含 Dockerfile 的这个目录）：
-#     COPY scripts/patch-dsh-client.sh、COPY package.json 等均为上下文相对路径。
-#     请从本目录构建，或使用仓库根 scripts/build-image.sh（内部会自动切到本目录）。
-#     TODO 反例（会报 "scripts/patch-dsh-client.sh not found"）：
-#       从仓库根执行 `docker build -f dsh-hub/Dockerfile .`（context 错为仓库根）。
-#     正确：
-#       cd dsh-hub/dsh-hub && docker build -t dsh-hub:latest .
-#       （或） docker compose up --build -d   # compose 在此目录，build: .
+# 构建上下文：【仓库根】目录（同时包含 dsh-hub/ 与 scripts/ 的那一层）。
+#   直接构建：docker build -f dsh-hub/Dockerfile .          # 从仓库根
+#   组合构建：docker compose up --build -d                   # dsh-hub/docker-compose.yml（context 指向 ..）
+# 说明：所有 COPY 均为【仓库根相对路径】（dsh-hub/...），这样 1panel 等从仓库根构建也能找到
+#       dsh-hub/scripts/patch-dsh-client.sh 等文件。
 
 # 阶段 1：template-builder —— 构建期预装默认插件模板
 FROM node:24-slim AS template-builder
@@ -51,9 +48,10 @@ COPY --from=template-builder /opt/dsh-home-template /opt/dsh-home-template
 RUN chmod -R 755 /opt/dsh-home-template
 
 WORKDIR /app
-COPY package.json package-lock.json ./
+# 以下 COPY 均为仓库根相对路径
+COPY dsh-hub/package.json dsh-hub/package-lock.json ./
 RUN npm install
-COPY . .
+COPY dsh-hub/ ./
 
 ENV NODE_ENV=production \
     DSH_HUB_DATA=/data \
@@ -67,8 +65,8 @@ ENV NODE_ENV=production \
 VOLUME ["/data"]
 EXPOSE 3082
 
-# 复制 patch 脚本
-COPY scripts/patch-dsh-client.sh /usr/local/bin/patch-dsh-client.sh
+# 复制 patch 脚本（仓库根相对路径）
+COPY dsh-hub/scripts/patch-dsh-client.sh /usr/local/bin/patch-dsh-client.sh
 RUN chmod +x /usr/local/bin/patch-dsh-client.sh
 
 # Node.js 24 原生支持 TypeScript，直接运行源码（无需编译）

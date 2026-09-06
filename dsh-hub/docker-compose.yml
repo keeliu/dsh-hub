@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   dsh-hub:
     build: .
@@ -15,26 +14,17 @@ services:
       - DSH_HUB_TRUST_PROXY=1
       - DSH_HUB_COOKIE_SECURE=1
       - DSH_BIN=/usr/local/bin/dsh
-      # 可选：配置域名
-      # - DSH_HUB_DOMAIN=hub.wuyajun.cn
-      # 可选：配置 SMTP（邮件通知）
-      # - SMTP_HOST=smtp.example.com
-      # - SMTP_PORT=587
-      # - SMTP_USER=user@example.com
-      # - SMTP_PASS=password
-      # - SMTP_FROM=noreply@example.com
     volumes:
-      # 数据持久化：bind mount 到独立路径（不在 git 仓库内）
       - /data/dsh-hub:/data
+    networks:
+      1panel-network:
+        ipv4_address: 172.18.0.3
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3082/healthz"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-    networks:
-      1panel-network:
-        ipv4_address: 172.18.0.100
 
 networks:
   1panel-network:

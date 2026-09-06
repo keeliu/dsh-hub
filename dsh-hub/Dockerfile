@@ -37,6 +37,8 @@ RUN node -e "const fs=require('node:fs');const p=JSON.parse(fs.readFileSync('/op
 
 # 阶段 2：最终镜像
 FROM node:24-slim
+# 安装 git（解析 github: 协议的插件依赖需要）
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 # 装 pnpm（dsh plugin add 需要）
 RUN npm i -g pnpm

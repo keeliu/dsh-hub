@@ -1,10 +1,30 @@
+# 仓库根（构建上下文根）的 .dockerignore。
+# 当从仓库根执行 `docker build -f dsh-hub/Dockerfile .` 时，docker 读取本文件。
+# 目的：精简构建上下文（排除 node_modules、.git、文档、备份等），让构建更快。
+# 注意：不能排除 Dockerfile 需要的文件——
+#   dsh-hub/src/**、dsh-hub/package.json、dsh-hub/package-lock.json、
+#   dsh-hub/tsconfig.json、dsh-hub/scripts/patch-dsh-client.sh。
+
+# 运行时/开发产物（任意层级）
 **/node_modules
+**/.env*
 **/*.bak
 **/*.backup.*
-**/.env*
 **/Dockerfile.bak
 **/deploy.sh*
 **/docker-compose.yml.bak*
 **/docker-compose.yml.local-backup*
 **/docker-compose.yml.pre-upgrade*
 **/*.local-backup*
+
+# 仓库元数据 / 文档 / 非镜像依赖目录（均在仓库根，Dockerfile 不 COPY）
+.git
+.gitignore
+*.md
+docs/
+assets/
+openspec/
+.coze
+.codegraph
+.openspec
+spikes/

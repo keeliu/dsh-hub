@@ -8,8 +8,8 @@
 # 阶段 1：template-builder —— 构建期预装默认插件模板
 FROM node:24-slim AS template-builder
 
-# git 供依赖拉取（github: 源若保留需它；镜像内 /usr/bin/git 已实测存在）
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# git 供依赖拉取；python3 + build-essential（make/g++）供 node-gyp 编译 node-pty 等原生模块
+RUN apt-get update && apt-get install -y git python3 build-essential && rm -rf /var/lib/apt/lists/*
 
 # 装 pnpm + dsh（数据面；pin 死版本，别用 latest）
 RUN npm i -g pnpm @deepseek-ai/dsh@0.1.0-rc.7
@@ -37,8 +37,8 @@ RUN node -e "const fs=require('node:fs');const p=JSON.parse(fs.readFileSync('/op
 
 # 阶段 2：最终镜像
 FROM node:24-slim
-# 安装 git（解析 github: 协议的插件依赖需要）
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# 安装 git（解析 github: 协议的插件依赖需要）+ python3/build-essential（运行时回退安装原生模块需要）
+RUN apt-get update && apt-get install -y git python3 build-essential && rm -rf /var/lib/apt/lists/*
 
 # 装 pnpm（dsh plugin add 需要）
 RUN npm i -g pnpm

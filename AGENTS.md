@@ -40,7 +40,8 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 └── dsh-hub/                    # 控制面应用（Dockerfile / docker-compose.yml 所在）
     ├── src/                    # TypeScript 源码
     │   ├── index.ts            # 入口（启动、孤儿认领、优雅关闭）
-    │   ├── config.ts           # 配置中心 + DEFAULT_PLUGINS / getTemplateDshHome / ensureProfileAllowBuilds
+    │   ├── config.ts           # 配置中心 + getTemplateDshHome / ensureProfileAllowBuilds
+    │   ├── presets.ts          # 预置插件清单（运行期可配置：get/setPresetPlugins、activePreset*、validatePresetPlugins）
     │   ├── db.ts               # SQLite（schema 版本化迁移）
     │   ├── http.ts             # HTTP 基础设施（HttpError / 响应 / cookie）
     │   ├── api.ts              # API 路由 + HTTP 服务入口（startServer）
@@ -153,11 +154,17 @@ docker compose up --build -d
 - **工作区/实例页修复**：fix-workspace-fullscreen（`/workspace` 满屏 + body 高度 `calc(100vh - 60px)`）、fix-duplicate-navbar（`/instances` 重复导航栏）。
 - **会员实例预置插件自动装载**（openspec/changes/member-instance-template/）：**代码已落地，待生产验证**
   - Docker `template-builder` 预装 5 个默认插件到 `/opt/dsh-home-template`，最终镜像复制该模板。
-  - `DEFAULT_PLUGINS`（单一真相源，`config.ts`）：`dshmarket`、`dsh-better-sidebar`、`@xmanrui/dsh-im`、`dsh-cost-meter`、`dsh-visualize`（**全部 npm 源**，规避 `github:` 源的构建期失败）。
+  - 默认清单（原 `DEFAULT_PLUGINS`，现为 `presets.ts::DEFAULT_PRESET_PLUGINS`）：`dshmarket`、`dsh-better-sidebar`、`@xmanrui/dsh-im`、`dsh-cost-meter`、`dsh-visualize`（**全部 npm 源**，规避 `github:` 源的构建期失败）。
   - `copyPreinstalledPlugins()`：复制整棵 `profiles/` 到 `homePath/profiles/`（DSH 真实布局），复制前用 `templateHasAllPlugins()` 校验模板 `dependencies` 覆盖全部插件；缺插件返回 `false` 走真装。
   - **标记乐观化**：`installDefaultPlugins()` / `spawn.ts` 只在**全部插件成功**后才写 `.plugins-installed`（失败不写、可重试），避免"空模板+完成标记"锁死补救路径。
   - `ensureProfileAllowBuilds()`（`config.ts`）：在 profile 的 `pnpm-workspace.yaml` 写入 `allowBuilds: node-pty: true`（pnpm v11 批准原生构建），运行时安装前调用。
   - 存量被旧逻辑固化的实例需**删除重建或手动补装**。
+- **管理后台管理预置插件**（openspec/changes/preset-plugin-management/）：**代码已落地，待生产验证**
+  - 预置插件清单从编译期常量改为**运行期可配置**：新增 `src/presets.ts`（`PresetPlugin { spec, enabled, order, allowBuild, workspace }`、`DEFAULT_PRESET_PLUGINS`、`getPresetPlugins` / `setPresetPlugins` / `activePresetSpecs` / `activePresetItems` / `activeAllowBuilds` / `validatePresetPlugins`），清单存 `settings` 表 JSON 键 `preset_plugins`；无配置/解析失败/非法 → 回退默认，绝不抛错。
+  - 装载链路（`instances.ts::copyPreinstalledPlugins` / `installDefaultPlugins`、`spawn.ts::startInstance`）改读动态清单；`-w` 依单项 `workspace`，`allowBuilds` 依 `activeAllowBuilds`（插件 spec + 已知原生依赖 `node-pty`）。`config.ts` 的 `ensureProfileAllowBuilds(homePath, packages)` 改为接收动态列表。
+  - **命令防注入**：新增 `runPluginAdd(bin, spec, workspace, opts)`，用 `spawn(bin, argv[], { shell:false })` 取代 `execSync(字符串)`；`validatePresetPlugins` 仅允许合法 npm 包名（拒绝 shell 元字符/空/超长）。
+  - 管理后台：`GET /admin/api/preset-plugins`（读）、`PUT /admin/api/preset-plugins`（整表替换 + 校验 + 审计 `preset_plugins_update`）、`/admin/plugins` 页面（表格增删/排序/启停/勾选 allowBuild 与 workspace），并入 admin 侧边栏。
+  - 边界：**仅对新建实例生效**（已建实例不回溯；移除插件不自动从已建实例卸载）。
 - **CHANGELOG 自动更新已上线**：见上文「CHANGELOG 自动更新」。
 
 ## 架构要点
@@ -166,8 +173,9 @@ docker compose up --build -d
 - **Schema 迁移**：`db.ts` 中的 `MIGRATIONS` 数组定义版本化迁移，旧数据库自动推断版本
 - **CSRF 保护**：页面表单 POST 走 `assertPageCsrf`（`_csrf` 字段 + `<meta name="csrf-token">`）；API 写操作走 `assertCsrf`（`X-CSRF-Token` 头，仅会话鉴权时校验）
 - **用户创建**：统一通过 `createUserRow()` 函数，自动生成 slug/dir_name
-- **配置单一真相源**：`DEFAULT_PLUGINS`、`getTemplateDshHome()`、`ensureProfileAllowBuilds()` 均在 `config.ts`
-- **插件装载链路**：模板复制（已校验完整性）→ 失败降级 `installDefaultPlugins()` 逐包真装 → `spawn.ts` 启动兜底；全部受 `.plugins-installed` 门控
+- **预置插件清单**：`presets.ts` 为单一真相源（`settings` 键 `preset_plugins`，回退 `DEFAULT_PRESET_PLUGINS`；`activeAllowBuilds` 合并已知原生依赖 `node-pty`）；`getTemplateDshHome()` / `ensureProfileAllowBuilds()` 在 `config.ts`
+- **插件装载链路**：模板复制（已校验完整性）→ 失败降级 `installDefaultPlugins()` 按当前清单逐包真装 → `spawn.ts` 启动兜底；全部受 `.plugins-installed` 门控
+- **命令执行安全**：插件安装统一走 `instances.ts::runPluginAdd`（`spawn(argv[], { shell:false })`），spec 经 `validatePresetPlugins` 校验，杜绝命令注入
 
 ## 用户偏好与长期约束
 

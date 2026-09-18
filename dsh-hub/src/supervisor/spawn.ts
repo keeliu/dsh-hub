@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess, execSync } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, closeSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
@@ -10,7 +10,9 @@ import { clearPidfile, readPidfile, writePidfile } from './pidfile.ts';
 import { instanceLogDir, rotateLog, writeFailureSnapshot, tailLog } from './log.ts';
 import { stopProcessGroup } from './stop.ts';
 import { isValidHarnessVersion } from '../version.ts';
-import { getDshBin, DEFAULT_PLUGINS, ensureProfileAllowBuilds } from '../config.ts';
+import { getDshBin, ensureProfileAllowBuilds } from '../config.ts';
+import { activePresetItems, activeAllowBuilds } from '../presets.ts';
+import { runPluginAdd } from '../instances.ts';
 
 export interface StartResult {
   status: 'running' | 'failed';
@@ -43,48 +45,45 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
 
   ensureInstanceDirs(record);
   
-  // 首次启动时自动安装默认插件
+  // 首次启动时按**当前生效清单**安装预置插件
   const pluginInstallFlag = join(record.home_path, '.plugins-installed');
   if (!existsSync(pluginInstallFlag)) {
-    console.log(`[spawn] Installing default plugins for instance ${record.id}...`);
+    console.log(`[spawn] Installing preset plugins for instance ${record.id}...`);
     try {
       const bin = resolveDshBin() || 'dsh';
-      
-      // 配置 pnpm 允许 node-pty 等包的原生构建脚本（pnpm v10+ 需 allowBuilds 批准）
-      ensureProfileAllowBuilds(record.home_path);
-      const pnpmConfigPath = join(record.home_path, '.npmrc');
-      if (!existsSync(pnpmConfigPath)) {
-        writeFileSync(pnpmConfigPath, 'ignore-scripts=false\n');
-        console.log(`[spawn] Created .npmrc to allow build scripts`);
-      }
-      
-      let allOk = true;
-      for (const plugin of DEFAULT_PLUGINS) {
-        console.log(`[spawn] Installing plugin: ${plugin}`);
-        try {
-          const isImPlugin = plugin.includes('dsh-im');
-          const cmd = isImPlugin
-            ? `${bin} plugin --profile web add -w ${plugin}`
-            : `${bin} plugin --profile web add ${plugin}`;
-          
-          execSync(cmd, {
-            cwd: record.workspace_path,
-            env: { ...process.env, DSH_HOME: record.home_path },
-            stdio: 'pipe',
-            timeout: 120000, // 120 秒超时（原生编译需要更长时间）
-          });
-          console.log(`[spawn] ✅ Plugin ${plugin} installed successfully`);
-        } catch (err) {
-          allOk = false;
-          console.error(`[spawn] ❌ Failed to install plugin ${plugin}:`, err);
-        }
-      }
-      // 只在全部插件到位后写标记（失败不写 → 下次可重试）
-      if (allOk) {
+      const items = activePresetItems(db);
+
+      if (items.length === 0) {
+        // 清单为空：无需安装，写标记避免每次启动重试
         writeFileSync(pluginInstallFlag, new Date().toISOString());
-        console.log(`[spawn] Default plugins installation completed for instance ${record.id}`);
+        console.log(`[spawn] Preset plugin list empty for instance ${record.id}`);
       } else {
-        console.log(`[spawn] Some plugins failed; marker not written for instance ${record.id} (will retry)`);
+        // 配置 pnpm 允许 node-pty 等原生依赖的构建脚本（pnpm v10+ 需 allowBuilds 批准）
+        ensureProfileAllowBuilds(record.home_path, activeAllowBuilds(db));
+        const pnpmConfigPath = join(record.home_path, '.npmrc');
+        if (!existsSync(pnpmConfigPath)) {
+          writeFileSync(pnpmConfigPath, 'ignore-scripts=false\n');
+          console.log(`[spawn] Created .npmrc to allow build scripts`);
+        }
+
+        let allOk = true;
+        for (const item of items) {
+          console.log(`[spawn] Installing plugin: ${item.spec}`);
+          try {
+            await runPluginAdd(bin, item.spec, item.workspace, { cwd: record.workspace_path, dshHome: record.home_path });
+            console.log(`[spawn] ✅ Plugin ${item.spec} installed successfully`);
+          } catch (err) {
+            allOk = false;
+            console.error(`[spawn] ❌ Failed to install plugin ${item.spec}:`, err);
+          }
+        }
+        // 只在全部插件到位后写标记（失败不写 → 下次可重试）
+        if (allOk) {
+          writeFileSync(pluginInstallFlag, new Date().toISOString());
+          console.log(`[spawn] Preset plugins installation completed for instance ${record.id}`);
+        } else {
+          console.log(`[spawn] Some plugins failed; marker not written for instance ${record.id} (will retry)`);
+        }
       }
     } catch (err) {
       console.error(`[spawn] Plugin installation error:`, err);

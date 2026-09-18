@@ -37,6 +37,7 @@ import {
   authenticate, assertCsrf, checkLoginLock, clearLoginLock, loginLockKey, recordLoginFailure, requireRole,
 } from './auth.ts';
 import { getSetting, getSettingsMap, setSetting, SETTING_KEYS } from './settings.ts';
+import { getPresetPlugins, setPresetPlugins, validatePresetPlugins, type PresetPlugin } from './presets.ts';
 import { parseAllowedVersions, isValidHarnessVersion, versionAllowed } from './version.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
@@ -550,6 +551,22 @@ route('PUT', '/admin/api/settings', { auth: true, csrf: true }, async ({ db, req
   for (const [key, value] of Object.entries(allowed)) setSetting(db, key, value);
   audit(db, 'user_update', actor.id, null, `settings updated by ${actor.nickname}: ${Object.keys(allowed).join(', ')}`);
   return { settings: allowed };
+});
+
+// ---------- 预置插件清单管理（admin/root） ----------
+
+route('GET', '/admin/api/preset-plugins', { auth: true }, async ({ db, user: actor }) => {
+  requireRole(actor, ['admin', 'root']);
+  return { plugins: getPresetPlugins(db) };
+});
+
+route('PUT', '/admin/api/preset-plugins', { auth: true, csrf: true }, async ({ db, req, user: actor }) => {
+  requireRole(actor, ['admin', 'root']);
+  const body = await readJson(req) as { plugins?: unknown };
+  const err = validatePresetPlugins(body.plugins);
+  if (err) throw new HttpError(400, 'invalid_preset_plugins', err);
+  const plugins = setPresetPlugins(db, body.plugins as PresetPlugin[], actor.id);
+  return { plugins };
 });
 
 // ---------- 会员系统 ----------

@@ -7,6 +7,7 @@ import { escapeHtml } from '../http.ts';
 import { layout, csrfField } from './layout.ts';
 import type { UserRow } from '../users.ts';
 import type { MembershipType } from '../membership.ts';
+import type { PresetPlugin } from '../presets.ts';
 
 interface InstanceInfo {
   id: string;
@@ -69,6 +70,7 @@ function adminSidebar(active: string): string {
     { key: 'instances', href: '/admin/instances', label: '实例总览', icon: '📦' },
     { key: 'membership', href: '/admin/membership', label: '会员管理', icon: '💎' },
     { key: 'prices', href: '/admin/prices', label: '价格管理', icon: '💰' },
+    { key: 'plugins', href: '/admin/plugins', label: '预置插件', icon: '🧩' },
     { key: 'audit', href: '/admin/audit', label: '审计日志', icon: '📋' },
     { key: 'settings', href: '/admin/settings', label: '全局设置', icon: '⚙️' },
   ];
@@ -587,4 +589,96 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<MembershipTy
   `;
 
   return layout('会员价格管理', content, user, undefined, csrf);
+}
+
+/** 预置插件管理页（/admin/plugins） */
+export function renderPresetPluginsPage(user: UserRow, plugins: PresetPlugin[], flash?: { type: string; message: string }, csrf?: string): string {
+  const rowHtml = (p: PresetPlugin): string => `
+            <tr>
+              <td><input type="text" class="form-control pj-spec" value="${escapeHtml(p.spec)}" placeholder="npm 包名，如 dshmarket"></td>
+              <td style="text-align:center"><input type="checkbox" class="pj-enabled" ${p.enabled ? 'checked' : ''}></td>
+              <td style="text-align:center"><input type="checkbox" class="pj-allow" ${p.allowBuild ? 'checked' : ''}></td>
+              <td style="text-align:center"><input type="checkbox" class="pj-ws" ${p.workspace ? 'checked' : ''}></td>
+              <td class="actions">
+                <button type="button" class="btn btn-sm btn-secondary pj-up">↑</button>
+                <button type="button" class="btn btn-sm btn-secondary pj-down">↓</button>
+                <button type="button" class="btn btn-sm btn-danger pj-del">删除</button>
+              </td>
+            </tr>`;
+  const content = `
+    <div class="page-header">
+      <h1 class="page-title">预置插件管理</h1>
+    </div>
+    ${adminSidebar('plugins')}
+    <div class="card">
+      <div class="card-title">新建/首次启动实例时预置的插件清单</div>
+      <p style="color:var(--text-secondary);font-size:0.875rem;margin-bottom:1rem">
+        顺序即安装顺序；<strong>仅对新建实例生效</strong>（已建实例不回溯）。「允许构建脚本」勾选后，该插件（或其原生依赖，如 node-pty）才会执行 pnpm 构建。改动写审计日志。
+      </p>
+      <form id="preset-form">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>包名（spec）</th>
+              <th style="text-align:center">启用</th>
+              <th style="text-align:center">允许构建脚本</th>
+              <th style="text-align:center">workspace(-w)</th>
+              <th style="text-align:center">操作</th>
+            </tr>
+          </thead>
+          <tbody id="preset-rows">
+            ${plugins.map(rowHtml).join('')}
+          </tbody>
+        </table>
+        <div style="margin-top:1rem;display:flex;gap:0.5rem">
+          <button type="button" id="preset-add" class="btn btn-sm btn-secondary">+ 新增插件</button>
+          <button type="submit" class="btn btn-primary">保存清单</button>
+        </div>
+      </form>
+    </div>
+    ${adminSidebarClose()}
+    <script>
+      var CSRF = '${csrf ?? ''}';
+      var tbody = document.getElementById('preset-rows');
+      function newRow() {
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td><input type="text" class="form-control pj-spec" placeholder="npm 包名"></td>'
+          + '<td style="text-align:center"><input type="checkbox" class="pj-enabled" checked></td>'
+          + '<td style="text-align:center"><input type="checkbox" class="pj-allow"></td>'
+          + '<td style="text-align:center"><input type="checkbox" class="pj-ws"></td>'
+          + '<td class="actions"><button type="button" class="btn btn-sm btn-secondary pj-up">↑</button> '
+          + '<button type="button" class="btn btn-sm btn-secondary pj-down">↓</button> '
+          + '<button type="button" class="btn btn-sm btn-danger pj-del">删除</button></td>';
+        return tr;
+      }
+      document.getElementById('preset-add').addEventListener('click', function () { tbody.appendChild(newRow()); });
+      tbody.addEventListener('click', function (e) {
+        var tr = e.target.closest('tr'); if (!tr) return;
+        if (e.target.classList.contains('pj-del')) tr.remove();
+        else if (e.target.classList.contains('pj-up') && tr.previousElementSibling) tbody.insertBefore(tr, tr.previousElementSibling);
+        else if (e.target.classList.contains('pj-down') && tr.nextElementSibling) tbody.insertBefore(tr.nextElementSibling, tr);
+      });
+      document.getElementById('preset-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+        var plugins = rows.map(function (tr, i) {
+          return {
+            spec: tr.querySelector('.pj-spec').value.trim(),
+            enabled: tr.querySelector('.pj-enabled').checked,
+            order: i,
+            allowBuild: tr.querySelector('.pj-allow').checked,
+            workspace: tr.querySelector('.pj-ws').checked,
+          };
+        });
+        var res = await fetch('/admin/api/preset-plugins', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF },
+          body: JSON.stringify({ plugins: plugins }),
+        });
+        if (res.ok) { alert('已保存'); location.reload(); }
+        else { var err = await res.json().catch(function () { return {}; }); alert('保存失败: ' + ((err.error && err.error.message) || res.status)); }
+      });
+    </script>
+  `;
+  return layout('预置插件管理', content, user, flash, csrf);
 }

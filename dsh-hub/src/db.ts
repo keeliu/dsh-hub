@@ -360,7 +360,8 @@ export type AuditAction =
   | 'order_pay'
   | 'order_cancel'
   | 'payment_notify'
-  | 'payment_refund';
+  | 'payment_refund'
+  | 'preset_plugins_update';
 
 /** 审计写入（骨架：M4 出管理端 UI 后再做过滤/浏览）。 */
 export function audit(db: DatabaseSync, action: AuditAction, actorId: number | null, targetUserId: number | null, detail?: string): void {

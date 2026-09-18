@@ -34,20 +34,6 @@ export interface SmtpConfig {
   secure: boolean;
 }
 
-/**
- * 实例创建时预置的默认插件（单一真相源，instances.ts / spawn.ts 均从此导入）。
- * 全部走 npm registry（已实测可解析）。原 2 个 `github:` 源（dsh-better-sidebar、
- * dsh-cost-meter）在镜像内构建失败（git-dep prepare 被 pnpm 拦截 / ref 不可解析），
- * 已替换为对应 npm 包，避免"模板装不全 + 复制不校验"导致的实例缺插件问题。
- */
-export const DEFAULT_PLUGINS = [
-  'dshmarket',
-  'dsh-better-sidebar',
-  '@xmanrui/dsh-im',
-  'dsh-cost-meter',
-  'dsh-visualize',
-] as const;
-
 const here = dirname(fileURLToPath(import.meta.url));
 
 function loadConfig(): Config {
@@ -104,21 +90,19 @@ export function getExpiryCheckInterval(): number {
 }
 
 /**
- * profile 里需要 pnpm 批准构建脚本的原生依赖（如 node-pty 需 node-gyp 编译）。
- * pnpm v10+/11 默认不执行依赖生命周期脚本，必须显式 allowBuilds，否则
- * `dsh plugin --profile web add` 装这些包时会因构建被忽略而失败。
+ * 确保某实例/模板 profile 的 pnpm-workspace.yaml 已批准给定包名的构建脚本。
+ *
+ * pnpm v10+/11 默认不执行依赖生命周期脚本（原生模块如 node-pty 需 node-gyp 编译），
+ * 必须显式 allowBuilds，否则 `dsh plugin --profile web add` 装这些包时会因构建被忽略而失败。
+ * 写为 `allowBuilds:\n  <pkg>: true`（pnpm 11 认可，按包名匹配、与版本无关）。
+ * 包名列表由 `presets.ts::activeAllowBuilds(db)` 动态提供。
  */
-export const PROFILE_ALLOW_BUILDS = ['node-pty'] as const;
-
-/**
- * 确保某实例/模板 profile 的 pnpm-workspace.yaml 已批准这些原生依赖的构建脚本。
- * 写为 `allowBuilds:\n  <pkg>: true`（pnpm 11 认可，且按包名匹配、与版本无关）。
- */
-export function ensureProfileAllowBuilds(homePath: string): void {
+export function ensureProfileAllowBuilds(homePath: string, packages: readonly string[]): void {
+  if (packages.length === 0) return;
   const profileDir = join(homePath, 'profiles', 'web');
   mkdirSync(profileDir, { recursive: true });
   const wsPath = join(profileDir, 'pnpm-workspace.yaml');
-  const block = `${PROFILE_ALLOW_BUILDS.map((p) => `  ${p}: true`).join('\n')}\n`;
+  const block = `${packages.map((p) => `  ${p}: true`).join('\n')}\n`;
   const hay = `allowBuilds:\n${block}`;
   if (existsSync(wsPath)) {
     const cur = readFileSync(wsPath, 'utf8');

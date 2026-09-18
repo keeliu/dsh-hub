@@ -23,7 +23,8 @@ import { hasActiveMembership, getUserOrders, createOrder, getUserMembership, MEM
 // 页面视图
 import { renderSetupPage, renderLoginPage, renderRegisterPage, renderForgotPasswordPage, renderResetPasswordPage } from './views/auth.ts';
 import { renderInstancesPage, renderNewInstancePage, renderInstanceDetailPage, renderMembershipPage, renderProfilePage, renderPaymentReturnPage } from './views/user.ts';
-import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage, renderAdminMembershipPage, renderAdminPricesPage } from './views/admin.ts';
+import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderAuditPage, renderSettingsPage, renderAdminMembershipPage, renderAdminPricesPage, renderPresetPluginsPage } from './views/admin.ts';
+import { getPresetPlugins } from './presets.ts';
 import { layout } from './views/layout.ts';
 import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
 import { getUserByAccount, getUserByEmail, isValidEmail, isValidUsername, getUserByUsername } from './users.ts';
@@ -827,6 +828,15 @@ page('GET', '/admin/prices', ({ db, req, res }) => {
   const prices = getAllMembershipPrices(db);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
   sendHtml(res, 200, renderAdminPricesPage(user, prices, csrf));
+});
+
+// GET /admin/plugins - 管理员预置插件管理（写入走 PUT /admin/api/preset-plugins）
+page('GET', '/admin/plugins', ({ db, req, res }) => {
+  const user = requireAdmin(db, req, res);
+  if (!user) return;
+  const plugins = getPresetPlugins(db);
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderPresetPluginsPage(user, plugins, undefined, csrf));
 });
 
 // POST /admin/users/:id/membership - 管理员设置会员

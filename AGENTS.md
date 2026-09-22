@@ -167,6 +167,23 @@ docker compose up --build -d
   - 边界：**仅对新建实例生效**（已建实例不回溯；移除插件不自动从已建实例卸载）。
 - **CHANGELOG 自动更新已上线**：见上文「CHANGELOG 自动更新」。
 
+### OpenSpec 变更状态（对账 2026-09-22）
+
+已按代码证据对账：**已实现的变更全部打勾并归档到 `openspec/changes/archive/`**（27 个）——gateway-auth-fix、page-csrf-protection、logic-dedup、supervisor-modularization、proxy-streaming、proxy-request-streaming、db-schema-versioning、instance-state-machine、membership-system、membership-expiry-scheduler、ui-redesign、payment-integration、payment-callback-and-pricing、free-trial-and-pricing-display、fix-workspace-fullscreen、fix-duplicate-navbar、config-unification、dsh-deployment-api-base、dsh-plugin-install-fix、docker-build-fix、dsh-client-loopback-patch、gateway-spa-fallback、websocket-event-proxy、workspace-embed、workspace-flow-completion、data-volume-migration、admin-user-account-fix。
+
+**`openspec/changes/` 下仍在办（未完成）**：
+
+| 变更 | 状态 |
+|---|---|
+| `route-modularization` | ❌ 未开始（大重构：拆 `api.ts` 1078 行 / `pages.ts` 903 行 / `views/layout.ts` 1094 行，目标各 ≤300 行；尚无 `routes/`、`views/styles.ts` 等） |
+| `data-persistence-fix` | ❌ 未做（`scripts/deploy_run.sh` 仍有 `/tmp` 回退；Dockerfile `DSH_HUB_DATA` 仍 `/data`，未改 `/mnt/data/dsh-hub`） |
+| `auth-workspace-ux-fixes` | 🟡 部分（用户名/密码规则已做；workspace 启动超时兜底 `WORKSPACE_START_TIMEOUT_MS` 未做） |
+| `member-instance-template` | ⏳ 代码已落地，待生产验证 |
+| `preset-plugin-management` | ⏳ 代码已落地，待生产验证 |
+| `production-fix-summary` | 生产问题汇总 README（非变更提案） |
+
+> 归档说明：归档变更的 `tasks.md` checkbox 按「实现完成」统一勾选，并加了一行「归档对账说明」；未在本环境复跑的验证项（冒烟/手测/生产）以历史状态为准。
+
 ## 架构要点
 
 - **状态机**：实例状态转换通过 `transitionStatus(db, id, to)` 统一校验，非法转换抛错；stale 状态校正用 `forceStatus`

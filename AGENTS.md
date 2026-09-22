@@ -165,6 +165,13 @@ docker compose up --build -d
   - **命令防注入**：新增 `runPluginAdd(bin, spec, workspace, opts)`，用 `spawn(bin, argv[], { shell:false })` 取代 `execSync(字符串)`；`validatePresetPlugins` 仅允许合法 npm 包名（拒绝 shell 元字符/空/超长）。
   - 管理后台：`GET /admin/api/preset-plugins`（读）、`PUT /admin/api/preset-plugins`（整表替换 + 校验 + 审计 `preset_plugins_update`）、`/admin/plugins` 页面（表格增删/排序/启停/勾选 allowBuild 与 workspace），并入 admin 侧边栏。
   - 边界：**仅对新建实例生效**（已建实例不回溯；移除插件不自动从已建实例卸载）。
+- **登录/认证与 Workspace 体验修复**（openspec/changes/auth-workspace-ux-fixes/）：**代码已落地 + 本环境可验证项全过，待真机/生产验证**
+  - **工作流 1（Workspace 启动超时兜底）**：`gateway.ts` 新增 `WORKSPACE_START_TIMEOUT_MS=60_000` / `WORKSPACE_POLL_INTERVAL_MS=2_000`；loading 页 `POST .../start` 只发一次（`hasTriedStart`），超时（60s）或实例 `failed` 时停止轮询（`settled`）并切到兜底态。hub 顶部栏抽出为 `renderHubNavStyle()` / `renderHubNavBar(user, brandHref)`（`injectDeploymentConfig` 复用，输出不变）。**落点**：`GET /` 对会员会 302 回 `/workspace`（回环），故兜底页品牌链接指向 `/instances`，动作按钮为「重试(`/workspace`)」+「实例管理(`/instances`)」。
+  - **工作流 2（用户名/密码规则统一）**：`users.ts` 为单一真相源——`USERNAME_MIN_LEN=6 / USERNAME_MAX_LEN=32 / PASSWORD_MIN_LEN=8`、`USERNAME_RULE_MESSAGE`、`PASSWORD_RULE_HINT`、`isValidUsername`（`^[a-zA-Z0-9]{6,32}$`）、`validateUsername`、`validatePassword`（≥8 且同时含字母+数字）。后端 `api.ts`（setup/register/reset/admin-create/admin-patch）与 `pages.ts`（setup/register/reset）全部改调统一函数；前端 `views/auth.ts`、`views/admin.ts` 的 `pattern/title/placeholder` 由上述常量插值生成。**额外收紧提案未列出的盲区**：`POST /admin/users`（后台建用户页面表单）此前对用户名/密码**无任何服务端校验**，已补。
+  - **工作流 3（认证页移动端兼容）**：`AUTH_CSS` 改 `min-height:100vh` + `100dvh`、`align-items:flex-start` + `.auth-page { margin:auto 0 }` + `overflow-y:auto`（键盘弹起可滚动）；移除未定义变量 `--radius-pill`（改 `var(--radius-md)`）；输入框 `font-size:16px`（iOS 不放大）、`-webkit-user-select:text`、原生 `autocomplete/inputmode/pattern/minlength`；按钮 `min-height:44px`；补 `@media (max-width:480px)` 留白调整。
+  - **兼容性**：规则只约束**新建/改密**，历史含下划线或短用户名仍可登录。
+  - **验证**：`tsc` 零错误；`m1-smoke.sh` 24/24；`m2-smoke.sh` 与改动前基线完全一致（13 项失败为沙箱实例环境问题）；`security-regression.sh` 对照 `HEAD` worktree 无「基线通过、改动后失败」用例；另用真实 HTTP 覆盖校验全部分支 + Node 虚拟时钟/DOM 仿真验证 loading 超时兜底 14 项。
+  - **未完成**：真机输入法验证（鸿蒙/微信/百度 APP）、生产验证；`tasks.md` 4.5 归档待真机验收后执行。
 - **CHANGELOG 自动更新已上线**：见上文「CHANGELOG 自动更新」。
 
 ### OpenSpec 变更状态（对账 2026-09-22）
@@ -177,7 +184,7 @@ docker compose up --build -d
 |---|---|
 | `route-modularization` | ❌ 未开始（大重构：拆 `api.ts` 1078 行 / `pages.ts` 903 行 / `views/layout.ts` 1094 行，目标各 ≤300 行；尚无 `routes/`、`views/styles.ts` 等） |
 | `data-persistence-fix` | ❌ 未做（`scripts/deploy_run.sh` 仍有 `/tmp` 回退；Dockerfile `DSH_HUB_DATA` 仍 `/data`，未改 `/mnt/data/dsh-hub`） |
-| `auth-workspace-ux-fixes` | 🟡 部分（用户名/密码规则已做；workspace 启动超时兜底 `WORKSPACE_START_TIMEOUT_MS` 未做） |
+| `auth-workspace-ux-fixes` | ⏳ 代码已落地（三个工作流全做完，`tsc`/m1 冒烟/HTTP + 仿真验证通过），待真机（移动端输入法）与生产验证；归档待真机验收 |
 | `member-instance-template` | ⏳ 代码已落地，待生产验证 |
 | `preset-plugin-management` | ⏳ 代码已落地，待生产验证 |
 | `production-fix-summary` | 生产问题汇总 README（非变更提案） |

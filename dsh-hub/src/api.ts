@@ -40,7 +40,7 @@ import { getSetting, getSettingsMap, setSetting, SETTING_KEYS } from './settings
 import { getPresetPlugins, setPresetPlugins, validatePresetPlugins, type PresetPlugin } from './presets.ts';
 import { parseAllowedVersions, isValidHarnessVersion, versionAllowed } from './version.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
-import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, isValidUsername, sanitizeNickname, shortId, type Role, type UserRow } from './users.ts';
+import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, sanitizeNickname, shortId, validatePassword, validateUsername, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
 import { startInstance, stopInstance, tailLog, type InstanceRecord } from './supervisor/index.ts';
 import { getUserMembership, getUserOrders, getAllOrders, createOrder, getOrderById, handlePaymentCallback, getAllMembershipPrices, getMembershipPrice, MEMBERSHIP_CONFIG, type MembershipType } from './membership.ts';
@@ -106,10 +106,11 @@ function createUserRow(db: DatabaseSync, opts: {
   if (!validQuota(maxInstances) || !validQuota(maxRunning)) {
     throw new HttpError(400, 'invalid_quota', 'quota must be an integer in [0, 1000]');
   }
-  // 验证 username
+  // 验证 username（规则与文案统一来自 users.ts，避免前后端漂移）
   const username = opts.username ?? null;
-  if (username && !isValidUsername(username)) {
-    throw new HttpError(400, 'invalid_username', 'username must be 3-32 alphanumeric characters or underscores');
+  if (username) {
+    const usernameError = validateUsername(username);
+    if (usernameError) throw new HttpError(400, 'invalid_username', usernameError);
   }
   if (username && getUserByUsername(db, username)) {
     throw new HttpError(409, 'username_taken', 'username already taken');
@@ -214,7 +215,8 @@ route('POST', '/api/auth/setup', async ({ db, req, res }) => {
   if (typeof body.nickname !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_body', 'nickname and password are required');
   }
-  if (body.password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+  const passwordError = validatePassword(body.password);
+  if (passwordError) throw new HttpError(400, 'weak_password', passwordError);
   // 提取局部（withTx 回调内 TS 不保留属性访问的收窄）
   const nickname = body.nickname;
   const password = body.password;
@@ -248,7 +250,8 @@ route('POST', '/api/auth/register', async ({ db, req, res }) => {
   if (typeof body.nickname !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_body', 'nickname and password are required');
   }
-  if (body.password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+  const passwordError = validatePassword(body.password);
+  if (passwordError) throw new HttpError(400, 'weak_password', passwordError);
   // M2.1：注册限速（IP 维度，防开放注册时批量建号）
   const regKey = loginLockKey(clientIp(req), 'register');
   checkLoginLock(regKey);
@@ -352,8 +355,9 @@ route('POST', '/api/auth/reset-password', async ({ db, req }) => {
   if (typeof body.email !== 'string' || typeof body.code !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_body', 'email, code and password are required');
   }
-  if (body.password.length < 8) {
-    throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+  const resetPasswordError = validatePassword(body.password);
+  if (resetPasswordError) {
+    throw new HttpError(400, 'weak_password', resetPasswordError);
   }
   const email = body.email.toLowerCase().trim();
   if (!verifyResetCode(db, email, body.code)) {
@@ -408,7 +412,8 @@ route('POST', '/admin/api/users', { auth: true, csrf: true }, async ({ db, req, 
   if (typeof body.nickname !== 'string' || typeof body.password !== 'string') {
     throw new HttpError(400, 'invalid_body', 'nickname and password are required');
   }
-  if (body.password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+  const createPasswordError = validatePassword(body.password);
+  if (createPasswordError) throw new HttpError(400, 'weak_password', createPasswordError);
   const role: Role = typeof body.role === 'string' && isRole(body.role) ? body.role : 'user';
   if (!canManage(actor.role, role)) throw new HttpError(403, 'forbidden', 'cannot create that role');
   const nickname = body.nickname;
@@ -492,7 +497,9 @@ route('PATCH', '/admin/api/users/:id', { auth: true, csrf: true }, async ({ db, 
       changes.push(`role=${role}`);
     }
     if (password !== undefined) {
-      if (typeof password !== 'string' || password.length < 8) throw new HttpError(400, 'weak_password', 'password must be at least 8 characters');
+      if (typeof password !== 'string') throw new HttpError(400, 'weak_password', '密码需为字符串');
+      const patchPasswordError = validatePassword(password);
+      if (patchPasswordError) throw new HttpError(400, 'weak_password', patchPasswordError);
       db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), id);
       // 重置密码即吊销全部会话与 token，防旧凭据复用（M2.1 补 token）
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(id);

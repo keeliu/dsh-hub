@@ -5,6 +5,11 @@
  */
 import { escapeHtml } from '../http.ts';
 import { authLayout } from './layout.ts';
+import { PASSWORD_MIN_LEN, PASSWORD_RULE_HINT, USERNAME_MAX_LEN, USERNAME_MIN_LEN, USERNAME_RULE_MESSAGE } from '../users.ts';
+
+// 前端原生校验属性与后端规则同源（users.ts），避免提示漂移
+const USERNAME_PATTERN = `[A-Za-z0-9]{${USERNAME_MIN_LEN},${USERNAME_MAX_LEN}}`;
+const PASSWORD_PATTERN = `(?=.*[A-Za-z])(?=.*[0-9]).{${PASSWORD_MIN_LEN},}`;
 
 /** 首启向导页面（/setup） */
 export function renderSetupPage(error?: string): string {
@@ -17,23 +22,28 @@ export function renderSetupPage(error?: string): string {
     <form method="POST" action="/setup">
       <div class="form-group">
         <label class="form-label" for="nickname">昵称</label>
-        <input type="text" id="nickname" name="nickname" class="form-control" required autofocus placeholder="输入昵称">
+        <input type="text" id="nickname" name="nickname" class="form-control" required autofocus autocomplete="name" placeholder="输入昵称">
       </div>
       <div class="form-group">
         <label class="form-label" for="username">用户名（登录账号）</label>
-        <input type="text" id="username" name="username" class="form-control" placeholder="用于登录的账号名">
+        <input type="text" id="username" name="username" class="form-control" autocomplete="username" inputmode="text"
+               minlength="${USERNAME_MIN_LEN}" maxlength="${USERNAME_MAX_LEN}" pattern="${USERNAME_PATTERN}"
+               title="${USERNAME_RULE_MESSAGE}" placeholder="${USERNAME_MIN_LEN}-${USERNAME_MAX_LEN} 位英文字母或数字，留空则用昵称">
       </div>
       <div class="form-group">
         <label class="form-label" for="email">邮箱（可选）</label>
-        <input type="email" id="email" name="email" class="form-control" placeholder="用于找回密码">
+        <input type="email" id="email" name="email" class="form-control" autocomplete="email" inputmode="email" placeholder="用于找回密码">
       </div>
       <div class="form-group">
         <label class="form-label" for="password">密码</label>
-        <input type="password" id="password" name="password" class="form-control" required minlength="8" placeholder="至少 8 个字符">
+        <input type="password" id="password" name="password" class="form-control" required
+               minlength="${PASSWORD_MIN_LEN}" pattern="${PASSWORD_PATTERN}"
+               title="${PASSWORD_RULE_HINT}" placeholder="${PASSWORD_RULE_HINT}" autocomplete="new-password">
       </div>
       <div class="form-group">
         <label class="form-label" for="password2">确认密码</label>
-        <input type="password" id="password2" name="password2" class="form-control" required placeholder="再次输入密码">
+        <input type="password" id="password2" name="password2" class="form-control" required
+               minlength="${PASSWORD_MIN_LEN}" autocomplete="new-password" placeholder="再次输入密码">
       </div>
       <button type="submit" class="btn btn-primary btn-block">创建管理员</button>
     </form>
@@ -58,11 +68,13 @@ export function renderLoginPage(error?: string, registrationOpen = false, csrf?:
       ${csrfInput}
       <div class="form-group">
         <label class="form-label" for="account">用户名 / 邮箱</label>
-        <input type="text" id="account" name="account" class="form-control" required autofocus placeholder="输入用户名或邮箱">
+        <input type="text" id="account" name="account" class="form-control" required autofocus
+               autocomplete="username" inputmode="text" placeholder="输入用户名或邮箱">
       </div>
       <div class="form-group">
         <label class="form-label" for="password">密码</label>
-        <input type="password" id="password" name="password" class="form-control" required placeholder="输入密码">
+        <input type="password" id="password" name="password" class="form-control" required
+               autocomplete="current-password" placeholder="输入密码">
       </div>
       <button type="submit" class="btn btn-primary btn-block">登录</button>
     </form>
@@ -89,23 +101,29 @@ export function renderRegisterPage(error?: string, form?: { nickname?: string; u
     <form method="POST" action="/register">
       <div class="form-group">
         <label class="form-label" for="username">用户名</label>
-        <input type="text" id="username" name="username" class="form-control" required autofocus placeholder="3-32位字母数字下划线"${usernameValue}>
+        <input type="text" id="username" name="username" class="form-control" required autofocus
+               autocomplete="username" inputmode="text"
+               minlength="${USERNAME_MIN_LEN}" maxlength="${USERNAME_MAX_LEN}" pattern="${USERNAME_PATTERN}"
+               title="${USERNAME_RULE_MESSAGE}" placeholder="${USERNAME_MIN_LEN}-${USERNAME_MAX_LEN} 位英文字母或数字"${usernameValue}>
       </div>
       <div class="form-group">
         <label class="form-label" for="nickname">昵称（可选）</label>
-        <input type="text" id="nickname" name="nickname" class="form-control" placeholder="留空则与用户名相同"${nicknameValue}>
+        <input type="text" id="nickname" name="nickname" class="form-control" autocomplete="name" placeholder="留空则与用户名相同"${nicknameValue}>
       </div>
       <div class="form-group">
         <label class="form-label" for="email">邮箱</label>
-        <input type="email" id="email" name="email" class="form-control" required placeholder="输入邮箱"${emailValue}>
+        <input type="email" id="email" name="email" class="form-control" required autocomplete="email" inputmode="email" placeholder="输入邮箱"${emailValue}>
       </div>
       <div class="form-group">
         <label class="form-label" for="password">密码</label>
-        <input type="password" id="password" name="password" class="form-control" required minlength="8" placeholder="输入密码">
+        <input type="password" id="password" name="password" class="form-control" required
+               minlength="${PASSWORD_MIN_LEN}" pattern="${PASSWORD_PATTERN}"
+               title="${PASSWORD_RULE_HINT}" placeholder="${PASSWORD_RULE_HINT}" autocomplete="new-password">
       </div>
       <div class="form-group">
         <label class="form-label" for="password2">确认密码</label>
-        <input type="password" id="password2" name="password2" class="form-control" required placeholder="再次输入密码">
+        <input type="password" id="password2" name="password2" class="form-control" required
+               minlength="${PASSWORD_MIN_LEN}" autocomplete="new-password" placeholder="再次输入密码">
       </div>
       <button type="submit" class="btn btn-primary btn-block">注册</button>
     </form>
@@ -130,7 +148,7 @@ export function renderForgotPasswordPage(error?: string, success?: string): stri
     <form method="POST" action="/forgot-password">
       <div class="form-group">
         <label class="form-label" for="email">注册邮箱</label>
-        <input type="email" id="email" name="email" class="form-control" required autofocus placeholder="输入注册时使用的邮箱">
+        <input type="email" id="email" name="email" class="form-control" required autofocus autocomplete="email" inputmode="email" placeholder="输入注册时使用的邮箱">
       </div>
       <button type="submit" class="btn btn-primary btn-block">发送重置链接</button>
     </form>
@@ -154,15 +172,19 @@ export function renderResetPasswordPage(email: string, error?: string): string {
       <input type="hidden" name="email" value="${escapeHtml(email)}">
       <div class="form-group">
         <label class="form-label" for="code">验证码</label>
-        <input type="text" id="code" name="code" class="form-control" required autofocus placeholder="输入6位验证码" maxlength="6" pattern="[0-9]{6}">
+        <input type="text" id="code" name="code" class="form-control" required autofocus inputmode="numeric"
+               autocomplete="one-time-code" placeholder="输入6位验证码" maxlength="6" pattern="[0-9]{6}">
       </div>
       <div class="form-group">
         <label class="form-label" for="password">新密码</label>
-        <input type="password" id="password" name="password" class="form-control" required minlength="8" placeholder="输入新密码">
+        <input type="password" id="password" name="password" class="form-control" required
+               minlength="${PASSWORD_MIN_LEN}" pattern="${PASSWORD_PATTERN}"
+               title="${PASSWORD_RULE_HINT}" placeholder="${PASSWORD_RULE_HINT}" autocomplete="new-password">
       </div>
       <div class="form-group">
         <label class="form-label" for="password2">确认新密码</label>
-        <input type="password" id="password2" name="password2" class="form-control" required placeholder="再次输入新密码">
+        <input type="password" id="password2" name="password2" class="form-control" required
+               minlength="${PASSWORD_MIN_LEN}" autocomplete="new-password" placeholder="再次输入新密码">
       </div>
       <button type="submit" class="btn btn-primary btn-block">重置密码</button>
     </form>

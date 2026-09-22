@@ -108,9 +108,43 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-/** 用户名验证（字母数字下划线，3-32 字符） */
+// ---------- 账号/密码规则（单一真相源，前后端共用同一常量与文案） ----------
+
+/** 用户名长度下限：仅英文字母/数字，且必须 >5 位 */
+export const USERNAME_MIN_LEN = 6;
+/** 用户名长度上限 */
+export const USERNAME_MAX_LEN = 32;
+/** 密码长度下限 */
+export const PASSWORD_MIN_LEN = 8;
+
+/** 用户名规则提示语（前端 placeholder/title 与后端 400 文案共用，保证前后端一致） */
+export const USERNAME_RULE_MESSAGE = `用户名需为 ${USERNAME_MIN_LEN}-${USERNAME_MAX_LEN} 位英文字母或数字`;
+/** 密码规则提示语（前端 placeholder/title 与后端 400 文案共用） */
+export const PASSWORD_RULE_HINT = `至少 ${PASSWORD_MIN_LEN} 位，且同时包含字母和数字`;
+
+const USERNAME_PATTERN = new RegExp(`^[a-zA-Z0-9]{${USERNAME_MIN_LEN},${USERNAME_MAX_LEN}}$`);
+
+/**
+ * 用户名验证（仅英文字母/数字，6-32 字符）。
+ * 注意：只约束**新建用户/改名**，历史含下划线或短于 6 位的账号仍可正常登录（登录走 getUserByAccount 精确匹配）。
+ */
 export function isValidUsername(username: string): boolean {
-  return /^[a-zA-Z0-9_]{3,32}$/.test(username);
+  return USERNAME_PATTERN.test(username);
+}
+
+/** 校验用户名：合法返回 null，否则返回统一错误文案（供后端 400 响应直接使用）。 */
+export function validateUsername(username: string): string | null {
+  return isValidUsername(username) ? null : USERNAME_RULE_MESSAGE;
+}
+
+/**
+ * 校验密码强度：长度 ≥ PASSWORD_MIN_LEN 且同时包含字母与数字。
+ * 合法返回 null，否则返回可展示的错误文案（前后端共用，避免规则漂移）。
+ */
+export function validatePassword(password: string): string | null {
+  if (password.length < PASSWORD_MIN_LEN) return `密码${PASSWORD_RULE_HINT}`;
+  if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return '密码需同时包含字母和数字';
+  return null;
 }
 
 // ---------- 用户创建 ----------

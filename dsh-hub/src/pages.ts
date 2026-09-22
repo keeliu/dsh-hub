@@ -27,7 +27,7 @@ import { renderDashboardPage, renderUsersPage, renderAdminInstancesPage, renderA
 import { getPresetPlugins } from './presets.ts';
 import { layout } from './views/layout.ts';
 import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
-import { getUserByAccount, getUserByEmail, isValidEmail, isValidUsername, getUserByUsername } from './users.ts';
+import { getUserByAccount, getUserByEmail, isValidEmail, getUserByUsername, validatePassword, validateUsername } from './users.ts';
 
 /** 页面路由上下文 */
 interface PageCtx {
@@ -140,13 +140,19 @@ page('POST', '/setup', async ({ db, req, res }) => {
     sendHtml(res, 400, renderSetupPage('两次密码输入不一致'));
     return;
   }
-  if (password.length < 8) {
-    sendHtml(res, 400, renderSetupPage('密码至少 8 个字符'));
+  const setupPasswordError = validatePassword(password);
+  if (setupPasswordError) {
+    sendHtml(res, 400, renderSetupPage(setupPasswordError));
     return;
   }
 
-  // username 默认为 nickname
+  // username 默认为 nickname（留空时由昵称兜底，故仅在校验填写了 username 时套用新规则）
   const finalUsername = username?.trim() || nickname;
+  const setupUsernameError = username?.trim() ? validateUsername(username.trim()) : null;
+  if (setupUsernameError) {
+    sendHtml(res, 400, renderSetupPage(setupUsernameError));
+    return;
+  }
 
   try {
     let user: UserRow;
@@ -252,12 +258,14 @@ page('POST', '/register', async ({ db, req, res }) => {
     sendHtml(res, 400, renderRegisterPage('两次密码输入不一致', formPreserve));
     return;
   }
-  if (password.length < 8) {
-    sendHtml(res, 400, renderRegisterPage('密码至少 8 个字符', formPreserve));
+  const registerPasswordError = validatePassword(password);
+  if (registerPasswordError) {
+    sendHtml(res, 400, renderRegisterPage(registerPasswordError, formPreserve));
     return;
   }
-  if (!isValidUsername(username)) {
-    sendHtml(res, 400, renderRegisterPage('用户名格式不正确（3-32位字母数字下划线）', formPreserve));
+  const registerUsernameError = validateUsername(username);
+  if (registerUsernameError) {
+    sendHtml(res, 400, renderRegisterPage(registerUsernameError, formPreserve));
     return;
   }
   if (!isValidEmail(email)) {
@@ -382,8 +390,9 @@ page('POST', '/reset-password', async ({ db, req, res }) => {
     sendHtml(res, 400, renderResetPasswordPage(email, '两次密码输入不一致'));
     return;
   }
-  if (password.length < 8) {
-    sendHtml(res, 400, renderResetPasswordPage(email, '密码至少 8 个字符'));
+  const resetPasswordError = validatePassword(password);
+  if (resetPasswordError) {
+    sendHtml(res, 400, renderResetPasswordPage(email, resetPasswordError));
     return;
   }
 
@@ -587,6 +596,12 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
     }
     // 昵称可选，如果未填写则使用用户名
     const username = form.username ?? '';
+    // 服务端兜底校验：前端 pattern/minlength 可被绕过（coding-standards §2）
+    const usernameError = validateUsername(username);
+    if (usernameError) throw new Error(usernameError);
+    const password = form.password ?? '';
+    const passwordError = validatePassword(password);
+    if (passwordError) throw new Error(passwordError);
     const nickname = form.nickname?.trim() || username;
     let newUser: UserRow | null = null;
     withTx(db, () => {
@@ -594,7 +609,7 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
         nickname,
         username,
         email,
-        passwordHash: hashPassword(form.password ?? ''),
+        passwordHash: hashPassword(password),
         role: (form.role as any) ?? 'user',
       });
     });

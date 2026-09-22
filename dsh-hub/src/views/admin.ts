@@ -5,9 +5,13 @@
  */
 import { escapeHtml } from '../http.ts';
 import { layout, csrfField } from './layout.ts';
-import type { UserRow } from '../users.ts';
+import { PASSWORD_MIN_LEN, PASSWORD_RULE_HINT, USERNAME_MAX_LEN, USERNAME_MIN_LEN, USERNAME_RULE_MESSAGE, type UserRow } from '../users.ts';
 import type { MembershipType } from '../membership.ts';
 import type { PresetPlugin } from '../presets.ts';
+
+// 与 users.ts / views/auth.ts 同源，避免后台建用户表单提示与认证页不一致
+const CREATE_USERNAME_PATTERN = `[A-Za-z0-9]{${USERNAME_MIN_LEN},${USERNAME_MAX_LEN}}`;
+const CREATE_PASSWORD_PATTERN = `(?=.*[A-Za-z])(?=.*[0-9]).{${PASSWORD_MIN_LEN},}`;
 
 interface InstanceInfo {
   id: string;
@@ -152,11 +156,15 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">账号</label>
-              <input type="text" name="username" class="form-control" required pattern="[a-z0-9_]{3,20}" title="3-20 位小写字母、数字或下划线">
+              <input type="text" name="username" class="form-control" required autocomplete="username" inputmode="text"
+                     minlength="${USERNAME_MIN_LEN}" maxlength="${USERNAME_MAX_LEN}" pattern="${CREATE_USERNAME_PATTERN}"
+                     title="${USERNAME_RULE_MESSAGE}" placeholder="${USERNAME_MIN_LEN}-${USERNAME_MAX_LEN} 位英文字母或数字">
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">密码</label>
-              <input type="password" name="password" class="form-control" required minlength="8">
+              <input type="password" name="password" class="form-control" required
+                     minlength="${PASSWORD_MIN_LEN}" pattern="${CREATE_PASSWORD_PATTERN}"
+                     title="${PASSWORD_RULE_HINT}" placeholder="${PASSWORD_RULE_HINT}" autocomplete="new-password">
             </div>
             <div class="form-group" style="margin:0">
               <label class="form-label">角色</label>

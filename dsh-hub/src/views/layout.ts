@@ -1018,14 +1018,21 @@ const AUTH_CSS = `
 .auth-body {
   background: #ffffff;
   min-height: 100vh;
+  /* 移动端键盘弹起时 vh 不收缩，用 dvh 让容器跟随可视区 */
+  min-height: 100dvh;
   display: flex;
-  align-items: center;
+  /* 顶部对齐 + 允许滚动：键盘弹起时聚焦输入框仍可滚入可视区（修复部分机型调不起输入法/被遮挡） */
+  align-items: flex-start;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 3rem 1rem;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .auth-page {
   width: 100%;
   max-width: 400px;
+  /* 空间足够时视觉居中；内容溢出时 auto 归零 → 顶部对齐并可滚动 */
+  margin: auto 0;
 }
 .auth-card {
   background: #ffffff;
@@ -1061,10 +1068,15 @@ const AUTH_CSS = `
   padding: 0.75rem 1rem;
   background: #f5f5f5;
   border: none;
-  border-radius: var(--radius-pill);
-  font-size: 0.875rem;
+  /* 原为未定义的 --radius-pill（静默失效），改用标准圆角 */
+  border-radius: var(--radius-md);
+  /* 16px：iOS 聚焦时不自动放大页面 */
+  font-size: 16px;
   color: #333;
   box-sizing: border-box;
+  /* 部分移动端内核默认禁止输入框选中文本，显式放开以保证可编辑 */
+  -webkit-user-select: text;
+  user-select: text;
   transition: background 0.2s, box-shadow 0.2s;
 }
 .auth-card .form-control:focus {
@@ -1077,6 +1089,8 @@ const AUTH_CSS = `
 }
 .auth-card .btn-primary {
   margin-top: 0.5rem;
+  /* 移动端触摸目标 ≥44px */
+  min-height: 44px;
 }
 .auth-footer {
   text-align: center;
@@ -1090,5 +1104,14 @@ const AUTH_CSS = `
 }
 .auth-footer a:hover {
   text-decoration: underline;
+}
+/* 小屏：收窄留白，避免键盘弹起后可用高度过小 */
+@media (max-width: 480px) {
+  .auth-body {
+    padding: 1.5rem 1rem;
+  }
+  .auth-card {
+    padding: 2rem 1.25rem;
+  }
 }
 `;

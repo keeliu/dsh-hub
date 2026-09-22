@@ -12,7 +12,7 @@ FROM node:24-slim AS template-builder
 RUN apt-get update && apt-get install -y git python3 build-essential && rm -rf /var/lib/apt/lists/*
 
 # 装 pnpm + dsh（数据面；pin 死版本，别用 latest）
-RUN npm i -g pnpm @deepseek-ai/dsh@0.1.0-rc.7
+RUN npm i -g pnpm @deepseek-ai/dsh@0.1.5-rc.2
 
 # 预装默认插件到模板目录。
 # 关键：不再用 `|| echo WARN` 静默吞失败——任一插件装失败即令构建失败（&& 短路），
@@ -44,7 +44,7 @@ RUN apt-get update && apt-get install -y git python3 build-essential && rm -rf /
 RUN npm i -g pnpm
 
 # 装 dsh（数据面；pin 死版本，别用 latest）
-RUN npm i -g @deepseek-ai/dsh@0.1.0-rc.7
+RUN npm i -g @deepseek-ai/dsh@0.1.5-rc.2
 
 # 复制只读插件模板
 COPY --from=template-builder /opt/dsh-home-template /opt/dsh-home-template

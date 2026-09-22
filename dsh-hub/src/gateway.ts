@@ -353,6 +353,11 @@ export async function proxyWebSocketToDshInstance(
 
 const WORKSPACE_PREFIX = '/workspace';
 
+/** Workspace loading 页轮询实例状态的间隔 */
+const WORKSPACE_POLL_INTERVAL_MS = 2_000;
+/** Workspace 等待实例就绪的最长时间；超过则停止轮询并进入超时兜底态（用户口径：超过 1 分钟） */
+const WORKSPACE_START_TIMEOUT_MS = 60_000;
+
 // HTML 中需要重写路径的标签属性
 const HTML_PATH_ATTRS = [
   { tag: 'script', attr: 'src' },
@@ -409,17 +414,11 @@ function rewriteCssPaths(css: string, prefix: string): string {
 }
 
 /**
- * 注入 __DSH_DEPLOYMENT__ 配置和导航栏
- * 在 <head> 中插入 <script>window.__DSH_DEPLOYMENT__ = {...}</script>
- * 在 <body> 开头插入导航栏
+ * hub 顶部栏样式（固定导航栏 + 下拉开合交互）。
+ * 抽成函数以便 Workspace 注入与 loading/超时兜底页复用同一套样式。
  */
-function injectDeploymentConfig(html: string, prefix: string, user?: { nickname: string; slug: string }): string {
-  // 注入 __DSH_DEPLOYMENT__ 配置
-  const configScript = `<script>window.__DSH_DEPLOYMENT__ = { apiBase: '${prefix}', wsBase: '${prefix}' };</script>`;
-  let result = html.replace('<head>', `<head>${configScript}`);
-  
-  // 注入导航栏样式
-  const navStyle = `
+function renderHubNavStyle(): string {
+  return `
 <style>
 #dsh-hub-navbar {
   position: fixed;
@@ -515,14 +514,18 @@ document.addEventListener('click', function(e) {
   }
 });
 </script>`;
-  result = result.replace('</head>', `${navStyle}</head>`);
-  
-  // 注入导航栏 HTML
-  if (user) {
-    const initial = user.nickname.charAt(0).toUpperCase();
-    const navHtml = `
+}
+
+/**
+ * hub 顶部栏 HTML（品牌 + 用户菜单）与工作区高度规则。
+ * @param brandHref 品牌链接落点，默认 `/`。Workspace loading/超时页传 `/instances`：
+ *   `GET /` 对会员会重定向回 `/workspace`，作为兜底落点会形成回环（决策 A1）。
+ */
+function renderHubNavBar(user: { nickname: string; slug: string }, brandHref = '/'): string {
+  const initial = user.nickname.charAt(0).toUpperCase();
+  return `
 <div id="dsh-hub-navbar">
-  <a href="/" class="brand">乌鸦 work</a>
+  <a href="${brandHref}" class="brand">乌鸦 work</a>
   <div class="nav-right">
     <div class="user-menu">
       <div class="user-avatar" onclick="document.getElementById('user-dropdown').classList.toggle('show')">${initial}</div>
@@ -550,9 +553,23 @@ body {
   overflow-y: auto !important;
 }
 </style>`;
-    result = result.replace('<body>', `<body>${navHtml}`);
+}
+
+/**
+ * 注入 __DSH_DEPLOYMENT__ 配置和导航栏
+ * 在 <head> 中插入 <script>window.__DSH_DEPLOYMENT__ = {...}</script>
+ * 在 <body> 开头插入导航栏
+ */
+function injectDeploymentConfig(html: string, prefix: string, user?: { nickname: string; slug: string }): string {
+  const configScript = `<script>window.__DSH_DEPLOYMENT__ = { apiBase: '${prefix}', wsBase: '${prefix}' };</script>`;
+  let result = html.replace('<head>', `<head>${configScript}`);
+
+  result = result.replace('</head>', `${renderHubNavStyle()}</head>`);
+
+  if (user) {
+    result = result.replace('<body>', `<body>${renderHubNavBar(user)}`);
   }
-  
+
   return result;
 }
 
@@ -585,7 +602,8 @@ export async function handleWorkspaceEntry(
   const running = instances.find(i => i.status === 'running' && i.port);
 
   if (!running || !running.port) {
-    // 无 running 实例，返回 loading 页面
+    // 无 running 实例：返回 loading 页，由前端触发启动并轮询；超过 WORKSPACE_START_TIMEOUT_MS
+    // 仍未就绪则停止轮询，进入带 hub 顶部栏的超时兜底态（不再无限转圈）。
     const cookies = parseCookies(req);
     const csrfToken = cookies[CSRF_COOKIE] || '';
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
@@ -598,48 +616,126 @@ export async function handleWorkspaceEntry(
 <title>Workspace - DSH Hub</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-.container { text-align: center; padding: 2rem; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; }
+.page { min-height: calc(100vh - 60px); min-height: calc(100dvh - 60px); display: flex; align-items: center; justify-content: center; padding: 2rem 1rem; }
+.container { text-align: center; padding: 2rem; max-width: 480px; }
 h1 { font-size: 1.5rem; margin-bottom: 1rem; color: #00d9ff; }
-p { color: #aaa; margin-bottom: 1.5rem; }
+p { color: #aaa; margin-bottom: 1.5rem; line-height: 1.6; }
 .loading { display: inline-block; width: 40px; height: 40px; border: 4px solid #2a2a4e; border-top-color: #00d9ff; border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: center; }
+.btn { display: inline-block; min-height: 44px; padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; text-decoration: none; cursor: pointer; }
+.btn-primary { background: #00d9ff; color: #1a1a2e; }
+.btn-primary:hover { background: #00b8d4; }
+.btn-secondary { background: #2a2a4e; color: #eee; }
+.btn-secondary:hover { background: #3a3a5e; }
+.tip { font-size: 0.85rem; color: #888; margin-top: 1.5rem; margin-bottom: 0; }
+[hidden] { display: none !important; }
 </style>
+${renderHubNavStyle()}
 </head>
 <body>
-<div class="container">
-<h1>正在启动 Workspace...</h1>
-<div class="loading"></div>
-<p>正在准备你的工作环境</p>
+${renderHubNavBar(auth.user, '/instances')}
+<div class="page">
+  <div class="container" id="state-loading">
+    <h1>正在启动 Workspace...</h1>
+    <div class="loading"></div>
+    <p>正在准备你的工作环境</p>
+  </div>
+
+  <div class="container" id="state-timeout" hidden>
+    <h1>工作区启动超时</h1>
+    <p>已等待超过 ${WORKSPACE_START_TIMEOUT_MS / 1000} 秒，实例仍未就绪。<br>可能仍在启动中，也可能启动失败需要排查。</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="/workspace">重试</a>
+      <a class="btn btn-secondary" href="/instances">实例管理</a>
+    </div>
+    <p class="tip">顶部导航栏可返回实例管理或退出登录</p>
+  </div>
+
+  <div class="container" id="state-failed" hidden>
+    <h1>实例启动失败</h1>
+    <p>你的实例启动失败，请查看日志排查后再重试。</p>
+    <div class="actions">
+      <a class="btn btn-primary" id="failed-log-link" href="/instances">查看日志</a>
+      <a class="btn btn-secondary" href="/workspace">重试</a>
+      <a class="btn btn-secondary" href="/instances">实例管理</a>
+    </div>
+  </div>
 </div>
 <script>
-// 轮询实例状态
-async function pollStatus() {
-  try {
-    const res = await fetch('/api/instances');
-    if (res.status === 401) { window.location.href = '/login?redirect=' + encodeURIComponent(window.location.href); return; }
-    const data = await res.json();
-    const running = data.instances?.find(i => i.status === 'running');
-    if (running) {
-      window.location.reload();
-    } else {
-      // 尝试启动实例
-      const instances = data.instances || [];
-      const stopped = instances.find(i => i.status === 'stopped' || i.status === 'failed');
-      if (stopped) {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
-        await fetch('/api/instances/' + stopped.id + '/start', {
-          method: 'POST',
-          headers: { 'X-CSRF-Token': csrfToken || '' }
-        });
-      }
-      setTimeout(pollStatus, 2000);
-    }
-  } catch (e) {
-    setTimeout(pollStatus, 2000);
+(function () {
+  var POLL_INTERVAL_MS = ${WORKSPACE_POLL_INTERVAL_MS};
+  var TIMEOUT_MS = ${WORKSPACE_START_TIMEOUT_MS};
+  var STATES = ['state-loading', 'state-timeout', 'state-failed'];
+  var startedAt = Date.now();
+  var hasTriedStart = false;
+  var settled = false;
+  var csrfMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+
+  function switchTo(id) {
+    settled = true;
+    STATES.forEach(function (state) {
+      var el = document.getElementById(state);
+      if (el) el.hidden = state !== id;
+    });
   }
-}
-pollStatus();
+
+  function showTimeout() {
+    if (!settled) switchTo('state-timeout');
+  }
+
+  function showFailed(instanceId) {
+    if (settled) return;
+    var link = document.getElementById('failed-log-link');
+    if (link && instanceId) link.setAttribute('href', '/instances/' + instanceId);
+    switchTo('state-failed');
+  }
+
+  // 启动请求只发一次，避免每轮轮询重复 POST /start
+  function startInstance(instanceId) {
+    hasTriedStart = true;
+    return fetch('/api/instances/' + instanceId + '/start', {
+      method: 'POST',
+      headers: { 'X-CSRF-Token': csrfToken }
+    }).catch(function () { /* 启动请求失败不终止轮询，交由超时兜底 */ });
+  }
+
+  function scheduleNext() {
+    if (settled) return;
+    if (Date.now() - startedAt >= TIMEOUT_MS) { showTimeout(); return; }
+    setTimeout(poll, POLL_INTERVAL_MS);
+  }
+
+  function poll() {
+    if (settled) return;
+    fetch('/api/instances', { headers: { 'Accept': 'application/json' } })
+      .then(function (res) {
+        // 会话失效：回登录页并带上回跳地址
+        if (res.status === 401) { window.location.href = '/login?redirect=' + encodeURIComponent(window.location.href); return null; }
+        return res.json();
+      })
+      .then(function (data) {
+        if (settled || !data) return;
+        var list = (data && data.instances) || [];
+        if (list.some(function (i) { return i.status === 'running'; })) {
+          window.location.reload();
+          return;
+        }
+        var failed = list.filter(function (i) { return i.status === 'failed'; })[0];
+        if (failed) { showFailed(failed.id); return; }
+        if (!hasTriedStart) {
+          var stopped = list.filter(function (i) { return i.status === 'stopped' || i.status === 'failed'; })[0];
+          if (stopped) startInstance(stopped.id);
+        }
+        scheduleNext();
+      })
+      .catch(function () { /* 网络抖动：继续轮询直到超时 */ scheduleNext(); });
+  }
+
+  poll();
+})();
 </script>
 </body>
 </html>`);

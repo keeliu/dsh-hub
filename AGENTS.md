@@ -172,6 +172,7 @@ docker compose up --build -d
   - **兼容性**：规则只约束**新建/改密**，历史含下划线或短用户名仍可登录。
   - **验证**：`tsc` 零错误；`m1-smoke.sh` 24/24；`m2-smoke.sh` 与改动前基线完全一致（13 项失败为沙箱实例环境问题）；`security-regression.sh` 对照 `HEAD` worktree 无「基线通过、改动后失败」用例；另用真实 HTTP 覆盖校验全部分支 + Node 虚拟时钟/DOM 仿真验证 loading 超时兜底 14 项。
   - **未完成**：真机输入法验证（鸿蒙/微信/百度 APP）、生产验证；`tasks.md` 4.5 归档待真机验收后执行。
+  - **⚠️ 上游覆盖与重新应用（2026-09-22）**：远端 `4f54d3b` 解决 `gateway.ts` 冲突时整段采用了自己的 workspace 轮询逻辑，把工作流 1 全部移除（loading 页退回无终止条件的轮询）。已在新版 `gateway.ts` 上重新应用工作流 1，并**保留上游该提交新增的两项能力**：①非 Hub 路径的通用插件 API fallback（`/dsh-market/*`、`/weixin/*` 等免 `/i/` 前缀）；②loading 页 401 → `/login?redirect=...`。**注意**：`gateway.ts` 是易冲突文件，后续合并时勿再整段取一侧。
 - **CHANGELOG 自动更新已上线**：见上文「CHANGELOG 自动更新」。
 
 ### OpenSpec 变更状态（对账 2026-09-22）

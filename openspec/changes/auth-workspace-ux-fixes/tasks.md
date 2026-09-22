@@ -75,3 +75,22 @@
 - 三个工作流代码全部落地，`tsc` 零错误。
 - 与提案的**唯一偏差**：工作流 1 的"返回首页"未做成第三个按钮，改由顶部栏品牌链接承担（理由见 1.4）。
 - 额外收紧一处提案未列出的校验盲区：`POST /admin/users`（后台建用户页面表单）此前对用户名/密码无任何服务端校验。
+
+## 上游覆盖与重新应用（2026-09-22 二次提交）
+
+拉取远端 `4f54d3b`（keeliu，"resolve merge conflicts"）后发现：该提交解决 `gateway.ts` 冲突时整段采用了它自己的
+workspace 轮询逻辑，**工作流 1 的全部改动被移除**（`WORKSPACE_START_TIMEOUT_MS` 等符号在 `origin/main` 上 0 匹配，
+loading 页退回无终止条件的 `setTimeout(pollStatus, 2000)`，`POST /start` 又变成每 2s 重发）。
+工作流 2、3 涉及的文件未被该提交触碰，**全部保留**。
+
+已按用户确认**在新版 `gateway.ts` 上重新应用工作流 1**，并保留上游该提交新增的能力：
+
+- 保留上游「通用插件 API fallback」（非 Hub 路径 `/dsh-market/*`、`/weixin/*` 等免 `/i/` 前缀代理到运行中实例）；
+- 保留上游在 loading 页新增的 **401 → `/login?redirect=<当前地址>`** 会话失效跳转（`poll` 内先判 `res.status === 401`）；
+- 重新加回：`WORKSPACE_START_TIMEOUT_MS=60_000` / `WORKSPACE_POLL_INTERVAL_MS=2_000`、`renderHubNavStyle()` /
+  `renderHubNavBar(user, brandHref)`（`injectDeploymentConfig` 复用）、60s 超时停止轮询、`hasTriedStart` 启动去抖、
+  `failed` 立即失败态 + 日志入口、带顶部栏的超时兜底页。
+- 本次仅改动 `dsh-hub/src/gateway.ts` 一个代码文件。
+
+复验：`tsc` 零错误；`m1-smoke.sh` 24/24；loading 页渲染 11/11；虚拟时钟/DOM 仿真 14/14（含 401 跳转）；
+`/workspace` + `/reset-password` 验收 20/20。

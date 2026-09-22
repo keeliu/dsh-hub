@@ -13,6 +13,7 @@
 - [x] 2.2 `dsh-hub/Dockerfile`（最终镜像）→ `@deepseek-ai/dsh@0.1.5-rc.2`
 - [x] 2.3 `dsh-hub/scripts/patch-dsh-client.sh`：改为 `require.resolve` 动态定位客户端 `client.js`；定位不到或补丁目标不存在时**显式报错退出**（不再静默跳过），并在 sed 后复核生效
 - [x] 2.4 保留 Dockerfile 构建期模板插件校验（缺插件即失败）
+- [x] 2.5 `dsh-hub/src/supervisor/spawn.ts`：启动 `dsh web` 时注入 `ONEPANEL_DSH_AUTH_PROXY=1`（适配 0.1.5+ 新增的浏览器鉴权，修复工作区页面 `dsh web authentication required`）
 
 ## 阶段 3：构建与构建后校验（服务器执行）
 - [ ] 3.1 仓库根构建：`bash scripts/build-image.sh`
@@ -32,6 +33,7 @@
 - [ ] 5.4 该实例 workspace/设置页可正常打开（客户端补丁生效，无 403）
 - [ ] 5.5 hub 登录/导航/实例管理正常
 - [ ] 5.6 通过后再处置存量实例
+- [ ] 5.7 智能体/工作区页面**不再**出现 `dsh web authentication required`（鉴权旁路已生效）
 
 ## 阶段 6：存量实例处置（服务器执行）
 - [ ] 6.1 对存量实例：删除重建（或手动补装/验证）；保留其 workspace 数据

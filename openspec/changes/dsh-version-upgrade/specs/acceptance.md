@@ -49,3 +49,10 @@
 **When** 确认新实例验证通过后
 **Then** 对存量实例删除重建（保留其 workspace 数据）
 **And** 不因旧 profile 与新基线依赖闭包不匹配而产生隐蔽故障
+
+## 场景 10：工作区/智能体页面不再报鉴权错误
+**Given** 基线为 `0.1.5-rc.2`（该版本给 `dsh web` 增加了浏览器鉴权）
+**And** hub 启动实例时注入了 `ONEPANEL_DSH_AUTH_PROXY=1`
+**When** 用户打开智能体/工作区页面
+**Then** 正常加载，**不出现** `dsh web authentication required; reopen the URL printed by dsh web.`
+**And** 实例仍仅监听 `127.0.0.1`，所有入口仍经 hub 鉴权（会话 + 所有权 + 会员）

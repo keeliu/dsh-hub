@@ -76,6 +76,25 @@ fi
 | 回滚慢 | 升级前 tag `dsh-hub:pre-0.1.5`；回滚 = `docker tag` 切回 + `compose up -d` |
 | 网络/registry 不可达导致构建失败 | 构建期即暴露；确认构建机出网 |
 
+## 上游行为变化：dsh web 浏览器鉴权（0.1.5-rc.2）与对策
+
+**现象**：升级后进入智能体/工作区页面直接显示 `dsh web authentication required; reopen the URL printed by dsh web.`
+
+**根因**：`@deepseek-ai/dsh@0.1.5-rc.2` 的 `dsh-client-connection`（`lib/index.js`）给 web index/API 增加了**浏览器鉴权**：
+- `dsh web` 生成 `launchToken`，打印的 URL 带 `?token=<launchToken>`；
+- GET `/` 校验 token 后下发 **authority（Host）绑定的签名 cookie**，后续请求靠该 cookie 通过 `isAuthenticated`；
+- 无 cookie / 不匹配 → 401 `dsh web authentication required…`；
+- 全代码**唯一旁路**：`isAuthenticated` 开头 `if (process.env.ONEPANEL_DSH_AUTH_PROXY === '1') return true;`
+
+hub 网关是**服务器端** `fetch('http://127.0.0.1:<port>/')` 拉取实例首页（不带浏览器 cookie），后续代理也不注入该 cookie → 实例返回 401，被原样透传为页面内容。
+
+**对策**：hub 在 `spawn.ts` 启动 `dsh web` 时注入 **`ONEPANEL_DSH_AUTH_PROXY=1`**。
+- 实例仅监听 `127.0.0.1`，外部不可直连；
+- 进入实例的**所有**路径（`/workspace`、`/i/<slug>-<id>`、静态/插件 fallback、WS）都由 hub 网关先做**会话鉴权 + 所有权 + 会员**校验；
+- 因此让 dsh 信任"前置代理已鉴权"与 hub 的信任模型一致，无需搬运 token/cookie。
+
+**备选（未采用）**：解析 `web.out.log` 打印的 `?token=` 并回注 cookie —— 复杂、易碎、依赖日志格式。
+
 ## 决策记录
 
 | 编号 | 决策 | 结论 | 理由 |
@@ -86,6 +105,7 @@ fi
 | U4 | 插件失败 | 构建期校验缺插件即**失败** | 不发布"实例无预置插件"的镜像 |
 | U5 | 存量实例 | 先试点新实例，再删重建 | 存量 profile 与新基线依赖闭包可能不匹配 |
 | U6 | 回滚 | 镜像 tag 备份（`pre-0.1.5`） | 现有 `rollback.sh` 是裸机导向，Docker 需镜像级回滚 |
+| U7 | dsh web 鉴权 | `spawn.ts` 注入 `ONEPANEL_DSH_AUTH_PROXY=1` | 0.1.5+ 新增浏览器鉴权；hub 已是鉴权代理，实例仅 127.0.0.1 |
 
 ## 回滚方案
 - **镜像级**：`docker tag dsh-hub:pre-0.1.5 dsh-hub:latest && docker compose up -d --force-recreate`。

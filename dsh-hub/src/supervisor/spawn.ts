@@ -144,7 +144,11 @@ export async function startInstance(db: DatabaseSync, record: InstanceRecord): P
   try {
     child = spawn(spawnBin, spawnArgs, {
       cwd: record.workspace_path,
-      env: { ...process.env, DSH_HOME: record.home_path, NO_COLOR: '1' },
+      // ONEPANEL_DSH_AUTH_PROXY=1：DSH 0.1.5+ 的 dsh web 对 index/API 加了浏览器鉴权
+      // （launch token → authority 绑定 cookie）。实例仅监听 127.0.0.1，且 hub 网关
+      // 已完成鉴权+所有权+会员校验，故让 dsh 信任本代理，避免网关服务器端拉取实例 /
+      // 时代收不到 cookie 而被 401（表现为“dsh web authentication required”）。
+      env: { ...process.env, DSH_HOME: record.home_path, NO_COLOR: '1', ONEPANEL_DSH_AUTH_PROXY: '1' },
       stdio: ['ignore', fd, fd],
       detached: true,
     });

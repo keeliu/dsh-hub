@@ -78,3 +78,6 @@ RUN chmod +x /usr/local/bin/patch-dsh-client.sh
 # Node.js 24 原生支持 TypeScript，直接运行源码（无需编译）
 # 启动时先执行 patch，再启动 Hub 服务
 CMD ["sh", "-c", "/usr/local/bin/patch-dsh-client.sh && node --disable-warning=ExperimentalWarning src/index.ts"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3082/healthz',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"

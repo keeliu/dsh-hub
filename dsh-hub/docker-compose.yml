@@ -21,12 +21,6 @@ services:
     networks:
       1panel-network:
         ipv4_address: 172.18.0.3
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3082/healthz"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
 networks:
   1panel-network:

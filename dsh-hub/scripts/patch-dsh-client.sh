@@ -1,52 +1,67 @@
 #!/bin/sh
 # DSH Client Loopback Patch
 # 绕过 DSH 客户端的 loopback 检查，允许通过 dsh-hub 网关访问设置页面
-# 安全性：dsh-hub 已实现完整的鉴权 + 所有权校验 + Host/Origin 重写
-#
-# 版本健壮性（针对 @deepseek-ai/dsh 升级）：不再硬编码内部嵌套依赖路径
-# （.../dsh/node_modules/@deepseek-ai/dsh-client-connection/... 跨版本极易变化）；
-# 改用 require.resolve 动态定位。定位不到、或补丁目标不存在时，显式报错退出，
-# 绝不静默跳过 —— 避免"补丁静默失效 → 实例设置页 403"。
-
 set -e
-
 DSH_GLOBAL_DIR="/usr/local/lib/node_modules/@deepseek-ai/dsh"
 
-# —— 动态定位客户端 client.js（版本升级后目录布局变化也能命中）——
-DSH_CLIENT_JS="$(node -e "
-  try {
-    console.log(require.resolve('@deepseek-ai/dsh-client-connection/lib/client.js', { paths: ['$DSH_GLOBAL_DIR'] }));
-  } catch (e) { process.exit(1); }
-" 2>/dev/null || true)"
+# —— 动态定位客户端 client.js ——
+DSH_CLIENT_JS="$(find "$DSH_GLOBAL_DIR" -path "*/dsh-client-connection/lib/client.js" -type f 2>/dev/null | head -1)"
 
 if [ -z "$DSH_CLIENT_JS" ] || [ ! -f "$DSH_CLIENT_JS" ]; then
-  echo "[patch] ERROR: 未定位到 DSH client.js（@deepseek-ai/dsh 目录布局可能已变）。" >&2
-  echo "[patch]        尝试: require.resolve('@deepseek-ai/dsh-client-connection/lib/client.js', paths=['$DSH_GLOBAL_DIR'])" >&2
-  echo "[patch]        不做静默跳过；请核对新版布局并更新本脚本。" >&2
+  echo "[patch] ERROR: 未定位到 DSH client.js" >&2
   exit 1
 fi
+
+echo "[patch] Found client.js at: $DSH_CLIENT_JS"
 
 # 已 patch 过则跳过
 if grep -q "isLoopback: true" "$DSH_CLIENT_JS"; then
-  echo "[patch] Already patched, skipping ($DSH_CLIENT_JS)"
+  echo "[patch] Already patched, skipping"
   exit 0
 fi
 
-# —— 应用 patch ——
-TARGET='isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)'
-if ! grep -qF "$TARGET" "$DSH_CLIENT_JS"; then
-  echo "[patch] ERROR: 未在 $DSH_CLIENT_JS 找到预期补丁目标（客户端源码可能已变）。" >&2
-  echo "[patch]        target: $TARGET" >&2
-  echo "[patch]        不做静默跳过；请核对新版 loopback 判定写法并更新本脚本。" >&2
-  exit 1
-fi
+# —— 使用 node 进行精确替换（避免 sed 特殊字符问题）——
+node -e "
+const fs = require('fs');
+const file = process.argv[1];
+let src = fs.readFileSync(file, 'utf8');
 
-sed -i "s/$TARGET/isLoopback: true/g" "$DSH_CLIENT_JS"
+// 新版写法
+const newPattern = 'isLoopback: transport?.ownsHost === true || pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)';
+// 旧版写法
+const oldPattern = 'isLoopback: pageLocation === void 0 || isLoopbackHostname(pageLocation.hostname)';
 
-# —— 复核确实生效 ——
+let patched = false;
+if (src.includes(newPattern)) {
+  src = src.split(newPattern).join('isLoopback: true');
+  patched = true;
+  console.log('[patch] Matched new-style isLoopback pattern');
+} else if (src.includes(oldPattern)) {
+  src = src.split(oldPattern).join('isLoopback: true');
+  patched = true;
+  console.log('[patch] Matched old-style isLoopback pattern');
+}
+
+if (!patched) {
+  // 输出实际的 isLoopback 行供调试
+  const lines = src.split('\n');
+  lines.forEach((l, i) => {
+    if (l.includes('isLoopback:') && !l.includes('isLoopbackHostname')) {
+      console.error('[patch] Actual isLoopback line ' + (i+1) + ': ' + l.trim());
+    }
+  });
+  console.error('[patch] ERROR: 未找到预期补丁目标');
+  process.exit(1);
+}
+
+fs.writeFileSync(file, src);
+console.log('[patch] Successfully patched DSH client.js loopback check');
+" "$DSH_CLIENT_JS"
+
+# —— 复核 ——
 if grep -q "isLoopback: true" "$DSH_CLIENT_JS"; then
-  echo "[patch] Successfully patched DSH client.js loopback check ($DSH_CLIENT_JS)"
+  echo "[patch] Verified: isLoopback: true present"
 else
-  echo "[patch] ERROR: sed 执行后仍未检测到 isLoopback: true" >&2
+  echo "[patch] ERROR: 验证失败" >&2
   exit 1
 fi

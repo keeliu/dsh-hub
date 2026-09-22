@@ -393,6 +393,12 @@ function rewriteHtmlPaths(html: string, prefix: string): string {
       }
     );
   }
+  // 相对路径 ./x → /workspace/x（实例 index 用 ./assets/…、./manifest.webmanifest、./favicon.svg）；
+  // 放在绝对改写之后，避免对已加前缀的 /workspace/… 重复加前缀。
+  for (const { tag, attr } of HTML_PATH_ATTRS) {
+    const relRegex = new RegExp(`(<${tag}[^>]*${attr}=)(["'])\\./([^"']*)\\2`, 'gi');
+    result = result.replace(relRegex, (m, open, q, rest) => `${open}${q}${prefix}/${rest}${q}`);
+  }
   // 内联脚本（如 __DSH_BOOT__ 的 bundle 图 JSON）里的绝对 bundle 路径也要加同一前缀：
   // 否则标签已改写为 /workspace/plugins/…、而 JSON 仍是 /plugins/… → URL 不一致，
   // DSH 客户端会判定"HTML did not preload …client.js"（Failed to load plugins）。
@@ -807,8 +813,11 @@ export async function handleWorkspaceProxy(
     return true;
   }
 
-  // 4. 去掉 /workspace 前缀
-  const targetPath = pathname.slice(WORKSPACE_PREFIX.length) || '/';
+  // 4. 去掉 /workspace 前缀；必须保留 query —— 客户端 bundle 走 `/plugins/??pkg/client.js&rev=…`
+  //    （bundle spec 全在 query 里），丢掉 query 会 404。
+  const rawUrl = req.url || pathname;
+  const stripped = rawUrl.startsWith(WORKSPACE_PREFIX) ? rawUrl.slice(WORKSPACE_PREFIX.length) : rawUrl;
+  const targetPath = stripped || '/';
 
   // 5. 代理到实例
   try {

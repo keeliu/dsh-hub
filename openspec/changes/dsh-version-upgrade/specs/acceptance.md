@@ -56,3 +56,10 @@
 **When** 用户打开智能体/工作区页面
 **Then** 正常加载，**不出现** `dsh web authentication required; reopen the URL printed by dsh web.`
 **And** 实例仍仅监听 `127.0.0.1`，所有入口仍经 hub 鉴权（会话 + 所有权 + 会员）
+
+## 场景 11：Workspace 客户端 bundle 正常加载
+**Given** 实例 index 用 `/plugins/??…` 加载客户端 bundle，并在内联 `__DSH_BOOT__` JSON 里携带同一 URL
+**And** hub 的 `rewriteHtmlPaths` 对标签属性与内联 JSON 使用**同一前缀**
+**When** 打开 workspace/智能体页面
+**Then** 不再出现 `Failed to load plugins` / `client-modules: HTML did not preload …`
+**And** 标签 URL 与 `__DSH_BOOT__` 里的 URL 一致（均为 `/workspace/plugins/…`），无重复前缀

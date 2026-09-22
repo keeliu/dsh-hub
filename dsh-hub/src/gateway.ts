@@ -393,6 +393,10 @@ function rewriteHtmlPaths(html: string, prefix: string): string {
       }
     );
   }
+  // 内联脚本（如 __DSH_BOOT__ 的 bundle 图 JSON）里的绝对 bundle 路径也要加同一前缀：
+  // 否则标签已改写为 /workspace/plugins/…、而 JSON 仍是 /plugins/… → URL 不一致，
+  // DSH 客户端会判定"HTML did not preload …client.js"（Failed to load plugins）。
+  result = result.replace(/(["'])\/(plugins|assets)\//g, `$1${prefix}/$2/`);
   return result;
 }
 

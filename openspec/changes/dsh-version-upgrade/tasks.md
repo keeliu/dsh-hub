@@ -14,6 +14,7 @@
 - [x] 2.3 `dsh-hub/scripts/patch-dsh-client.sh`：改为 `require.resolve` 动态定位客户端 `client.js`；定位不到或补丁目标不存在时**显式报错退出**（不再静默跳过），并在 sed 后复核生效
 - [x] 2.4 保留 Dockerfile 构建期模板插件校验（缺插件即失败）
 - [x] 2.5 `dsh-hub/src/supervisor/spawn.ts`：启动 `dsh web` 时注入 `ONEPANEL_DSH_AUTH_PROXY=1`（适配 0.1.5+ 新增的浏览器鉴权，修复工作区页面 `dsh web authentication required`）
+- [x] 2.6 `dsh-hub/src/gateway.ts::rewriteHtmlPaths`：对**带引号的绝对 bundle 路径**统一加 `/workspace` 前缀（覆盖内联 `__DSH_BOOT__` JSON），修复 `Failed to load plugins / HTML did not preload`
 
 ## 阶段 3：构建与构建后校验（服务器执行）
 - [ ] 3.1 仓库根构建：`bash scripts/build-image.sh`

@@ -95,6 +95,18 @@ hub 网关是**服务器端** `fetch('http://127.0.0.1:<port>/')` 拉取实例�
 
 **备选（未采用）**：解析 `web.out.log` 打印的 `?token=` 并回注 cookie —— 复杂、易碎、依赖日志格式。
 
+## 上游行为变化：dsh web 启动协议（bundle 图 JSON）与 Workspace HTML 重写
+
+**现象**：升级后实例前台报 `Failed to load plugins` / `client-modules: HTML did not preload @deepseek-ai/dsh-client-modules/client.js`。
+
+**根因**：0.1.5 的 index 用 `<script src="/plugins/??…">` / `<link rel="preload" as="script" href="/plugins/??…">` 加载客户端 module bundle，并把 bundle URL 放进内联 `globalThis["__DSH_BOOT__"] = { entries:[{ url:"/plugins/??…" }] }`。hub 的 `rewriteHtmlPaths` 只改写**标签属性**（→ `/workspace/plugins/…`），**没有改写内联 JSON 里的同一 URL** → 预加载 URL 与 boot 图 URL 不一致 → 客户端判定"未预加载"。
+
+**对策**：在 `gateway.ts::rewriteHtmlPaths` 末尾追加对**带引号的绝对 bundle 路径**的统一前缀（覆盖内联 JSON），且幂等、不会重复加前缀：
+```ts
+result = result.replace(/(["'])\/(plugins|assets)\//g, `$1${prefix}/$2/`);
+```
+（相对路径 `./assets/…` 不动，经 `/assets/` 静态 fallback 代理。）
+
 ## 决策记录
 
 | 编号 | 决策 | 结论 | 理由 |
@@ -106,6 +118,7 @@ hub 网关是**服务器端** `fetch('http://127.0.0.1:<port>/')` 拉取实例�
 | U5 | 存量实例 | 先试点新实例，再删重建 | 存量 profile 与新基线依赖闭包可能不匹配 |
 | U6 | 回滚 | 镜像 tag 备份（`pre-0.1.5`） | 现有 `rollback.sh` 是裸机导向，Docker 需镜像级回滚 |
 | U7 | dsh web 鉴权 | `spawn.ts` 注入 `ONEPANEL_DSH_AUTH_PROXY=1` | 0.1.5+ 新增浏览器鉴权；hub 已是鉴权代理，实例仅 127.0.0.1 |
+| U8 | Workspace HTML 重写 | `rewriteHtmlPaths` 追加对带引号绝对 bundle 路径的统一前缀 | 0.1.5 启动协议把 bundle URL 放进 `__DSH_BOOT__` JSON；只改标签会导致 URL 不一致 |
 
 ## 回滚方案
 - **镜像级**：`docker tag dsh-hub:pre-0.1.5 dsh-hub:latest && docker compose up -d --force-recreate`。

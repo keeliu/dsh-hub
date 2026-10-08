@@ -3,7 +3,7 @@
  *
  * 建实例 = 配额检查（max_instances）→ PortAllocator（TCP 探活 + DB 记账双保险）→
  * 建用户目录（700）→ 建实例目录（home/workspace/logs）→ 落库
- * （trusted_host = <slug>-<实例ID>.dshhub.local，S2 结论：精确全等子域）。
+ * （trusted_host = <slug>-<实例ID>.<DSH_HUB_DOMAIN>，S2 结论：精确全等子域）。
  *
  * M2.1 修复：
  * - 配额检查 + INSERT 放入 BEGIN IMMEDIATE 事务（消除并发创建超配 TOCTOU）；
@@ -36,13 +36,18 @@ export function ensureUserDir(dirName: string): string {
 }
 
 /**
- * 生成实例的 trusted_host（用于 dsh settings.yaml 的 trustedHosts）
+ * 生成实例的 trusted_host（作为 dsh 的 --trusted-host 传入）
  *
- * 注意：dsh 的 trustedHosts 只接受 host[:port] 格式，不能包含路径
- * 网关路由使用路径方式（/i/<slug>-<id>）来区分不同实例
+ * 注意：dsh 的 trustedHosts 只接受 host[:port] 格式，不能包含路径。
+ * 取值 = <slug>-<实例ID>.<DSH_HUB_DOMAIN>（S2 结论：trusted-host 为精确全等匹配，
+ * 故必须给每个实例各自的完整子域，泛域名/裸域名匹配不上）。
+ * slug 已保证 ASCII [a-z0-9-]（见 users.ts generateSlug），可安全作 DNS 标签。
+ *
+ * 与网关路径式路由（/i/<slug>-<id>）并存：网关反代/WS 隧道把 Host 与 Origin 钉回
+ * 127.0.0.1 以通过回环围栏，该 trusted_host 供子域直连模式使用。
  */
 export function instanceTrustedHost(slug: string, instanceId: string): string {
-  return config.hubDomain;
+  return `${slug}-${instanceId}.${config.hubDomain}`;
 }
 
 export interface CreateInstanceInput {

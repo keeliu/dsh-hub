@@ -49,6 +49,7 @@ import {
   listApiTokens, revokeApiToken,
 } from './sessions.ts';
 import { createResetCode, sendResetCodeEmail, verifyResetCode } from './email.ts';
+import { centsToYuan } from './views/format.ts';
 
 // ---------- 小工具 ----------
 
@@ -678,8 +679,9 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
   if (price === 0) {
     const order = createOrder(db, user.id, type);
     // 直接标记为已支付并激活
-    db.prepare(`UPDATE orders SET status = 'paid', paid_at = ?, payment_order_id = ? WHERE id = ?`).run(Date.now(), `free_${order.id}`, order.id);
-    handlePaymentCallback(db, String(order.id), '0', `free_${order.id}`, 'OD', `free_${order.id}`);
+    const freePaymentId = `free_${order.id}`;
+    db.prepare(`UPDATE orders SET status = 'paid', paid_at = ?, payment_order_id = ? WHERE id = ?`).run(Date.now(), freePaymentId, order.id);
+    handlePaymentCallback(db, String(order.id), '0', freePaymentId, 'OD', freePaymentId);
     return {
       freeTrial: true,
       orderId: order.id,
@@ -707,7 +709,8 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
   try {
     result = await createPayment(payConfig, {
       trade_order_id: String(order.id),
-      total_fee: (price / 100).toFixed(2),
+      // 虎皮椒 total_fee 单位是元；订单金额以分存储，此处是唯一换算点
+      total_fee: centsToYuan(price),
       title: `乌鸦Work - ${cfg.label}`,
       notify_url: notifyUrl,
       return_url: returnUrl,
@@ -727,7 +730,6 @@ route('POST', '/api/payment/create', { auth: true, csrf: true }, async ({ db, re
     orderId: order.id,
     urlQrcode: result.url_qrcode ?? '',
     url: result.url ?? '',
-    amount: price / 100,
   };
 });
 
@@ -805,11 +807,13 @@ route('GET', '/api/payment/query/:orderId', { auth: true }, async ({ db, user, p
       try {
         const result = await queryPayment(config, String(order.id));
         if (result.errcode === 0 && result.data?.status === 'OD') {
-          // 虎皮椒显示已支付，触发回调处理
+          // 虎皮椒显示已支付，触发回调处理。
+          // 金额必须换算成元字符串：order.amount 是分，直接 String() 会把 1990 当元。
+          // FIXME(ui-design-system 1.1.6)：修正前用 String(order.amount)。
           handlePaymentCallback(
             db,
             String(order.id),
-            String(order.amount),
+            centsToYuan(order.amount),
             result.data.open_order_id || '',
             'OD',
             result.data.open_order_id || '',

@@ -202,3 +202,68 @@ Scenario: withTx 事务
 Scenario: 事务内禁止 await
 - GIVEN withTx 回调内
 - THEN 不得出现 await（SQLite 事务不能跨事件循环让步）
+
+## Requirement: membership_prices 表
+
+会员套餐定价。**金额单位为「分」，列类型为 INTEGER。**
+
+```sql
+CREATE TABLE membership_prices (
+  id INTEGER PRIMARY KEY,
+  type TEXT NOT NULL UNIQUE CHECK(type IN ('trial','monthly','yearly')),
+  price INTEGER NOT NULL CHECK(price >= 0),
+  original_price INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+```
+
+Scenario: 默认定价
+- THEN 默认为 trial `0` / `monthly 1990` / `yearly 19900`（分）
+- AND 原价默认为 trial `990` / `monthly 2990` / `yearly 29900`（分）
+- AND 唯一真相源为 `membership.ts` 的 `DEFAULT_PRICES`，由 `scripts/schema-v8-selftest.mjs` 断言与 v6 迁移播种值一致
+
+## Requirement: orders 表
+
+会员订单。**`amount` 单位为「分」，列类型为 INTEGER。**
+
+```sql
+CREATE TABLE orders (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  membership_type TEXT NOT NULL CHECK(membership_type IN ('trial','monthly','yearly')),
+  amount INTEGER NOT NULL CHECK(amount >= 0),
+  status TEXT NOT NULL CHECK(status IN ('pending','paid','cancelled','refunded')),
+  payment_method TEXT,
+  payment_id TEXT,
+  order_no TEXT NOT NULL DEFAULT '',
+  payment_order_id TEXT,
+  created_at INTEGER NOT NULL,
+  paid_at INTEGER
+);
+```
+
+Scenario: 金额单位不可混用
+- WHEN 读写 `orders.amount`
+- THEN 一律以整数分处理
+- AND 元/分换算只允许出现在支付边界（下单组装 `total_fee`、回调校验），且经由 `views/format.ts` 的 `yuanToCents` / `centsToYuan`
+- AND 展示一律经由 `formatMoney(cents)`
+
+Scenario: 疑似单位错误必须可发现
+- GIVEN 库中存在 `0 < amount < 100` 的订单或价格
+- THEN `getSuspiciousMoneyValues(db)` 能列出这些行
+- AND 不得用启发式自动 `×100` 改写（数值本身无法区分「1990 分」与「1990 元」）
+
+## Requirement: 表结构升级必须先备份
+
+Scenario: 有版本差异时生成备份
+- GIVEN 打开数据库时 `schema_version` 小于代码中的最高迁移版本
+- WHEN 执行迁移前
+- THEN 在数据根生成 `dshhub.db.bak`（`VACUUM INTO`，非文件复制，避免 WAL 下漏掉未 checkpoint 的事务）
+- AND 备份文件权限为 `600`
+- AND 备份失败不得阻止启动（记录错误后继续迁移）
+
+Scenario: 表重建型迁移需在事务外关闭外键
+- GIVEN 迁移中用 `DROP TABLE` + `RENAME` 重建被引用的表
+- THEN `PRAGMA foreign_keys = OFF` 必须在 `BEGIN` **之前**执行（事务内设置是静默 no-op）
+- AND 否则 `DROP TABLE` 会触发引用方的 `ON DELETE SET NULL`，造成关联数据被清空
+- AND 迁移结束后恢复 `PRAGMA foreign_keys = ON`

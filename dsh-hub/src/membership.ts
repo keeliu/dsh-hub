@@ -1,7 +1,12 @@
 // src/membership.ts — 会员系统核心逻辑
+//
+// 金额单位约定：本文件所有对外金额（套餐价格、订单金额）一律为**分**。
+//   元↔分换算只允许出现在支付边界（api.ts 下单 / 回调校验）。
+//   见 openspec/specs/money-units.md。
 import type { DatabaseSync } from 'node:sqlite';
 import { audit, generateOrderNo } from './db.ts';
 import { ensureInstanceForUser } from './instances.ts';
+import { yuanToCents } from './views/format.ts';
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
 
@@ -34,20 +39,28 @@ export interface OrderRow {
 
 // ─── 常量 ────────────────────────────────────────────────────────────────────
 
+/** 默认定价（单位：分）。单一真相源：DB 兜底、会员页、管理端价格页都必须取此处。 */
+export const DEFAULT_PRICES: Record<MembershipType, { price: number; originalPrice: number }> = {
+  trial:   { price: 0,     originalPrice: 990   },
+  monthly: { price: 1990,  originalPrice: 2990  },
+  yearly:  { price: 19900, originalPrice: 29900 },
+};
+
 export const MEMBERSHIP_CONFIG: Record<MembershipType, {
   label: string;
   durationDays: number;
+  /** 默认售价，单位：分（与 membership_prices.price 同单位，取 DEFAULT_PRICES） */
   price: number;
   trial: boolean;
 }> = {
-  trial:    { label: '1天体验会员', durationDays: 1,  price: 0,    trial: true  },
-  monthly:  { label: '1个月会员',   durationDays: 30, price: 19.9, trial: false },
-  yearly:   { label: '1年会员',     durationDays: 365, price: 198,  trial: false },
+  trial:    { label: '1天体验会员', durationDays: 1,   price: DEFAULT_PRICES.trial.price,   trial: true  },
+  monthly:  { label: '1个月会员',   durationDays: 30,  price: DEFAULT_PRICES.monthly.price, trial: false },
+  yearly:   { label: '1年会员',     durationDays: 365, price: DEFAULT_PRICES.yearly.price,  trial: false },
 };
 
 // ─── 价格管理 ────────────────────────────────────────────────────────────────
 
-/** 获取套餐价格（优先从数据库读取，否则使用默认价格） */
+/** 获取套餐价格（优先从数据库读取，否则使用默认价格）。返回单位：分 */
 export function getMembershipPrice(db: DatabaseSync, type: MembershipType): number {
   const row = db.prepare('SELECT price FROM membership_prices WHERE type = ?').get(type) as { price: number } | undefined;
   if (row) return row.price;
@@ -58,18 +71,16 @@ export function getMembershipPrice(db: DatabaseSync, type: MembershipType): numb
 export function getMembershipOriginalPrice(db: DatabaseSync, type: MembershipType): number {
   const row = db.prepare('SELECT original_price FROM membership_prices WHERE type = ?').get(type) as { original_price: number } | undefined;
   if (row && row.original_price > 0) return row.original_price;
-  // 默认原价（单位：分）
-  const defaults: Record<MembershipType, number> = { trial: 990, monthly: 2990, yearly: 29900 };
-  return defaults[type];
+  return DEFAULT_PRICES[type].originalPrice;
 }
 
 /** 获取所有套餐价格（包含原价和优惠价） */
 export function getAllMembershipPrices(db: DatabaseSync): Record<MembershipType, { price: number; originalPrice: number }> {
   const rows = db.prepare('SELECT type, price, original_price FROM membership_prices').all() as { type: MembershipType; price: number; original_price: number }[];
   const defaults: Record<MembershipType, { price: number; originalPrice: number }> = {
-    trial: { price: MEMBERSHIP_CONFIG.trial.price, originalPrice: 990 },
-    monthly: { price: MEMBERSHIP_CONFIG.monthly.price, originalPrice: 2990 },
-    yearly: { price: MEMBERSHIP_CONFIG.yearly.price, originalPrice: 29900 },
+    trial: { ...DEFAULT_PRICES.trial },
+    monthly: { ...DEFAULT_PRICES.monthly },
+    yearly: { ...DEFAULT_PRICES.yearly },
   };
   for (const row of rows) {
     defaults[row.type] = {
@@ -258,7 +269,7 @@ export function getOrderById(db: DatabaseSync, orderId: number): OrderRow | unde
 export async function handlePaymentCallback(
   db: DatabaseSync,
   tradeOrderId: string,
-  totalFee: string,
+  totalFeeYuan: string,
   transactionId: string,
   status: string,
   openOrderId: string,
@@ -275,12 +286,21 @@ export async function handlePaymentCallback(
     return { ok: true, message: 'already paid' };
   }
 
-  // 金额校验
-  const expectedFee = order.amount.toFixed(2);
-  const actualFee = Number(totalFee).toFixed(2);
-  if (expectedFee !== actualFee) {
+  // 金额校验：两侧都归一到「分」再比，避免 1990(分) 与 "19.90"(元) 误判
+  // FIXME(ui-design-system 1.1.5)：修正前用 order.amount.toFixed(2) 直接比元字符串，
+  //   导致每一笔真实支付都判 fee mismatch（见 proposal.md 现状核实 A-01）。
+  const expectedCents = order.amount;
+  let actualCents: number;
+  try {
+    actualCents = yuanToCents(totalFeeYuan);
+  } catch {
     audit(db, 'order_pay', null, order.user_id,
-      `fee_mismatch,order_id=${orderId},expected=${expectedFee},actual=${actualFee}`);
+      `fee_invalid,order_id=${orderId},expected=${expectedCents},actual=${totalFeeYuan}`);
+    return { ok: false, message: 'fee invalid' };
+  }
+  if (expectedCents !== actualCents) {
+    audit(db, 'order_pay', null, order.user_id,
+      `fee_mismatch,order_id=${orderId},expected=${expectedCents},actual=${actualCents}`);
     return { ok: false, message: 'fee mismatch' };
   }
 

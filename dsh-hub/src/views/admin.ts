@@ -6,8 +6,9 @@
 import { escapeHtml } from '../http.ts';
 import { layout, csrfField } from './layout.ts';
 import { PASSWORD_MIN_LEN, PASSWORD_RULE_HINT, USERNAME_MAX_LEN, USERNAME_MIN_LEN, USERNAME_RULE_MESSAGE, type UserRow } from '../users.ts';
-import type { MembershipType } from '../membership.ts';
+import { DEFAULT_PRICES, type MembershipType } from '../membership.ts';
 import type { PresetPlugin } from '../presets.ts';
+import { formatMoney, formatDateTime } from './format.ts';
 
 // 与 users.ts / views/auth.ts 同源，避免后台建用户表单提示与认证页不一致
 const CREATE_USERNAME_PATTERN = `[A-Za-z0-9]{${USERNAME_MIN_LEN},${USERNAME_MAX_LEN}}`;
@@ -449,16 +450,16 @@ export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], cs
         <tbody>
           ${orders.map(order => `
             <tr>
-              <td><code>${order.order_no}</code></td>
-              <td><code>${order.payment_order_id || '-'}</code></td>
+              <td><code>${escapeHtml(order.order_no)}</code></td>
+              <td><code>${escapeHtml(order.payment_order_id || '') || '-'}</code></td>
               <td>${order.user_id}</td>
               <td>${MEMBERSHIP_LABELS[order.membership_type] || order.membership_type}</td>
-              <td>¥${order.amount.toFixed(2)}</td>
+              <td>${formatMoney(order.amount)}</td>
               <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
                    order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
                    `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>
-              <td>${new Date(order.created_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</td>
-              <td>${order.paid_at ? new Date(order.paid_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' }) : '-'}</td>
+              <td>${formatDateTime(order.created_at)}</td>
+              <td>${order.paid_at ? formatDateTime(order.paid_at) : '-'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -497,7 +498,7 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<MembershipTy
               <label class="price-label">原价</label>
               <div class="input-group">
                 <span class="input-prefix">¥</span>
-                <input type="number" name="trial_original" value="${((prices.trial?.originalPrice ?? 990) / 100).toFixed(2)}" step="0.01" min="0" class="form-control">
+                <input type="number" name="trial_original" value="${((prices.trial?.originalPrice ?? DEFAULT_PRICES.trial.originalPrice) / 100).toFixed(2)}" step="0.01" min="0" class="form-control">
                 <span class="input-suffix">元</span>
               </div>
             </div>
@@ -519,7 +520,7 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<MembershipTy
               <label class="price-label">原价</label>
               <div class="input-group">
                 <span class="input-prefix">¥</span>
-                <input type="number" name="monthly_original" value="${((prices.monthly?.originalPrice ?? 2990) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <input type="number" name="monthly_original" value="${((prices.monthly?.originalPrice ?? DEFAULT_PRICES.monthly.originalPrice) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
                 <span class="input-suffix">元</span>
               </div>
             </div>
@@ -527,7 +528,7 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<MembershipTy
               <label class="price-label">优惠价</label>
               <div class="input-group">
                 <span class="input-prefix">¥</span>
-                <input type="number" name="monthly_price" value="${((prices.monthly?.price ?? 1990) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <input type="number" name="monthly_price" value="${((prices.monthly?.price ?? DEFAULT_PRICES.monthly.price) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
                 <span class="input-suffix">元</span>
               </div>
             </div>
@@ -541,7 +542,7 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<MembershipTy
               <label class="price-label">原价</label>
               <div class="input-group">
                 <span class="input-prefix">¥</span>
-                <input type="number" name="yearly_original" value="${((prices.yearly?.originalPrice ?? 29900) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <input type="number" name="yearly_original" value="${((prices.yearly?.originalPrice ?? DEFAULT_PRICES.yearly.originalPrice) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
                 <span class="input-suffix">元</span>
               </div>
             </div>
@@ -549,7 +550,7 @@ export function renderAdminPricesPage(user: UserRow, prices: Record<MembershipTy
               <label class="price-label">优惠价</label>
               <div class="input-group">
                 <span class="input-prefix">¥</span>
-                <input type="number" name="yearly_price" value="${((prices.yearly?.price ?? 19900) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
+                <input type="number" name="yearly_price" value="${((prices.yearly?.price ?? DEFAULT_PRICES.yearly.price) / 100).toFixed(2)}" step="0.01" min="0" class="form-control" required>
                 <span class="input-suffix">元</span>
               </div>
             </div>

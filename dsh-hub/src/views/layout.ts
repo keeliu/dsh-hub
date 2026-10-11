@@ -53,6 +53,14 @@ export const CSS = `
   --font-size-lg: 16px;
   --font-size-xl: 20px;
   --font-size-xxl: 24px;
+  --font-size-2xl: 28px;
+
+  /* 历史别名（P0 修复：此前被引用但从未定义，导致声明静默失效） */
+  --gray-600: #666666;
+  --text-muted: #999999;
+  --color-text-tertiary: #999999;
+  --color-primary: #0066cc;
+  --color-error: #ff4d4f;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -194,8 +202,6 @@ body {
   font-size: var(--font-size-base);
   padding: 0.75rem 1rem;
 }
-  cursor: pointer;
-}
 
 .dropdown-item-danger:hover {
   background: #fff1f0;
@@ -205,9 +211,6 @@ body {
   height: 1px;
   background: var(--border);
   margin: 0.25rem 0;
-}
-  font-weight: 600;
-  font-size: var(--font-size-base);
 }
 
 /* 容器 - 普通页面使用居中留白布局 */
@@ -748,6 +751,152 @@ select.form-control {
   flex: 1;
   color: var(--text-primary);
   font-weight: 500;
+}
+
+/* 会员徽章（P0 修复：/profile 与 /payment/return 引用但此前未定义） */
+.membership-badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.membership-badge.trial {
+  background: #e6f7ff;
+  color: #0958d9;
+}
+
+.membership-badge.monthly {
+  background: #f6ffed;
+  color: #237804;
+}
+
+.membership-badge.yearly {
+  background: #fff7e6;
+  color: #ad6800;
+}
+
+.membership-badge.expired {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+}
+
+/* 支付返回页（P0 修复：整页类此前均未定义） */
+.payment-return {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.payment-return-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--text-white);
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+.payment-return-desc {
+  color: var(--text-secondary);
+  font-size: var(--font-size-base);
+  margin: 0.5rem 0 0;
+}
+
+.payment-return-icon--pending {
+  background: var(--warning);
+}
+
+/* 支付弹窗二维码区（P0 修复：此前未定义） */
+.payment-qrcode {
+  margin-top: 0.5rem;
+}
+
+.payment-return-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+/* 价格设置表单（P0 修复：/admin/prices 的 price-*/input-* 此前未定义） */
+.price-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.price-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.price-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.input-group {
+  display: flex;
+  align-items: stretch;
+}
+
+.input-group .form-control {
+  border-radius: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.input-prefix,
+.input-suffix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.625rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.input-prefix {
+  border-right: none;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+}
+
+.input-suffix {
+  border-left: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* 预置插件清单（P0 修复：pj-* 此前未定义，包名输入框在表格内被压到最小宽度） */
+.pj-spec {
+  min-width: 240px;
+}
+
+.pj-enabled,
+.pj-allow,
+.pj-ws {
+  cursor: pointer;
+}
+
+/* 预置插件行的操作按钮（P0 修复：↑ / ↓ / 删除 此前无样式，按钮在 actions 列内挤成一行） */
+.pj-up,
+.pj-down {
+  min-width: 2rem;
+  font-weight: 600;
+}
+
+.pj-del {
+  white-space: nowrap;
 }
 
 /* 支付弹窗 */

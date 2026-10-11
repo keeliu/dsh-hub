@@ -6,7 +6,7 @@
  * 数据根由 DSH_HUB_DATA 指定（默认 <dsh-hub>/data），DB 文件 dshhub.db。
  */
 import { DatabaseSync } from 'node:sqlite';
-import { chmodSync, existsSync, mkdirSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { getDataDir } from './config.ts';
 
@@ -301,8 +301,94 @@ const MIGRATIONS: Migration[] = [
         updateStmt.run(orderNo, order.id);
       }
     }
+  },
+  {
+    version: 8,
+    description: 'normalize money columns to integer cents (orders.amount, membership_prices.*)',
+    up: (db) => {
+      // 金额单位统一为「分」（整数），见 openspec/specs/money-units.md。
+      //
+      // 本迁移**只重建列亲和性**，不改写任何存量数值：
+      //   REAL 亲和性会让同一列同时存在 1990（INTEGER）与 19.9（REAL）两种存储类，
+      //   重建为 INTEGER 后存储类收敛为 integer，杜绝新的「同字段两种单位」。
+      //
+      // 为什么不做历史值归一：1990 既可能是「1990 分」也可能是「1990 元」，
+      //   数值本身无法区分，任何 ×100 启发式都会在某些取值上猜错。
+      //   正确路径是先分清单位再手工定值，见 `getSuspiciousMoneyValues()`
+      //   与 /admin/prices 的异常值提示。
+      //
+      // DROP TABLE 会即时检查外键：memberships.order_id 引用 orders(id)，
+      // 直接 DROP 会触发引用方的 ON DELETE SET NULL 把关联订单清空。
+      // `PRAGMA foreign_keys = OFF` 在事务内是静默 no-op，无法在 up() 里救场，
+      // 因此由 migrate() 在 BEGIN 之外统一关闭外键开关并负责恢复。
+
+      db.exec(`
+        CREATE TABLE orders_new (
+          id INTEGER PRIMARY KEY,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          membership_type TEXT NOT NULL CHECK(membership_type IN ('trial','monthly','yearly')),
+          amount INTEGER NOT NULL CHECK(amount >= 0),
+          status TEXT NOT NULL CHECK(status IN ('pending','paid','cancelled','refunded')),
+          payment_method TEXT,
+          payment_id TEXT,
+          order_no TEXT NOT NULL DEFAULT '',
+          payment_order_id TEXT,
+          created_at INTEGER NOT NULL,
+          paid_at INTEGER
+        );
+        INSERT INTO orders_new (
+          id, user_id, membership_type, amount, status, payment_method, payment_id,
+          order_no, payment_order_id, created_at, paid_at
+        )
+        SELECT
+          id, user_id, membership_type, CAST(ROUND(amount) AS INTEGER),
+          status, payment_method, payment_id,
+          order_no, payment_order_id, created_at, paid_at
+        FROM orders;
+
+        DROP TABLE orders;
+        ALTER TABLE orders_new RENAME TO orders;
+        CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id);
+        CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+        CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
+      `);
+
+      db.exec(`
+        CREATE TABLE membership_prices_new (
+          id INTEGER PRIMARY KEY,
+          type TEXT NOT NULL UNIQUE CHECK(type IN ('trial','monthly','yearly')),
+          price INTEGER NOT NULL CHECK(price >= 0),
+          original_price INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT INTO membership_prices_new (id, type, price, original_price, updated_at)
+        SELECT id, type, CAST(ROUND(price) AS INTEGER), CAST(ROUND(original_price) AS INTEGER), updated_at
+        FROM membership_prices;
+
+        DROP TABLE membership_prices;
+        ALTER TABLE membership_prices_new RENAME TO membership_prices;
+      `);
+    }
   }
 ];
+
+/** 疑似单位混用的金额取值（小于 1 元却非 0），用于后台提示人工确认 */
+export function getSuspiciousMoneyValues(db: DatabaseSync): Array<{ table: string; id: number; field: string; value: number }> {
+  const out: Array<{ table: string; id: number; field: string; value: number }> = [];
+  const orders = db.prepare(
+    'SELECT id, amount FROM orders WHERE amount > 0 AND amount < 100'
+  ).all() as Array<{ id: number; amount: number }>;
+  for (const row of orders) out.push({ table: 'orders', id: row.id, field: 'amount', value: row.amount });
+
+  const prices = db.prepare(
+    'SELECT id, type, price, original_price FROM membership_prices WHERE (price > 0 AND price < 100) OR (original_price > 0 AND original_price < 100)'
+  ).all() as Array<{ id: number; type: string; price: number; original_price: number }>;
+  for (const row of prices) {
+    if (row.price > 0 && row.price < 100) out.push({ table: 'membership_prices', id: row.id, field: `price(${row.type})`, value: row.price });
+    if (row.original_price > 0 && row.original_price < 100) out.push({ table: 'membership_prices', id: row.id, field: `original_price(${row.type})`, value: row.original_price });
+  }
+  return out;
+}
 
 /** 版本化 schema 迁移 */
 export function migrate(db: DatabaseSync): void {
@@ -318,18 +404,44 @@ export function migrate(db: DatabaseSync): void {
     }
   }
 
-  for (const m of MIGRATIONS) {
-    if (m.version > current) {
-      try {
-        db.exec('BEGIN');
-        m.up(db);
-        setSchemaVersion(db, m.version);
-        db.exec('COMMIT');
-      } catch (e) {
-        db.exec('ROLLBACK');
-        throw new Error(`migration ${m.version} (${m.description}) failed: ${e}`);
+  // 升级前留一份一致性快照（规范要求：migration 前必须有 .bak 备份）。
+  // 用 `VACUUM INTO` 而不是复制文件：WAL 模式下直接 copy 可能漏掉未 checkpoint 的事务。
+  const latest = MIGRATIONS[MIGRATIONS.length - 1]?.version ?? 0;
+  if (current > 0 && current < latest) {
+    try {
+      const backupPath = `${getDataDir()}/dshhub.db.bak`;
+      // VACUUM INTO 拒绝覆盖已存在文件：先清掉上一轮备份
+      if (existsSync(backupPath)) rmSync(backupPath);
+      db.exec(`VACUUM INTO '${backupPath.replace(/'/g, "''")}'`);
+      chmodSync(backupPath, 0o600);
+      console.warn(`[db] schema v${current} → v${latest}，已备份到 ${backupPath}`);
+    } catch (e) {
+      console.error('[db] 升级前备份失败，继续迁移:', e);
+    }
+  }
+
+  // 表重建型迁移（DROP TABLE + RENAME）必须在**事务外**关闭外键：
+  //   - 事务内执行 `PRAGMA foreign_keys` 是静默 no-op；
+  //   - 开着外键 `DROP TABLE orders` 会立即触发引用方的 `ON DELETE SET NULL`，
+  //     把 memberships.order_id 清空（数据丢失，已在自测中复现）。
+  // 迁移全部结束后统一恢复 ON。
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    for (const m of MIGRATIONS) {
+      if (m.version > current) {
+        try {
+          db.exec('BEGIN');
+          m.up(db);
+          setSchemaVersion(db, m.version);
+          db.exec('COMMIT');
+        } catch (e) {
+          db.exec('ROLLBACK');
+          throw new Error(`migration ${m.version} (${m.description}) failed: ${e}`);
+        }
       }
     }
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
   }
 }
 

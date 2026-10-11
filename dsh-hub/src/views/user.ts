@@ -9,6 +9,7 @@ import { buildInstanceUrl } from '../subdomain.ts';
 import { config } from '../config.ts';
 import type { UserRow } from '../users.ts';
 import type { MembershipType } from '../membership.ts';
+import { formatMoney, formatDateTime } from './format.ts';
 
 interface InstanceInfo {
   id: string;
@@ -234,12 +235,6 @@ const MEMBERSHIP_LABELS: Record<string, string> = {
   yearly: '1年会员',
 };
 
-const MEMBERSHIP_PRICES: Record<string, string> = {
-  trial: '免费',
-  monthly: '¥19.9',
-  yearly: '¥198',
-};
-
 /** 会员购买页面（/membership） */
 export function renderMembershipPage(user: UserRow, membership: MembershipInfo, prices: Record<MembershipType, { price: number; originalPrice: number }>, error?: string | null, csrf?: string): string {
   const errorHtml = error ? `<div class="alert alert-danger">${escapeHtml(error)}</div>` : '';
@@ -380,6 +375,14 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
       error.style.display = 'none';
       modalTitle.textContent = '扫码支付';
 
+      // 服务端按套餐注入金额（单位：分），用于二维码未返回前的兜底显示
+      const priceByType = ${JSON.stringify({
+        trial: prices.trial?.price ?? 0,
+        monthly: prices.monthly?.price ?? 0,
+        yearly: prices.yearly?.price ?? 0,
+      })};
+      document.getElementById('payment-amount').textContent = '¥' + ((priceByType[type] ?? 0) / 100).toFixed(2);
+
       try {
         const res = await fetch('/api/payment/create', {
           method: 'POST',
@@ -394,8 +397,8 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
 
         currentOrderId = data.orderId;
         
-        // 零金额订单：跳过支付，直接激活
-        if (data.amount === 0) {
+        // 零金额订单：跳过支付，直接激活（服务端只返回 freeTrial 标记，不再返回 amount）
+        if (data.freeTrial) {
           modalTitle.textContent = '开通会员';
           loadingText.textContent = '正在开通会员...';
           
@@ -406,8 +409,6 @@ export function renderMembershipPage(user: UserRow, membership: MembershipInfo, 
           return;
         }
 
-        document.getElementById('payment-amount').textContent = '¥' + data.amount.toFixed(2);
-        
         loading.style.display = 'none';
         qrcode.style.display = 'block';
 
@@ -588,15 +589,15 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
         <tbody>
           ${orders.map(order => `
             <tr>
-              <td><code>${order.order_no}</code></td>
-              <td><code>${order.payment_order_id || '-'}</code></td>
+              <td><code>${escapeHtml(order.order_no)}</code></td>
+              <td><code>${escapeHtml(order.payment_order_id || '') || '-'}</code></td>
               <td>${MEMBERSHIP_LABELS[order.membership_type] || order.membership_type}</td>
-              <td>¥${(order.amount / 100).toFixed(2)}</td>
+              <td>${formatMoney(order.amount)}</td>
               <td>${order.status === 'paid' ? '<span class="badge badge-success">已支付</span>' : 
                    order.status === 'pending' ? '<span class="badge badge-warning">待支付</span>' :
                    `<span class="badge badge-secondary">${escapeHtml(order.status)}</span>`}</td>
-              <td>${new Date(order.created_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</td>
-              <td>${order.paid_at ? new Date(order.paid_at).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' }) : '-'}</td>
+              <td>${formatDateTime(order.created_at)}</td>
+              <td>${order.paid_at ? formatDateTime(order.paid_at) : '-'}</td>
             </tr>
           `).join('')}
         </tbody>
@@ -656,9 +657,13 @@ export function renderPaymentReturnPage(
 
   const content = `
     <div class="payment-return">
-      <div class="payment-return-icon">✓</div>
-      <h2>支付成功</h2>
-      <p class="payment-return-desc">您的会员已激活，现在可以开始使用所有功能</p>
+      <div class="payment-return-icon${membership.isActive ? '' : ' payment-return-icon--pending'}">${membership.isActive ? '✓' : '…'}</div>
+      <h2>${membership.isActive ? '支付成功' : '等待支付结果'}</h2>
+      <p class="payment-return-desc">${
+        membership.isActive
+          ? '您的会员已激活，现在可以开始使用所有功能'
+          : '尚未收到支付确认。若已完成付款，请稍候刷新本页；若未付款，可返回会员页重新下单'
+      }</p>
       
       <div class="card" style="margin-top: 2rem; text-align: left;">
         <div class="card-title">当前会员</div>
@@ -666,7 +671,7 @@ export function renderPaymentReturnPage(
           <span class="membership-badge ${membership.isActive ? membership.type : 'expired'}">
             ${membership.isActive && membership.type ? (MEMBERSHIP_LABELS[membership.type] ?? '会员') : '未激活'}
           </span>
-          ${membership.expiresAt ? `<span class="membership-expire">到期时间：${new Date(membership.expiresAt).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</span>` : ''}
+          ${membership.expiresAt ? `<span class="membership-expires">到期时间：${new Date(membership.expiresAt).toLocaleString("zh-CN", { timeZone: 'Asia/Shanghai' })}</span>` : ''}
         </div>
       </div>
       

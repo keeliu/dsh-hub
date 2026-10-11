@@ -9,7 +9,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { escapeHtml, readForm, redirect, sendHtml, parseCookies } from './http.ts';
 import { authenticate, assertCsrf, attemptLogin } from './auth.ts';
 import { getSetting } from './settings.ts';
-import { getUser, createUserRow, type UserRow } from './users.ts';
+import { getUser, createUserRow, canManage, isRole, type UserRow } from './users.ts';
 import { createSession, destroySession, SESSION_COOKIE, CSRF_COOKIE } from './sessions.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { config } from './config.ts';
@@ -577,7 +577,7 @@ page('GET', '/admin', ({ db, req, res }) => {
 page('GET', '/admin/users', ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
-  const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at, membership_type, membership_expires_at FROM users ORDER BY id').all() as unknown as UserInfo[];
+  const users = loadUsersForAdmin(db);
   const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
   sendHtml(res, 200, renderUsersPage(user, users, undefined, csrf));
 });
@@ -603,6 +603,10 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
     const passwordError = validatePassword(password);
     if (passwordError) throw new Error(passwordError);
     const nickname = form.nickname?.trim() || username;
+    // 角色必须经 canManage 校验：页面表单可控，admin 不得借此创建 root（M2.1 越权面）
+    const role = form.role ?? 'user';
+    if (!isRole(role)) throw new Error('角色不合法');
+    if (!canManage(actor.role, role)) throw new Error('无权创建该角色');
     let newUser: UserRow | null = null;
     withTx(db, () => {
       newUser = createUserRow(db, {
@@ -610,7 +614,7 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
         username,
         email,
         passwordHash: hashPassword(password),
-        role: (form.role as any) ?? 'user',
+        role,
       });
     });
     audit(db, 'user_create', actor.id, newUser!.id, `created user ${nickname}`);
@@ -625,7 +629,7 @@ page('POST', '/admin/users', async ({ db, req, res }) => {
     
     redirect(res, '/admin/users');
   } catch (e) {
-    const users = db.prepare('SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at, membership_type, membership_expires_at FROM users ORDER BY id').all() as unknown as UserInfo[];
+    const users = loadUsersForAdmin(db);
     const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
     sendHtml(res, 400, renderUsersPage(actor, users, { type: 'danger', message: '创建失败：' + (e instanceof Error ? e.message : String(e)) }, csrf));
   }
@@ -644,7 +648,13 @@ page('POST', '/admin/users/:id/disable', async ({ db, req, res, params }) => {
     await disableUser(db, id, stopInstance, listRunningInstances);
     audit(db, 'user_disable', actor.id, id, `disabled ${target.nickname}`);
   } catch (e) {
+    // 不能吞掉失败后照常跳转：那会让管理员以为已封禁（M2.1 高危面）
+    const message = e instanceof Error ? e.message : String(e);
     console.error('disableUser failed:', e);
+    const users = loadUsersForAdmin(db);
+    const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+    sendHtml(res, 500, renderUsersPage(actor, users, { type: 'danger', message: `封禁失败：${target.nickname}（${message}）` }, csrf));
+    return;
   }
   redirect(res, '/admin/users');
 });
@@ -915,4 +925,11 @@ interface AuditEntry {
   action: string;
   detail: string | null;
   created_at: number;
+}
+
+/** 用户管理页的用户列表（单一读取点，避免 SQL 在路由间重复漂移）。 */
+function loadUsersForAdmin(db: DatabaseSync): UserInfo[] {
+  return db.prepare(
+    'SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at, membership_type, membership_expires_at FROM users ORDER BY id'
+  ).all() as unknown as UserInfo[];
 }

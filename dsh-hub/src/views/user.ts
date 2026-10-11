@@ -62,7 +62,7 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
               <td><a href="/instances/${escapeHtml(inst.id)}">${escapeHtml(inst.name)}</a></td>
               <td>${statusBadge(inst.status)}</td>
               <td>${inst.port ?? '-'}</td>
-              <td>${inst.harness_version ? escapeHtml(inst.harness_version) : '默认'}</td>
+              <td>${inst.harness_version ? escapeHtml(inst.harness_version) : '镜像内置'}</td>
               <td style="font-size:0.875rem;color:var(--gray-600)">${formatDateTime(inst.created_at)}</td>
               <td style="font-size:0.875rem;color:var(--gray-600)">${inst.last_started_at ? formatDateTime(inst.last_started_at) : '—'}</td>
               <td class="actions">
@@ -181,7 +181,7 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
         <tr><td style="width:150px;font-weight:500">实例 ID</td><td><code>${escapeHtml(instance.id)}</code></td></tr>
         <tr><td style="font-weight:500">状态</td><td>${statusBadge(instance.status)}</td></tr>
         <tr><td style="font-weight:500">端口</td><td>${instance.port ?? '-'}</td></tr>
-        <tr><td style="font-weight:500">版本</td><td>${instance.harness_version ? escapeHtml(instance.harness_version) : '默认'}</td></tr>
+        <tr><td style="font-weight:500">版本</td><td>${instance.harness_version ? escapeHtml(instance.harness_version) : '镜像内置'}</td></tr>
         <tr><td style="font-weight:500">Trusted Host</td><td><code>${escapeHtml(instance.trusted_host)}</code></td></tr>
         <tr><td style="font-weight:500">创建时间</td><td>${formatDateTime(instance.created_at)}</td></tr>
         ${instance.last_started_at ? `<tr><td style="font-weight:500">最近启动</td><td>${formatDateTime(instance.last_started_at)}</td></tr>` : ''}

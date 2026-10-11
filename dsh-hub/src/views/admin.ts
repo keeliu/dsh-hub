@@ -369,14 +369,16 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">默认 DSH 版本</label>
-          <input type="text" name="default_harness_version" class="form-control" style="max-width:300px"
-                 value="${escapeHtml(settings.default_harness_version ?? '')}" placeholder="留空不限制">
+          <label class="form-label" for="default_harness_version">默认 DSH 版本</label>
+          <input type="text" id="default_harness_version" name="default_harness_version" class="form-control" style="max-width:300px"
+                 value="${escapeHtml(settings.default_harness_version ?? '')}" placeholder="例：0.1.5-rc.2；留空表示用镜像内置版本">
+          <p class="form-hint">用户新建实例时若未指定版本，使用此版本。修改后<b>只影响之后新建的实例</b>，已存在的实例保持自己的版本。</p>
         </div>
         <div class="form-group">
-          <label class="form-label">允许的版本列表</label>
-          <input type="text" name="allowed_harness_versions" class="form-control" style="max-width:400px"
-                 value="${escapeHtml(settings.allowed_harness_versions ?? '')}" placeholder="留空不限制">
+          <label class="form-label" for="allowed_harness_versions">允许的版本列表</label>
+          <input type="text" id="allowed_harness_versions" name="allowed_harness_versions" class="form-control" style="max-width:400px"
+                 value="${escapeHtml(settings.allowed_harness_versions ?? '')}" placeholder="例：0.1.5-rc.2,0.2.0-rc.2；留空表示不限制">
+          <p class="form-hint">逗号分隔的显式 semver 白名单。填写后，用户自定义的版本必须落在其中。</p>
         </div>
         <button type="submit" class="btn btn-primary">保存设置</button>
       </form>

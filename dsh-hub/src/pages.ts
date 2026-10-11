@@ -9,6 +9,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { escapeHtml, readForm, redirect, sendHtml, parseCookies } from './http.ts';
 import { authenticate, assertCsrf, attemptLogin } from './auth.ts';
 import { getSetting } from './settings.ts';
+import { isValidHarnessVersion, parseAllowedVersions } from './version.ts';
 import { getUser, createUserRow, canManage, isRole, type UserRow } from './users.ts';
 import { createSession, destroySession, SESSION_COOKIE, CSRF_COOKIE } from './sessions.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
@@ -454,9 +455,11 @@ page('POST', '/instances', async ({ db, req, res }) => {
   const form = await readForm(req);
   assertPageCsrf(req, form);
   try {
+    // M2.2：版本不再在这里做 `|| null` ——留空表示「用管理员配置的默认版本」，
+    // 由 instances.createInstance 统一解析（与 API 路径同一套策略）。
     await createInstance(db, auth.user, {
       name: form.name || `${auth.user.nickname} 的实例`,
-      harnessVersion: form.harness_version || null,
+      harnessVersion: typeof form.harness_version === 'string' ? form.harness_version : null,
     });
     redirect(res, '/');
   } catch (e) {
@@ -750,6 +753,17 @@ page('POST', '/admin/settings', async ({ db, req, res }) => {
   const form = await readForm(req);
   assertPageCsrf(req, form);
   const allowedKeys = ['registration_open', 'default_harness_version', 'allowed_harness_versions'];
+  // M2.2：网页保存也要做与 API 相同的校验。此前默认版本只在 API 保存时校验，
+  // 网页可以存进一个非法值，而非法默认值会让建实例静默回落（本次修复的缺陷之一）。
+  const invalid = validateVersionSettings(form);
+  if (invalid) {
+    const settings = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+    const map: Record<string, string> = {};
+    for (const s of settings) map[s.key] = s.value;
+    const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+    sendHtml(res, 400, renderSettingsPage(user, map, { type: 'danger', message: invalid }, csrf));
+    return;
+  }
   for (const key of allowedKeys) {
     if (form[key] !== undefined) {
       db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, form[key] ?? '');
@@ -934,4 +948,20 @@ function loadUsersForAdmin(db: DatabaseSync): UserInfo[] {
   return db.prepare(
     'SELECT id, nickname, username, role, status, max_instances, max_running, created_at, last_login_at, membership_type, membership_expires_at FROM users ORDER BY id'
   ).all() as unknown as UserInfo[];
+}
+
+/**
+ * 校验版本相关设置表单（M2.2）。
+ * 返回错误消息，`null` 表示通过。与 API 的 `PATCH /admin/api/settings` 同一套规则。
+ */
+function validateVersionSettings(form: Record<string, string | undefined>): string | null {
+  const def = form.default_harness_version;
+  if (typeof def === 'string' && def.trim() !== '' && !isValidHarnessVersion(def.trim())) {
+    return '默认版本必须是显式 semver（例：0.1.1-rc.2），或留空表示使用镜像内置版本';
+  }
+  const allowed = form.allowed_harness_versions;
+  if (typeof allowed === 'string' && allowed.trim() !== '' && parseAllowedVersions(allowed) === null) {
+    return '版本白名单必须是逗号分隔的显式 semver 列表，或留空表示不限制';
+  }
+  return null;
 }

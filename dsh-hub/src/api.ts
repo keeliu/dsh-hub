@@ -38,7 +38,7 @@ import {
 } from './auth.ts';
 import { getSetting, getSettingsMap, setSetting, SETTING_KEYS } from './settings.ts';
 import { getPresetPlugins, setPresetPlugins, validatePresetPlugins, type PresetPlugin } from './presets.ts';
-import { parseAllowedVersions, isValidHarnessVersion, versionAllowed } from './version.ts';
+import { parseAllowedVersions, isValidHarnessVersion } from './version.ts';
 import { hashPassword, verifyPassword, DUMMY_HASH } from './pwd.ts';
 import { canManage, generateSlug, getUser, getUserByAccount, getUserByEmail, getUserByNickname, getUserByUsername, isRole, isValidEmail, sanitizeNickname, shortId, validatePassword, validateUsername, type Role, type UserRow } from './users.ts';
 import { createInstance, deleteInstance, getInstance, listAllInstances, listInstances, listRunningInstances, runningCount } from './instances.ts';
@@ -902,28 +902,21 @@ route('GET', '/api/instances', { auth: true }, async ({ db, user }) => {
 route('POST', '/api/instances', { auth: true, csrf: true }, async ({ db, req, user }) => {
   const body = await readJson(req) as { name?: unknown; harness_version?: unknown };
   if (typeof body.name !== 'string' && body.name !== undefined) throw new HttpError(400, 'invalid_body', 'name must be a string');
-  // M2.1：版本白名单——显式 semver 校验 + default_harness_version 生效 + 精确白名单
-  let harnessVersion: string | null = null;
-  if (typeof body.harness_version === 'string' && body.harness_version) {
-    if (!isValidHarnessVersion(body.harness_version)) {
-      throw new HttpError(400, 'invalid_harness_version', 'harness_version must be explicit semver like 0.1.1-rc.2');
-    }
-    harnessVersion = body.harness_version;
-  } else {
-    const def = getSetting(db, 'default_harness_version', '');
-    if (def && isValidHarnessVersion(def)) harnessVersion = def;
-  }
-  const allowed = parseAllowedVersions(getSetting(db, 'allowed_harness_versions', ''));
-  if (!versionAllowed(harnessVersion, allowed)) {
-    throw new HttpError(403, 'harness_version_not_allowed', 'harness version not in allowed list');
-  }
+  // M2.2：版本解析（回落默认值 + 白名单）收敛到 instances.createInstance，
+  // 与本文件旧逻辑等价，同时让网页表单路径走同一套策略。
   let record: InstanceRecord;
   try {
     record = await createInstance(db, user, {
       name: typeof body.name === 'string' ? body.name : `${user.nickname}`,
-      harnessVersion,
+      harnessVersion: typeof body.harness_version === 'string' ? body.harness_version : null,
     });
   } catch (e) {
+    if (e instanceof Error && /harness_version_not_allowed/.test(e.message)) {
+      throw new HttpError(403, 'harness_version_not_allowed', e.message);
+    }
+    if (e instanceof Error && /invalid_harness_version/.test(e.message)) {
+      throw new HttpError(400, 'invalid_harness_version', e.message);
+    }
     if (e instanceof Error && /quota/.test(e.message)) throw new HttpError(403, 'quota_exceeded', e.message);
     if (e instanceof Error && /no free port/.test(e.message)) throw new HttpError(503, 'no_free_port', e.message);
     throw e;

@@ -239,3 +239,44 @@ Scenario: 未指定版本
 - GIVEN 实例 harness_version 为空
 - WHEN 启动
 - THEN 使用系统 PATH 中的 dsh 二进制
+
+## Requirement: 版本解析的单一真相源
+
+建实例时的版本策略只有一处实现（`instances.createInstance` 调用
+`version.resolveHarnessVersion`），网页表单与 API 必须得到完全一致的结果。
+修此前的缺陷正是两条路径各自实现：API 会回落 `default_harness_version`，
+网页表单却直接写 `null`，导致管理后台配置的默认版本在网页上完全不生效，
+且网页路径不校验 `allowed_harness_versions` 白名单。
+
+Scenario: 网页表单与 API 的默认版本一致
+- GIVEN 管理员把 `default_harness_version` 设为 "0.1.5-rc.2"
+- WHEN 用户分别在网页表单与 `POST /api/instances` 建实例，都留空版本
+- THEN 两个实例的 `harness_version` 都是 "0.1.5-rc.2"
+
+Scenario: 显式版本优先于默认版本
+- GIVEN 管理员把 `default_harness_version` 设为 "0.1.5-rc.2"
+- WHEN 用户建实例时显式指定 "0.2.0-rc.2"
+- THEN 实例的 `harness_version` 是 "0.2.0-rc.2"
+
+Scenario: 白名单对网页表单同样生效
+- GIVEN 管理员把 `allowed_harness_versions` 设为 "0.1.5-rc.2"
+- WHEN 用户经网页表单提交 "0.2.0-rc.2"
+- THEN 返回 400 且提示不在允许的版本列表中
+- AND 实例未被创建
+
+Scenario: 非法版本一律拒绝
+- GIVEN 用户提交 "file:/etc" 这类任意 npm spec
+- WHEN 经网页表单建实例
+- THEN 返回 400 且提示必须是显式 semver
+- AND 经 `POST /api/instances` 时返回 400 `invalid_harness_version`
+
+Scenario: 默认版本本身非法时不静默忽略
+- GIVEN 管理员在设置页把 `default_harness_version` 存成 "not-a-version"
+- WHEN 保存
+- THEN 返回 400 且该值不落库（静默忽略正是本次修复的缺陷）
+
+Scenario: 修改默认版本不追溯已存在的实例
+- GIVEN 某实例已以 "0.1.5-rc.2" 创建
+- WHEN 管理员把 `default_harness_version` 改成 "0.2.0-rc.2"
+- THEN 该实例的 `harness_version` 仍是 "0.1.5-rc.2"
+- AND 设置页明示「只影响之后新建的实例」

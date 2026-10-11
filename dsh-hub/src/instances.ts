@@ -20,6 +20,8 @@ import { config, getDshBin, getTemplateDshHome, ensureProfileAllowBuilds } from 
 import { activePresetSpecs, activePresetItems, activeAllowBuilds } from './presets.ts';
 import { allocatePort } from './port.ts';
 import { instanceDir, instanceHome, instanceWorkspace, INSTANCE_SUBDIRS, userDir } from './paths.ts';
+import { getSetting } from './settings.ts';
+import { resolveHarnessVersion } from './version.ts';
 
 import { shortId, type UserRow } from './users.ts';
 import type { InstanceRecord } from './supervisor/index.ts';
@@ -55,8 +57,26 @@ export interface CreateInstanceInput {
   harnessVersion?: string | null;
 }
 
-/** 新建实例（不启动）。配额不足/端口耗尽抛错。 */
+/** 新建实例（不启动）。配额不足/端口耗尽/版本不合法抛错。
+ *
+ * 版本策略的**唯一落点**：显式指定 → 回落 `default_harness_version` → 过白名单。
+ * 网页表单与 API 都经由这里，因此不可能再出现「两条路径策略不一致」。
+ * 错误消息前缀（`invalid_harness_version:` / `harness_version_not_allowed:`）由路由层
+ * 映射成 400/403。 */
 export async function createInstance(db: DatabaseSync, owner: UserRow, input: CreateInstanceInput): Promise<InstanceRecord> {
+  const resolution = resolveHarnessVersion(
+    input.harnessVersion,
+    getSetting(db, 'default_harness_version', ''),
+    getSetting(db, 'allowed_harness_versions', ''),
+  );
+  if (!resolution.ok) {
+    if (resolution.reason === 'invalid') {
+      throw new Error(`invalid_harness_version: ${resolution.version} 不是合法的显式 semver（例：0.1.1-rc.2）`);
+    }
+    throw new Error(`harness_version_not_allowed: ${resolution.version} 不在管理员允许的版本列表中`);
+  }
+  const harnessVersion = resolution.version;
+
   ensureUserDir(owner.dir_name);
   const name = String(input.name ?? '').trim().slice(0, 64) || `${owner.nickname}`;
 
@@ -80,7 +100,7 @@ export async function createInstance(db: DatabaseSync, owner: UserRow, input: Cr
           db.prepare(
             'INSERT INTO instances (id, owner_id, name, port, home_path, workspace_path, harness_version, trusted_host, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
           ).run(id, owner.id, name, port, instanceHome(owner.dir_name, id), instanceWorkspace(owner.dir_name, id),
-            input.harnessVersion ?? null, instanceTrustedHost(owner.slug, id), 'stopped', Date.now());
+            harnessVersion, instanceTrustedHost(owner.slug, id), 'stopped', Date.now());
           
           // 创建实例后立即安装默认插件（优先从模板复制，失败则回退到安装）
           const homePath = instanceHome(owner.dir_name, id);

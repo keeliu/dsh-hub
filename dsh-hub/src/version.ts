@@ -35,3 +35,43 @@ export function versionAllowed(version: string | null | undefined, allowed: Set<
   if (!allowed) return true;
   return allowed.has(version);
 }
+
+/** 版本解析结果。`invalid` = 不是合法 semver；`not_allowed` = 合法但不在白名单。 */
+export type HarnessVersionResolution =
+  | { ok: true; version: string | null }
+  | { ok: false; reason: 'invalid'; version: string }
+  | { ok: false; reason: 'not_allowed'; version: string };
+
+/**
+ * 版本解析的**单一真相源**：显式指定 → 回落 `default_harness_version` → 统一过白名单。
+ *
+ * M2.2 修复：此前只有 API 路由做了「回落默认值 + 白名单校验」，网页表单
+ * （`pages.ts` 的 `POST /instances`）直接写 `form.harness_version || null`，
+ * 导致两件事：①管理员配的默认版本在网页上完全不生效；②用户能从网页提交
+ * 白名单外的任意版本，绕过为堵 RCE 而设的白名单。现在两条路径都只经过这里
+ * （由 `instances.createInstance` 调用）。
+ *
+ * 默认值本身非法时**报错而不是静默忽略**——静默忽略正是本次要修的缺陷。
+ */
+export function resolveHarnessVersion(
+  requested: unknown,
+  defaultVersion?: string | null,
+  allowedRaw?: string | null,
+): HarnessVersionResolution {
+  let version: string | null = null;
+  if (typeof requested === 'string' && requested.trim() !== '') {
+    const explicit = requested.trim();
+    if (!isValidHarnessVersion(explicit)) return { ok: false, reason: 'invalid', version: explicit };
+    version = explicit;
+  } else {
+    const fallback = (defaultVersion ?? '').trim();
+    if (fallback !== '') {
+      if (!isValidHarnessVersion(fallback)) return { ok: false, reason: 'invalid', version: fallback };
+      version = fallback;
+    }
+  }
+  if (!versionAllowed(version, parseAllowedVersions(allowedRaw))) {
+    return { ok: false, reason: 'not_allowed', version: version as string };
+  }
+  return { ok: true, version };
+}

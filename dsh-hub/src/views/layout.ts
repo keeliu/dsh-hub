@@ -247,6 +247,14 @@ export const CSS = `
   color: var(--text-primary);
 }
 
+.form-hint {
+  margin: var(--space-1) 0 0;
+  font-size: var(--fs-caption);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  max-width: 560px;
+}
+
 .form-control {
   width: 100%;
   padding: 0.75rem 1rem;

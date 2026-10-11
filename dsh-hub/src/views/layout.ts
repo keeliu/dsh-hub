@@ -6,6 +6,8 @@
  */
 import { escapeHtml } from '../http.ts';
 import { BASE_STYLES } from './styles/base.ts';
+import { csrfField, flashHtml } from './components.ts';
+import { renderNav } from './nav.ts';
 import { REDUCED_MOTION_CSS, TOKENS_CSS } from './styles/tokens.ts';
 import type { UserRow } from '../users.ts';
 
@@ -1011,82 +1013,76 @@ select.form-control {
   margin-bottom: 1rem;
 }
 
+/* 窄屏导航抽屉按钮：桌面端不显示 */
+.navbar-toggle {
+  display: none;
+  background: transparent;
+  border: 1px solid rgb(255 255 255 / 35%);
+  color: var(--text-inverse);
+  border-radius: var(--radius-md);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
-  .navbar { padding: 0 1rem; }
-  .navbar-nav { gap: 1rem; }
-  .container { padding: 1rem; }
+  .navbar { padding: 0 var(--space-4); }
+  .navbar-toggle { display: inline-flex; }
+  /* 原实现是 .navbar-nav { gap: 1rem } 直接溢出，改为下拉抽屉 */
+  .navbar-nav {
+    position: absolute;
+    top: var(--layout-topbar-height);
+    left: 0;
+    right: 0;
+    z-index: var(--z-dropdown);
+    display: none;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: var(--surface-canvas);
+    border-bottom: 1px solid var(--border-hairline);
+    box-shadow: var(--shadow-float);
+    padding: var(--space-2);
+  }
+  .navbar-nav.is-open { display: flex; }
+  .navbar-nav > a {
+    color: var(--text-body);
+    padding: var(--space-3) var(--space-3);
+    border-radius: var(--radius-md);
+  }
+  .navbar-nav > a:hover { background: var(--surface-hover); }
+  .navbar-user { margin-left: 0; }
+  .user-dropdown { width: 100%; }
+  .user-dropdown-toggle { width: 100%; justify-content: flex-start; }
+  .user-dropdown-menu { position: static; width: 100%; box-shadow: var(--shadow-none); }
+  .container { padding: var(--space-4); }
   .stats-grid { grid-template-columns: 1fr; }
   .pricing-grid { grid-template-columns: 1fr; }
-  .admin-sidebar { display: none; }
+  /* 侧栏改为横向可滚动条，替代原先直接 display:none（等于没有导航） */
+  .admin-layout { flex-direction: column; }
+  .admin-sidebar {
+    width: 100%;
+    display: flex;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border-hairline);
+    padding: 0;
+  }
+  .admin-sidebar a {
+    white-space: nowrap;
+    padding: var(--space-3) var(--space-4);
+  }
+  .admin-content { padding: var(--space-4); }
 }
 `;
 
-/** 渲染导航栏 */
-function renderNav(user: UserRow | null): string {
-  if (!user) {
-    return `
-      <nav class="navbar">
-        <a href="/" class="navbar-brand">乌鸦 work</a>
-      </nav>`;
-  }
-
-  const isAdmin = user.role === 'admin' || user.role === 'root';
-  const homeLink = isAdmin ? '/admin' : '/';
-  const initial = user.nickname.charAt(0).toUpperCase();
-
-  return `
-    <nav class="navbar">
-      <a href="${homeLink}" class="navbar-brand">乌鸦 work</a>
-      <div class="navbar-nav">
-        ${!isAdmin ? '<a href="/">智能体</a>' : ''}
-        ${isAdmin ? '<a href="/admin">系统管理</a>' : ''}
-        <div class="navbar-user">
-          <div class="user-dropdown">
-            <button class="user-dropdown-toggle">
-              <div class="avatar">${initial}</div>
-              <span>${escapeHtml(user.nickname)}</span>
-            </button>
-            <div class="user-dropdown-menu">
-              <a href="/profile" class="dropdown-item">个人中心</a>
-              <a href="/instances" class="dropdown-item">实例管理</a>
-              <div class="dropdown-divider"></div>
-              <form method="POST" action="/api/auth/logout" style="margin:0">
-                <input type="hidden" name="csrf" value="">
-                <button type="submit" class="dropdown-item dropdown-item-danger">退出系统</button>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
-    </nav>
-    <script>
-      // 用户下拉菜单交互
-      document.querySelectorAll('.user-dropdown-toggle').forEach(function(toggle) {
-        toggle.addEventListener('click', function(e) {
-          e.preventDefault();
-          var menu = this.nextElementSibling;
-          menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-        });
-      });
-      document.addEventListener('click', function(e) {
-        if (!e.target.closest('.user-dropdown')) {
-          document.querySelectorAll('.user-dropdown-menu').forEach(function(menu) {
-            menu.style.display = 'none';
-          });
-        }
-      });
-    </script>`;
-}
-
 /** 渲染页面布局 */
-/** CSRF 隐藏字段 */
-export function csrfField(csrf: string): string {
-  return `<input type="hidden" name="_csrf" value="${escapeHtml(csrf)}">`;
-}
+/* csrfField 已迁至 ./components.ts（单点实现），此处保留再导出避免改动既有导入 */
+export { csrfField };
 
 export function layout(title: string, content: string, user: UserRow | null, flash?: { type: string; message: string }, csrf?: string): string {
-  const flashHtml = flash ? `<div class="alert alert-${flash.type}">${escapeHtml(flash.message)}</div>` : '';
   const csrfMeta = csrf ? `<meta name="csrf-token" content="${escapeHtml(csrf)}">` : '';
 
   return `<!DOCTYPE html>
@@ -1099,11 +1095,12 @@ export function layout(title: string, content: string, user: UserRow | null, fla
   <style>${BASE_CSS}${CSS}</style>
 </head>
 <body>
-  ${renderNav(user)}
-  <div class="container">
-    ${flashHtml}
+  <a class="skip-link" href="#main">跳到主要内容</a>
+  ${renderNav(user, csrf)}
+  <main class="container" id="main">
+    ${flashHtml(flash)}
     ${content}
-  </div>
+  </main>
 </body>
 </html>`;
 }

@@ -78,10 +78,28 @@ for (const f of files) {
   });
 
   // ④ 重复选择器：模板串内的「选择器 {」
+  //
+  // `@media` 内重新声明同一选择器是**有意的覆盖**（响应式本来就靠层叠），
+  // 因此先算出所有 @media 块的字符区间，落在其中的定义不参与重复判定；
+  // 只在同一层级（非 @media 内）出现多次才算真正的重复定义。
+  const mediaRanges = [];
+  for (const m of one.matchAll(/@media[^{]*\{/g)) {
+    let depth = 1;
+    let i = m.index + m[0].length;
+    while (i < one.length && depth > 0) {
+      if (one[i] === '{') depth++;
+      else if (one[i] === '}') depth--;
+      i++;
+    }
+    mediaRanges.push([m.index, i]);
+  }
+  const inMedia = (offset) => mediaRanges.some(([a, b]) => offset >= a && offset < b);
+
   const seenSel = new Map();
   for (const m of one.matchAll(/([^{}();=`]{0,200}?)\{/g)) {
     const raw = m[1];
     if (!raw || /[=()`$]/.test(raw)) continue;
+    if (inMedia(m.index)) continue;
     for (const part of raw.split(',')) {
       const sel = part.trim().replace(/\s+/g, ' ');
       if (!sel || !/^[.#@a-zA-Z[]/.test(sel)) continue;
@@ -94,7 +112,7 @@ for (const f of files) {
   }
   for (const [sel, ls] of seenSel) {
     if (ls.length > 1 && /^[.#]/.test(sel)) {
-      for (const l of ls.slice(1)) add('④重复选择器', f, l, `${sel}（同文件出现 ${ls.length} 次）`);
+      for (const l of ls.slice(1)) add('④重复选择器', f, l, `${sel}（同文件重复定义 ${ls.length} 次）`);
     }
   }
 

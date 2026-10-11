@@ -88,8 +88,8 @@
 - [x] 2.3.2 新增 `views/styles/base.ts`：全局 `:focus-visible` 兜底（此前全仓库无任何焦点样式）、`:focus:not(:focus-visible)` 抑制、`.sr-only`、`.skip-link`、reset 与 `tabular-nums` 工具类
 - [ ] 2.3.3 新增 `views/styles/components.ts`：按钮（含四态与 `:focus-visible`）、卡片、指标卡、输入框、徽章、筛选胶囊、分段控件、表格+溢出容器、分页
 - [x] 2.3.4 徽章改用 `<bg>/<fg>` 成对令牌（success 4.6:1 / warning 4.9:1 / danger 5.3:1 / info 5.1:1），消除原 2.2:1 与 2.95:1
-- [ ] 2.3.5 `views/components.ts`：`csrfField`、`flashHtml`（只渲染一次）、`confirmDialog`、`toast`、`formGroup`
-- [ ] 2.3.6 修正 `layout.ts` 登出表单死字段（`name="csrf" value=""` → `csrfField()` 的 `_csrf`）
+- [x] 2.3.5 新增 `views/components.ts`：`csrfField`（字段名 `_csrf`）与 `flashHtml` 单点实现；`layout.ts` 再导出 `csrfField` 保持既有导入
+- [x] 2.3.6 修正 `layout.ts` 登出表单死字段（`name="csrf" value=""` → `csrfField()` 的 `_csrf`），并给 `/admin`、`/admin/audit` 补传 `csrf`
 
 ## 阶段 3：P1 —— 骨架与 gateway 换肤
 
@@ -99,10 +99,10 @@
 > 8 张表格全部包进 `.table-wrap` 溢出容器并设 `min-width: 640px`（修复窄屏整页横向滚动）。
 > 剩余（3.1–3.4、3.5–3.7）为壳结构重建与 gateway 换肤。
 
-- [ ] 3.1 新增 `views/nav.ts`：`navItems(role)` 声明表，收敛 `layout()` 中的三元组分支
-- [ ] 3.2 重建壳结构：`aside.sidebar` + `header.topbar` + `main.app-content#main`，含 skip-link
+- [x] 3.1 新增 `views/nav.ts`：`navItems(role)` 声明表，收敛 `layout()` 中的三元组分支（管理端侧栏项也迁入 `adminNavItems()`）
+- [x] 3.2 重建壳结构：`header.navbar` + `nav.navbar-nav` + `main.container#main`，含 `.skip-link` 跳到主要内容
 - [x] 3.3 `--layout-topbar-height` 单点定义（`.navbar` / `.admin-layout` / `.workspace-container` 均引用）；`100vh` → `100dvh` 保留回退声明
-- [ ] 3.4 实现 ≤768px 抽屉/汉堡导航（替换 `.admin-sidebar{display:none}`）
+- [x] 3.4 实现 ≤768px 抽屉导航（`#nav-toggle` + `.navbar-nav.is-open`，带 `aria-expanded`/`aria-controls`；管理端侧栏改横向滚动条，替换原先直接 `display:none`）
 - [ ] 3.5 `gateway.ts` 注入样式改为引用同一令牌与 56px 基准（**只替换样式字符串，不整段取一侧**）
 - [ ] 3.6 回归：workspace loading 兜底页、实例落地页、`__DSH_BOOT__` 注入不被破坏
 - [ ] 3.7 实测从 `/instances` 进入 `/workspace` 导航高度差为 `0px`

@@ -5,6 +5,7 @@
  */
 import { escapeHtml } from '../http.ts';
 import { layout, csrfField } from './layout.ts';
+import { adminNavItems } from './nav.ts';
 import { PASSWORD_MIN_LEN, PASSWORD_RULE_HINT, USERNAME_MAX_LEN, USERNAME_MIN_LEN, USERNAME_RULE_MESSAGE, type UserRow } from '../users.ts';
 import { DEFAULT_PRICES, type MembershipType } from '../membership.ts';
 import type { PresetPlugin } from '../presets.ts';
@@ -69,20 +70,11 @@ function statusBadge(status: string): string {
 
 /** 管理后台侧边栏 */
 function adminSidebar(active: string): string {
-  const items = [
-    { key: 'dashboard', href: '/admin', label: '仪表盘', icon: '📊' },
-    { key: 'users', href: '/admin/users', label: '用户管理', icon: '👥' },
-    { key: 'instances', href: '/admin/instances', label: '实例总览', icon: '📦' },
-    { key: 'membership', href: '/admin/membership', label: '会员管理', icon: '💎' },
-    { key: 'prices', href: '/admin/prices', label: '价格管理', icon: '💰' },
-    { key: 'plugins', href: '/admin/plugins', label: '预置插件', icon: '🧩' },
-    { key: 'audit', href: '/admin/audit', label: '审计日志', icon: '📋' },
-    { key: 'settings', href: '/admin/settings', label: '全局设置', icon: '⚙️' },
-  ];
+  const items = adminNavItems();
 
   return `
     <div class="admin-layout">
-      <nav class="admin-sidebar">
+      <nav class="admin-sidebar" aria-label="管理后台导航">
         ${items.map(item => `
           <a href="${item.href}" class="${active === item.key ? 'active' : ''}">
             <span style="margin-right:0.5rem">${item.icon}</span>${item.label}
@@ -98,7 +90,7 @@ function adminSidebarClose(): string {
 }
 
 /** 仪表盘（/admin） */
-export function renderDashboardPage(user: UserRow, stats: { users: number; instances: number; running: number }): string {
+export function renderDashboardPage(user: UserRow, stats: { users: number; instances: number; running: number }, csrf?: string): string {
   const content = `
     <div class="page-header">
       <h1 class="page-title">管理后台</h1>
@@ -129,7 +121,7 @@ export function renderDashboardPage(user: UserRow, stats: { users: number; insta
     ${adminSidebarClose()}
   `;
 
-  return layout('管理后台', content, user);
+  return layout('管理后台', content, user, undefined, csrf);
 }
 
 /** 用户管理页（/admin/users） */
@@ -316,7 +308,7 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
 }
 
 /** 审计日志页（/admin/audit） */
-export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
+export function renderAuditPage(user: UserRow, logs: AuditEntry[], csrf?: string): string {
   const content = `
     <div class="page-header">
       <h1 class="page-title">审计日志</h1>
@@ -350,7 +342,7 @@ export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
     ${adminSidebarClose()}
   `;
 
-  return layout('审计日志', content, user);
+  return layout('审计日志', content, user, undefined, csrf);
 }
 
 /** 全局设置页（/admin/settings） */

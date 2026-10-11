@@ -570,7 +570,8 @@ page('GET', '/admin', ({ db, req, res }) => {
   const users = (db.prepare('SELECT COUNT(*) AS c FROM users').get() as { c: number }).c;
   const instances = (db.prepare('SELECT COUNT(*) AS c FROM instances').get() as { c: number }).c;
   const running = (db.prepare("SELECT COUNT(*) AS c FROM instances WHERE status = 'running'").get() as { c: number }).c;
-  sendHtml(res, 200, renderDashboardPage(user, { users, instances, running }));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderDashboardPage(user, { users, instances, running }, csrf));
 });
 
 // GET /admin/users - 用户管理
@@ -727,7 +728,8 @@ page('GET', '/admin/audit', ({ db, req, res }) => {
   const user = requireAdmin(db, req, res);
   if (!user) return;
   const logs = db.prepare('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 200').all() as unknown as AuditEntry[];
-  sendHtml(res, 200, renderAuditPage(user, logs));
+  const csrf = parseCookies(req)[CSRF_COOKIE] ?? '';
+  sendHtml(res, 200, renderAuditPage(user, logs, csrf));
 });
 
 // GET /admin/settings - 全局设置

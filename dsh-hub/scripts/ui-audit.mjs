@@ -72,7 +72,13 @@ for (const f of files) {
 
   text.split('\n').forEach((l, i) => {
     if (l.includes('!important')) add('③!important', f, i + 1, l.trim().slice(0, 60));
-    if (/toLocaleString|toLocaleDateString|toLocaleTimeString/.test(l) && !/Asia\/Shanghai|timeZone/.test(l)) {
+    // ⑤ 只针对**日期时间**渲染：纯数字用的 toLocaleString('en-US', {…}) 不算，
+    //    注释行也不算（规则应当指向可执行代码）。
+    const isComment = /^\s*(\/\/|\*|\/\*)/.test(l);
+    const looksLikeDate = /new Date\(|toLocaleDateString|toLocaleTimeString|Date\.now|year:|month:|day:|hour:|minute:/.test(l);
+    if (!isComment && looksLikeDate &&
+        /toLocaleString|toLocaleDateString|toLocaleTimeString/.test(l) &&
+        !/Asia\/Shanghai|timeZone/.test(l)) {
       add('⑤时间格式', f, i + 1, l.trim().slice(0, 70));
     }
   });

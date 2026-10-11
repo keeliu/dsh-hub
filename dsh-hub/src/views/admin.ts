@@ -9,7 +9,7 @@ import { adminNavItems } from './nav.ts';
 import { PASSWORD_MIN_LEN, PASSWORD_RULE_HINT, USERNAME_MAX_LEN, USERNAME_MIN_LEN, USERNAME_RULE_MESSAGE, type UserRow } from '../users.ts';
 import { DEFAULT_PRICES, type MembershipType } from '../membership.ts';
 import type { PresetPlugin } from '../presets.ts';
-import { formatMoney, formatDateTime } from './format.ts';
+import { formatMoney, formatDateTime, formatDate } from './format.ts';
 
 // 与 users.ts / views/auth.ts 同源，避免后台建用户表单提示与认证页不一致
 const CREATE_USERNAME_PATTERN = `[A-Za-z0-9]{${USERNAME_MIN_LEN},${USERNAME_MAX_LEN}}`;
@@ -210,9 +210,9 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
               <td>${escapeHtml(u.username)}</td>
               <td><span class="badge badge-info">${escapeHtml(u.role)}</span></td>
               <td>${statusBadge(u.status)}</td>
-              <td>${u.membership_type ? `<span class="badge badge-success">${MEMBERSHIP_LABELS[u.membership_type] || u.membership_type}</span><br><small style="color:var(--text-secondary)">${u.membership_expires_at ? new Date(u.membership_expires_at).toLocaleDateString('zh-CN') + ' 到期' : ''}</small>` : '<span class="badge badge-secondary">无</span>'}</td>
+              <td>${u.membership_type ? `<span class="badge badge-success">${MEMBERSHIP_LABELS[u.membership_type] || u.membership_type}</span><br><small style="color:var(--text-secondary)">${u.membership_expires_at ? formatDate(u.membership_expires_at) + ' 到期' : ''}</small>` : '<span class="badge badge-secondary">无</span>'}</td>
               <td>${u.max_instances} / ${u.max_running}</td>
-              <td>${new Date(u.created_at).toLocaleDateString('zh-CN')}</td>
+              <td>${formatDate(u.created_at)}</td>
               <td class="actions">
                 <form method="POST" action="/admin/users/${u.id}/membership" style="display:inline">
                   ${csrfField(csrf ?? '')}

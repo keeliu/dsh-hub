@@ -43,7 +43,8 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
         <p>暂无实例</p>
         <p style="margin-top:0.5rem">创建你的第一个实例开始使用</p>
        </div>`
-    : `<table class="table">
+    : `<div class="table-wrap">
+  <table class="table">
         <thead>
           <tr>
             <th>名称</th>
@@ -90,7 +91,8 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
             </tr>
           `).join('')}
         </tbody>
-       </table>`;
+         </table>
+</div>`;
 
   const content = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
@@ -174,7 +176,8 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
 
     <div class="card">
       <div class="card-title">实例信息</div>
-      <table class="table" style="margin:0">
+      <div class="table-wrap">
+        <table class="table" style="margin:0">
         <tr><td style="width:150px;font-weight:500">实例 ID</td><td><code>${escapeHtml(instance.id)}</code></td></tr>
         <tr><td style="font-weight:500">状态</td><td>${statusBadge(instance.status)}</td></tr>
         <tr><td style="font-weight:500">端口</td><td>${instance.port ?? '-'}</td></tr>
@@ -182,7 +185,8 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
         <tr><td style="font-weight:500">Trusted Host</td><td><code>${escapeHtml(instance.trusted_host)}</code></td></tr>
         <tr><td style="font-weight:500">创建时间</td><td>${new Date(instance.created_at).toLocaleString("zh-CN")}</td></tr>
         ${instance.last_started_at ? `<tr><td style="font-weight:500">最近启动</td><td>${new Date(instance.last_started_at).toLocaleString("zh-CN")}</td></tr>` : ''}
-      </table>
+              </table>
+      </div>
     </div>
 
     ${instance.status === 'running' ? `
@@ -574,7 +578,8 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
 
   const ordersHtml = orders.length === 0
     ? '<div class="empty-state"><p>暂无订单记录</p></div>'
-    : `<table class="table">
+    : `<div class="table-wrap">
+  <table class="table">
         <thead>
           <tr>
             <th>订单号</th>
@@ -601,7 +606,8 @@ export function renderProfilePage(user: UserRow, membership: MembershipInfo, ord
             </tr>
           `).join('')}
         </tbody>
-       </table>`;
+         </table>
+</div>`;
 
   const content = `
     <div class="page-header">

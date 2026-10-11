@@ -46,8 +46,11 @@ for (const f of files) {
 
   if (f !== TOKENS_FILE) {
     text.split('\n').forEach((l, i) => {
-      const m = l.match(/#[0-9a-fA-F]{3,8}\b|\brgba?\(/);
-      if (m) add('①颜色字面量', f, i + 1, m[0]);
+      // 只认 CSS 值位置的颜色：`#rgb…`，或出现在声明值里的 rgb()/rgba()
+      const hex = l.match(/#[0-9a-fA-F]{3,8}\b/);
+      const rgba = /:\s*rgba?\(/.test(l.replace(/^\s*\/\*.*\*\/\s*$/, ''));
+      if (hex) add('①颜色字面量', f, i + 1, hex[0]);
+      else if (rgba) add('①颜色字面量', f, i + 1, 'rgba()');
     });
   }
 

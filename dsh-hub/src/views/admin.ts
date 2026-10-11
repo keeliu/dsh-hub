@@ -195,7 +195,8 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
           </div>
         </form>
       </div>
-      <table class="table">
+      <div class="table-wrap">
+        <table class="table">
         <thead>
           <tr>
             <th>ID</th>
@@ -245,7 +246,8 @@ export function renderUsersPage(user: UserRow, users: UserInfo[], flash?: { type
             </tr>
           `).join('')}
         </tbody>
-      </table>
+              </table>
+      </div>
     </div>
     ${adminSidebarClose()}
   `;
@@ -261,7 +263,8 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
     </div>
     ${adminSidebar('instances')}
     <div class="card">
-      <table class="table">
+      <div class="table-wrap">
+        <table class="table">
         <thead>
           <tr>
             <th>ID</th>
@@ -303,7 +306,8 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
             </tr>
           `).join('')}
         </tbody>
-      </table>
+              </table>
+      </div>
     </div>
     ${adminSidebarClose()}
   `;
@@ -319,7 +323,8 @@ export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
     </div>
     ${adminSidebar('audit')}
     <div class="card">
-      <table class="table">
+      <div class="table-wrap">
+        <table class="table">
         <thead>
           <tr>
             <th>时间</th>
@@ -339,7 +344,8 @@ export function renderAuditPage(user: UserRow, logs: AuditEntry[]): string {
             </tr>
           `).join('')}
         </tbody>
-      </table>
+              </table>
+      </div>
     </div>
     ${adminSidebarClose()}
   `;
@@ -434,7 +440,8 @@ interface OrderInfo {
 export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], csrf?: string): string {
   const ordersHtml = orders.length === 0
     ? '<div class="empty-state"><p>暂无订单记录</p></div>'
-    : `<table class="table">
+    : `<div class="table-wrap">
+  <table class="table">
         <thead>
           <tr>
             <th>订单号</th>
@@ -463,7 +470,8 @@ export function renderAdminMembershipPage(user: UserRow, orders: OrderInfo[], cs
             </tr>
           `).join('')}
         </tbody>
-       </table>`;
+         </table>
+</div>`;
 
   const content = `
     <div class="page-header">
@@ -625,7 +633,8 @@ export function renderPresetPluginsPage(user: UserRow, plugins: PresetPlugin[], 
         顺序即安装顺序；<strong>仅对新建实例生效</strong>（已建实例不回溯）。「允许构建脚本」勾选后，该插件（或其原生依赖，如 node-pty）才会执行 pnpm 构建。改动写审计日志。
       </p>
       <form id="preset-form">
-        <table class="table">
+        <div class="table-wrap">
+          <table class="table">
           <thead>
             <tr>
               <th>包名（spec）</th>
@@ -638,7 +647,8 @@ export function renderPresetPluginsPage(user: UserRow, plugins: PresetPlugin[], 
           <tbody id="preset-rows">
             ${plugins.map(rowHtml).join('')}
           </tbody>
-        </table>
+                  </table>
+        </div>
         <div style="margin-top:1rem;display:flex;gap:0.5rem">
           <button type="button" id="preset-add" class="btn btn-sm btn-secondary">+ 新增插件</button>
           <button type="submit" class="btn btn-primary">保存清单</button>

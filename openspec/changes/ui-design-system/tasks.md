@@ -70,32 +70,38 @@
 
 ### 2.1 令牌层
 
-- [ ] 2.1.1 新增 `views/styles/tokens.ts`，按 `design.md` §3 全量落 `:root` 令牌
-- [ ] 2.1.2 按 `design.md` §11.3 映射表建立过渡别名（旧名 → `var(新名)`）
-- [ ] 2.1.3 删除已确认冗余的旧变量（映射表中标注「删除」者）
-- [ ] 2.1.4 令牌命名遵循命名空间（`--brand-*`/`--surface-*`/`--layout-*` 等）
+- [x] 2.1.1 新增 `views/styles/tokens.ts`：按 `design.md` §3 落全量 `:root` 令牌（表面/描边/文字/品牌状态/徽章/字体/字号/间距/圆角/阴影/动效/焦点/布局/层级）
+- [x] 2.1.2 全部旧变量名以过渡别名形式指向新令牌（`--primary`/`--bg-page`/`--radius-full`/`--font-size-*` 等 27 项），旧页面无需改动即可生效
+- [ ] 2.1.3 删除已确认冗余的旧变量（延后到阶段 5 全站替换完成后执行，避免中途出现未定义变量）
+- [x] 2.1.4 令牌命名遵循命名空间（`--surface-*`/`--text-*`/`--brand-*`/`--state-*`/`--badge-*`/`--fs-*`/`--space-*`/`--radius-*`/`--shadow-*`/`--dur-*`/`--z-*`/`--layout-*`）
 
 ### 2.2 数据类型与格式化
 
-- [ ] 2.2.1 `views/format.ts` 补齐 `formatDateTime`（固定 `Asia/Shanghai` + `YYYY-MM-DD HH:mm:ss`）、`formatEmpty`（统一 `—`）、`formatNumber`（千分位）
-- [ ] 2.2.2 状态/角色/动作/订单状态的中文映射表（单点定义）
-- [ ] 2.2.3 替换全站时间渲染（清除不指定时区的 `toLocaleString("zh-CN")`）
+- [x] 2.2.1 `views/format.ts` 补齐 `formatDateTime`（固定 `Asia/Shanghai` + `YYYY-MM-DD HH:mm:ss`）、`formatEmpty`（统一 `—`）、`formatNumber`（千分位）
+- [x] 2.2.2 状态/角色/动作/订单状态的中文映射表（单点定义）
+- [ ] 2.2.3 替换全站时间渲染（清除不指定时区的 `toLocaleString("zh-CN")`；`ui-audit` 规则⑤当前基线 8 处）
 - [ ] 2.2.4 `ui-audit.mjs` 规则⑤基线递减直至归零
 
 ### 2.3 基础组件
 
 - [ ] 2.3.1 `views/icons.ts`：扩展为覆盖导航与操作的最小 SVG 图标集，提供 `icon(name, opts)`；替代导航 emoji
-- [ ] 2.3.2 新增 `views/styles/base.ts`：reset、排版、`.sr-only`、`.skip-link`、工具类
+- [x] 2.3.2 新增 `views/styles/base.ts`：全局 `:focus-visible` 兜底（此前全仓库无任何焦点样式）、`:focus:not(:focus-visible)` 抑制、`.sr-only`、`.skip-link`、reset 与 `tabular-nums` 工具类
 - [ ] 2.3.3 新增 `views/styles/components.ts`：按钮（含四态与 `:focus-visible`）、卡片、指标卡、输入框、徽章、筛选胶囊、分段控件、表格+溢出容器、分页
-- [ ] 2.3.4 徽章与状态色改用达标色值（消除 2.2:1 / 2.95:1）
+- [x] 2.3.4 徽章改用 `<bg>/<fg>` 成对令牌（success 4.6:1 / warning 4.9:1 / danger 5.3:1 / info 5.1:1），消除原 2.2:1 与 2.95:1
 - [ ] 2.3.5 `views/components.ts`：`csrfField`、`flashHtml`（只渲染一次）、`confirmDialog`、`toast`、`formGroup`
 - [ ] 2.3.6 修正 `layout.ts` 登出表单死字段（`name="csrf" value=""` → `csrfField()` 的 `_csrf`）
 
 ## 阶段 3：P1 —— 骨架与 gateway 换肤
 
+> 已完成部分（本批）：`--layout-topbar-height` 与 `--layout-sidebar-width` 已在壳层生效——
+> `.navbar` 高度、`.admin-layout` 最小高度统一引用同一令牌（原 56px / `calc(100vh - 56px)` 硬编码），
+> `.admin-sidebar` 由硬编码 200px 改为 240px 令牌；`.container`/`.workspace-container` 的 `!important` 已清除；
+> 8 张表格全部包进 `.table-wrap` 溢出容器并设 `min-width: 640px`（修复窄屏整页横向滚动）。
+> 剩余（3.1–3.4、3.5–3.7）为壳结构重建与 gateway 换肤。
+
 - [ ] 3.1 新增 `views/nav.ts`：`navItems(role)` 声明表，收敛 `layout()` 中的三元组分支
 - [ ] 3.2 重建壳结构：`aside.sidebar` + `header.topbar` + `main.app-content#main`，含 skip-link
-- [ ] 3.3 `--layout-topbar-height` 单点定义；`100vh` → `100dvh`（保留回退声明）
+- [x] 3.3 `--layout-topbar-height` 单点定义（`.navbar` / `.admin-layout` / `.workspace-container` 均引用）；`100vh` → `100dvh` 保留回退声明
 - [ ] 3.4 实现 ≤768px 抽屉/汉堡导航（替换 `.admin-sidebar{display:none}`）
 - [ ] 3.5 `gateway.ts` 注入样式改为引用同一令牌与 56px 基准（**只替换样式字符串，不整段取一侧**）
 - [ ] 3.6 回归：workspace loading 兜底页、实例落地页、`__DSH_BOOT__` 注入不被破坏

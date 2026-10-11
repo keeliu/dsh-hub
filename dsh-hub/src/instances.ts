@@ -16,7 +16,7 @@ import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { withTx } from './db.ts';
-import { config, getDshBin, getTemplateDshHome, ensureProfileAllowBuilds } from './config.ts';
+import { config, getBuiltinDshVersion, getTemplateDshHome, ensureProfileAllowBuilds, resolveDshCommand, type DshCommand } from './config.ts';
 import { activePresetSpecs, activePresetItems, activeAllowBuilds } from './presets.ts';
 import { allocatePort } from './port.ts';
 import { instanceDir, instanceHome, instanceWorkspace, INSTANCE_SUBDIRS, userDir } from './paths.ts';
@@ -28,6 +28,47 @@ import type { InstanceRecord } from './supervisor/index.ts';
 
 /** 单个插件安装超时（原生编译需要更长时间）。 */
 const PLUGIN_INSTALL_TIMEOUT_MS = 120000;
+
+/**
+ * 走 `npx @deepseek-ai/dsh@<版本>` 时的插件安装超时。
+ * 首次调用 npx 要**下载整个 dsh 包**（实测 dsh@0.1.5-rc.2 的插件树含 510 个 tarball、
+ * 数百 MB；registry 有效带宽约 0.5 MB/s），慢网络下 20 分钟都下不完。给宽上限，
+ * 避免把正在下载的进程掐死（生产实测 2 分钟超时的报错正是 `exited with null`）；
+ * 下载完成后 tarball 进 npm 缓存，后续重试会很快收敛。
+ */
+const PLUGIN_INSTALL_NPX_TIMEOUT_MS = 1800000;
+
+/**
+ * 写入 `.plugins-installed` 标记，记录**装这棵树时用的 dsh 版本**。
+ *
+ * 为什么必须记版本：插件树（`profiles/web/`）是某个 dsh 版本 materialize 出来的，
+ * 同一棵树用**另一个**版本启动会 `plugin tree failed to load: @deepseek-ai/dsh-sandbox-local`
+ * （dsh-base 依赖同版 dsh-* 包）。启动期据此自检并在不匹配时重装。
+ */
+export function writePluginsMarker(homePath: string, version: string | null): void {
+  writeFileSync(join(homePath, '.plugins-installed'), `${JSON.stringify({ version, at: new Date().toISOString() })}\n`);
+}
+
+/**
+ * 读取 `.plugins-installed` 里记录的 dsh 版本。
+ *   - `undefined`：没有标记（尚未装完 / 需要装）
+ *   - `null`：有标记但只能按内置版本理解（**旧格式**是 ISO 时间字符串，而旧代码只用内置 dsh 装树）
+ *   - `string`：装树时使用的版本
+ */
+export function readPluginsMarkerVersion(homePath: string): string | null | undefined {
+  const markerPath = join(homePath, '.plugins-installed');
+  if (!existsSync(markerPath)) return undefined;
+  try {
+    const raw = readFileSync(markerPath, 'utf8').trim();
+    if (raw.startsWith('{')) {
+      const parsed = JSON.parse(raw) as { version?: unknown };
+      if (typeof parsed.version === 'string' && parsed.version) return parsed.version;
+    }
+  } catch {
+    /* 解析失败按旧格式（内置版本）处理 */
+  }
+  return getBuiltinDshVersion();
+}
 
 /** 用户昵称目录（users/<dir_name>，700）。建号时与建实例前都调用（幂等）。 */
 export function ensureUserDir(dirName: string): string {
@@ -106,10 +147,10 @@ export async function createInstance(db: DatabaseSync, owner: UserRow, input: Cr
           const homePath = instanceHome(owner.dir_name, id);
           const workspacePath = instanceWorkspace(owner.dir_name, id);
           
-          const copied = copyPreinstalledPlugins(db, homePath, id);
+          const copied = copyPreinstalledPlugins(db, homePath, id, harnessVersion);
           if (!copied) {
-            // 模板复制失败/不完整，回退到按当前清单逐个真装
-            installDefaultPlugins(db, homePath, workspacePath, id).catch(err => {
+            // 模板复制失败/不完整，或实例固定了非内置版本 → 按当前清单用**实例自己的 dsh 版本**真装
+            installDefaultPlugins(db, homePath, workspacePath, id, harnessVersion).catch(err => {
               console.error(`[instances] Plugin installation failed for instance ${id}:`, err);
             });
           }
@@ -188,32 +229,37 @@ export async function ensureInstanceForUser(db: DatabaseSync, userId: number): P
 
 /**
  * 执行一条 `dsh plugin --profile web add [-w] <spec>`。
+ * `cmd` 由 `config.ts::resolveDshCommand(instance.harness_version)` 给出：可能是镜像内置
+ * dsh，也可能是 `npx @deepseek-ai/dsh@<版本>`——**必须与实例启动用的是同一份**，否则
+ * 插件树与运行进程版本错配（见 `resolveDshCommand` 注释）。
  * 【安全】用 argv 数组 + `shell:false`，spec 不经 shell 解析（管理员可控 spec 后防命令注入）。
  * 成功 resolve；非 0 退出 / spawn error reject。
  */
 export function runPluginAdd(
-  bin: string,
+  cmd: DshCommand,
   spec: string,
   workspace: boolean,
   opts: { cwd: string; dshHome: string; timeoutMs?: number },
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const args = ['plugin', '--profile', 'web', 'add'];
+    const args = [...cmd.argvPrefix, 'plugin', '--profile', 'web', 'add'];
     if (workspace) args.push('-w');
     args.push(spec);
     let stderr = '';
-    const child = spawn(bin, args, {
+    const child = spawn(cmd.bin, args, {
       cwd: opts.cwd,
       env: { ...process.env, DSH_HOME: opts.dshHome },
       stdio: 'pipe',
       shell: false,
-      timeout: opts.timeoutMs ?? PLUGIN_INSTALL_TIMEOUT_MS,
+      timeout: opts.timeoutMs ?? (cmd.argvPrefix.length > 0 ? PLUGIN_INSTALL_NPX_TIMEOUT_MS : PLUGIN_INSTALL_TIMEOUT_MS),
     });
     child.stderr?.on('data', (d: Buffer) => { stderr += String(d); });
     child.on('error', reject);
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       if (code === 0) resolve();
-      else reject(new Error(`dsh plugin add ${spec} exited with ${code}: ${stderr.slice(0, 500)}`));
+      else reject(new Error(
+        `dsh plugin add ${spec} exited with ${code}${signal ? ` (signal ${signal})` : ''}: ${stderr.slice(0, 500)}`
+        + (code === null ? '（进程被超时/信号终止；npx 首次拉取指定 dsh 版本需下载整包，耗时远超内置路径）' : '')));
     });
   });
 }
@@ -223,7 +269,7 @@ export function runPluginAdd(
  * 异步执行，不阻塞实例创建流程。清单读 `presets.ts::activePresetItems(db)`（运行期可配置）。
  * `.plugins-installed` 只在**全部成功**后写；失败不写、下次可重试。
  */
-async function installDefaultPlugins(db: DatabaseSync, homePath: string, workspacePath: string, instanceId: string): Promise<void> {
+async function installDefaultPlugins(db: DatabaseSync, homePath: string, workspacePath: string, instanceId: string, harnessVersion: string | null): Promise<void> {
   const pluginInstallFlag = join(homePath, '.plugins-installed');
   
   // 如果已经安装过，跳过
@@ -235,11 +281,13 @@ async function installDefaultPlugins(db: DatabaseSync, homePath: string, workspa
   console.log(`[instances] Installing preset plugins for instance ${instanceId}...`);
   
   try {
-    const bin = getDshBin() || 'dsh';
+    // 与实例启动使用**同一份 dsh**（显式版本 → npx 该版本；否则内置），保证树与进程同版
+    const cmd = resolveDshCommand(harnessVersion);
+    console.log(`[instances] Plugin installer for ${instanceId}: ${cmd.version ?? 'builtin/unknown'} (${cmd.bin} ${cmd.argvPrefix.join(' ')})`);
     const items = activePresetItems(db);
     if (items.length === 0) {
       // 清单为空：无需安装，写标记避免反复重试
-      writeFileSync(pluginInstallFlag, new Date().toISOString());
+      writePluginsMarker(homePath, cmd.version);
       console.log(`[instances] Preset plugin list empty; nothing to install for instance ${instanceId}`);
       return;
     }
@@ -256,7 +304,7 @@ async function installDefaultPlugins(db: DatabaseSync, homePath: string, workspa
     for (const item of items) {
       console.log(`[instances] Installing plugin: ${item.spec}`);
       try {
-        await runPluginAdd(bin, item.spec, item.workspace, { cwd: workspacePath, dshHome: homePath });
+        await runPluginAdd(cmd, item.spec, item.workspace, { cwd: workspacePath, dshHome: homePath });
         console.log(`[instances] ✅ Plugin ${item.spec} installed successfully`);
       } catch (err) {
         // 只记录失败不中断：但必须让 allOk=false，避免"失败也写标记"锁死下次重试
@@ -267,7 +315,7 @@ async function installDefaultPlugins(db: DatabaseSync, homePath: string, workspa
 
     // 只在全部插件到位后写标记（失败不写 → 下次可重试）
     if (allOk) {
-      writeFileSync(pluginInstallFlag, new Date().toISOString());
+      writePluginsMarker(homePath, cmd.version);
       console.log(`[instances] Preset plugins installation completed for instance ${instanceId}`);
     } else {
       console.log(`[instances] Some plugins failed; marker not written for instance ${instanceId} (will retry)`);
@@ -310,7 +358,16 @@ function templateHasAllPlugins(templateHome: string, plugins: readonly string[])
  * 只有模板确证完整才复制并写 `.plugins-installed`；模板缺失 / 插件不全 / 复制抛错
  * 一律返回 false，触发运行时逐个真装，避免"不完整模板被当已安装"（生产根因）。
  */
-function copyPreinstalledPlugins(db: DatabaseSync, homePath: string, instanceId: string): boolean {
+function copyPreinstalledPlugins(db: DatabaseSync, homePath: string, instanceId: string, harnessVersion: string | null): boolean {
+  const builtinVersion = getBuiltinDshVersion();
+  // ⓪ 模板只在「实例就用内置版本启动」时才可用：模板 `/opt/dsh-home-template` 是镜像内置
+  // dsh 装出来的，树里是内置版本的 @deepseek-ai/dsh-* 依赖；用别的版本启动会
+  // `plugin tree failed to load`（生产实测）。指定了非内置版本 → 必须按该版本真装。
+  if (harnessVersion && harnessVersion !== builtinVersion) {
+    console.log(`[instances] Instance ${instanceId} 固定 dsh@${harnessVersion}（内置 ${builtinVersion ?? '未知'}），跳过模板，按该版本安装插件`);
+    return false;
+  }
+
   const templateHome = getTemplateDshHome();
   if (!existsSync(templateHome)) {
     console.log(`[instances] Template directory not found: ${templateHome}, falling back to install`);
@@ -331,14 +388,16 @@ function copyPreinstalledPlugins(db: DatabaseSync, homePath: string, instanceId:
     mkdirSync(dstProfiles, { recursive: true });
     // verbatimSymlinks: true（默认）保留软链原样：
     // - profiles/web/node_modules 内 pnpm 的相对软链指向实例自身 .pnpm 仓库 → 每实例独立；
-    // - profiles/node_modules 内指向全局 dsh 安装的绝对软链由启动期 healProfilesModuleFallback 重指向。
+    // - profiles/node_modules 内指向全局 dsh 安装的绝对软链同样原样保留 —— 只在
+    //   「实例就用内置版本启动」时成立，这也是上面 ⓪ 只允许内置版本用模板的原因
+    //   （历史上这里注释引用过一个从未实现的 healProfilesModuleFallback，已删）。
     cpSync(srcProfiles, dstProfiles, { recursive: true, verbatimSymlinks: true });
 
     const srcNpmrc = join(templateHome, '.npmrc');
     if (existsSync(srcNpmrc)) cpSync(srcNpmrc, join(homePath, '.npmrc'));
 
-    // ② 模板已校验齐全 + 复制成功 → 才写标记（否则锁死后续真装）
-    writeFileSync(join(homePath, '.plugins-installed'), new Date().toISOString());
+    // ② 模板已校验齐全 + 复制成功 → 才写标记（否则锁死后续真装）；标记记内置版本
+    writePluginsMarker(homePath, builtinVersion);
     console.log(`[instances] Pre-installed profile copied successfully for instance ${instanceId}`);
     return true;
   } catch (err) {

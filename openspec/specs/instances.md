@@ -230,15 +230,57 @@ Scenario: 非属主非管理员
 
 ## Requirement: 版本固定
 
-Scenario: 指定版本启动
-- GIVEN 实例 harness_version = "0.1.1"
-- WHEN 启动
-- THEN 执行 `npx --yes @deepseek-ai/dsh@0.1.1 web ...`
+启动与**装插件**必须使用同一个 dsh 版本，否则插件树与运行进程版本错配
+（dsh-base 依赖与自身同版的 dsh-* 包，生产实测报
+`dsh: plugin tree failed to load: @deepseek-ai/dsh-sandbox-local`）。
+命令由 `config.resolveDshCommand(harness_version)` 统一决定。
 
-Scenario: 未指定版本
-- GIVEN 实例 harness_version 为空
+Scenario: 指定版本启动与装插件
+- GIVEN 实例 harness_version = "0.1.1"
+- WHEN 装预置插件与启动
+- THEN 两者都经 `npx --yes @deepseek-ai/dsh@0.1.1`（装插件为 `... plugin --profile web add <spec>`）
+
+Scenario: 未指定版本，或版本等于镜像内置版本
+- GIVEN 实例 harness_version 为空，或等于镜像内置版本（读 dsh 包自身的 package.json）
+- WHEN 装预置插件与启动
+- THEN 使用镜像内置 dsh 二进制（不走 npx：省一次下载，且与模板同源）
+
+## Requirement: 插件树与运行版本同源
+
+`.plugins-installed` 记录**装这棵树时使用的 dsh 版本**；
+模板 `/opt/dsh-home-template` 只允许用在「实例就用内置版本启动」的情形，
+因为模板必然是镜像内置版本装出来的。
+启动期比对标记版本与目标版本，不一致即**整棵删除** `profiles/` 与标记，再按目标版本重装
+（自愈既有坏实例）。必须整棵删：除 `node_modules` 外，`profiles/web/package.json` 的
+`dsh.profile.bundles`、`cordis.yml`、`compatibility.json` 都记着旧版本的 bundle。
+
+Scenario: 指定非内置版本时跳过模板
+- GIVEN 实例 harness_version = "0.2.0-rc.2"，镜像内置为 "0.1.5-rc.2"
+- WHEN 建实例
+- THEN 不复制模板 profile
+- AND 用 `npx @deepseek-ai/dsh@0.2.0-rc.2` 按清单真装预置插件
+
+Scenario: 标记版本与目标版本一致时不重装
+- GIVEN 标记记录 "0.1.5-rc.2"，实例将用 "0.1.5-rc.2" 启动
 - WHEN 启动
-- THEN 使用系统 PATH 中的 dsh 二进制
+- THEN 直接启动，不重装插件树
+
+Scenario: 标记版本与目标版本不一致时自愈重装
+- GIVEN 标记记录 "0.1.5-rc.2"，实例将用 "0.2.0-rc.2" 启动
+- WHEN 启动
+- THEN 整棵删除 profiles/ 与标记
+- AND 用 "0.2.0-rc.2" 重新安装预置插件后再启动
+- AND 完成后标记记录的版本为 "0.2.0-rc.2"
+
+Scenario: 旧格式标记按内置版本解读
+- GIVEN 标记内容是 ISO 时间字符串（旧版本只写时间戳，且只用内置 dsh 装树）
+- WHEN 启动
+- THEN 按「内置版本装出的树」处理（内置版本启动时不重装）
+
+Scenario: 装树失败不写标记
+- GIVEN 某个预置插件安装失败
+- WHEN 装树结束
+- THEN 不写 `.plugins-installed`，下次启动重试
 
 ## Requirement: 版本解析的单一真相源
 

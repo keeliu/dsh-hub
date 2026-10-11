@@ -13,7 +13,7 @@
  */
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 
 export interface Config {
   host: string;
@@ -77,6 +77,63 @@ export function getDshBin(): string | null {
   const guess = join(dirname(process.execPath), '..', 'lib', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
   if (existsSync(guess)) return guess;
   return null;
+}
+
+/**
+ * 读取镜像内置 dsh 的版本号（取自 dsh 包自己的 package.json）。
+ *
+ * 这是「实例插件树必须与之一致」的基准版本：内置版本的 profile 才会与模板
+ * `/opt/dsh-home-template` 同源；换成别的版本必须重装插件树，否则
+ * dsh-base 找不到与自身同版的 dsh-sandbox-local 等依赖（生产实测启动失败）。
+ * `DSH_BIN` 通常是 `/usr/local/bin/dsh` 软链，必须先 realpath 才能定位 package.json。
+ */
+export function getBuiltinDshVersion(): string | null {
+  const bin = getDshBin();
+  if (!bin) return null;
+  let real = bin;
+  try {
+    real = realpathSync(bin);
+  } catch {
+    /* 软链不可解析时按原路径尝试 */
+  }
+  try {
+    const pkg = JSON.parse(readFileSync(join(dirname(dirname(real)), 'package.json'), 'utf8')) as { version?: unknown };
+    return typeof pkg.version === 'string' && pkg.version ? pkg.version : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 某实例应当使用的 dsh 命令（装插件与启动必须用同一份）。 */
+export interface DshCommand {
+  /** 要 spawn 的可执行文件 */
+  bin: string;
+  /** argv 前缀，插件子命令 / web 启动参数都接在其后 */
+  argvPrefix: string[];
+  /** 实际使用的 dsh 版本；null = 未能判定（按内置/未知处理） */
+  version: string | null;
+}
+
+/**
+ * 解析实例的 dsh 命令：**插件树与运行进程必须来自同一个 dsh 版本**。
+ *
+ *   - 未指定版本，或指定版本 === 内置版本 → 直接用镜像内置 dsh（与模板同源，且省一次 npx 下载）
+ *   - 其他版本 → `npx --yes @deepseek-ai/dsh@<version>`
+ *
+ * 反例（本函数修的缺陷）：插件用内置 0.1.5-rc.2 装，进程用 npx 0.2.0-rc.2 启动 →
+ * `plugin tree failed to load: @deepseek-ai/dsh-sandbox-local`。
+ */
+export function resolveDshCommand(harnessVersion?: string | null): DshCommand {
+  const requested = typeof harnessVersion === 'string' ? harnessVersion.trim() : '';
+  const builtin = getBuiltinDshVersion();
+  const bin = getDshBin();
+  if (!requested || (builtin !== null && requested === builtin)) {
+    // 内置二进制经 node 执行（bin.js 未必有可执行位）
+    if (bin) return { bin: process.execPath, argvPrefix: [bin], version: builtin };
+    return { bin: 'dsh', argvPrefix: [], version: builtin };
+  }
+  const npx = join(dirname(process.execPath), 'npx');
+  return { bin: process.execPath, argvPrefix: [npx, '--yes', `@deepseek-ai/dsh@${requested}`], version: requested };
 }
 
 /** 获取预置插件模板目录（Docker 构建期产出），默认 /opt/dsh-home-template。 */

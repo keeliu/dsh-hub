@@ -107,11 +107,11 @@ check "1b 网页建实例（版本留空）" "302" "$(page_create '无默认网�
 check "1c 无默认时 harness_version 为 null" "null" "$(ver_of '无默认网页')"
 
 # ---------- 2. 配了默认版本：网页路径必须生效（本次修复的核心） ----------
-check "2a 保存默认版本 0.1.5-rc.2" "200" "$(save_settings '0.1.5-rc.2' '')"
+check "2a 保存默认版本 0.2.1-alpha.2" "200" "$(save_settings '0.2.1-alpha.2' '')"
 check "2b 网页建实例（版本留空）" "302" "$(page_create '默认网页' '')"
-check "2c 网页路径回落到默认版本" "0.1.5-rc.2" "$(ver_of '默认网页')"
+check "2c 网页路径回落到默认版本" "0.2.1-alpha.2" "$(ver_of '默认网页')"
 check "2d API 路径回落到默认版本" "200" "$(api_create '默认API' '')"
-check "2e API 库内版本一致" "0.1.5-rc.2" "$(ver_of '默认API')"
+check "2e API 库内版本一致" "0.2.1-alpha.2" "$(ver_of '默认API')"
 
 # ---------- 3. 显式版本优先于默认版本（两条路径） ----------
 check "3a 网页显式指定版本" "302" "$(page_create '显式网页' '0.2.0-rc.2')"
@@ -120,14 +120,14 @@ check "3c API 显式指定版本" "200" "$(api_create '显式API' '0.2.0-rc.2')"
 check "3d API 显式版本落库" "0.2.0-rc.2" "$(ver_of '显式API')"
 
 # ---------- 4. 白名单：网页路径不得再绕过 ----------
-check "4a 白名单限定为 0.1.5-rc.2" "200" "$(save_settings '0.1.5-rc.2' '0.1.5-rc.2')"
+check "4a 白名单限定为 0.2.1-alpha.2" "200" "$(save_settings '0.2.1-alpha.2' '0.2.1-alpha.2')"
 check "4b 网页提交白名单外版本 → 400" "400" "$(page_create '绕白名单' '0.2.0-rc.2')"
 check_contains "4c 网页错误提示说明不在白名单" "不在管理员允许的版本列表中" "$(cat "$HUB_DIR/body.html")"
 check "4d 白名单外实例未被创建" "<missing>" "$(ver_of '绕白名单')"
 check "4e API 提交白名单外版本 → 403" "403" "$(api_create '绕白名单API' '0.2.0-rc.2')"
 check_contains "4f API 错误码为 harness_version_not_allowed" "harness_version_not_allowed" "$(cat "$HUB_DIR/api.json")"
-check "4g 网页提交白名单内版本 → 302" "302" "$(page_create '白名单内' '0.1.5-rc.2')"
-check "4h 白名单内版本落库" "0.1.5-rc.2" "$(ver_of '白名单内')"
+check "4g 网页提交白名单内版本 → 302" "302" "$(page_create '白名单内' '0.2.1-alpha.2')"
+check "4h 白名单内版本落库" "0.2.1-alpha.2" "$(ver_of '白名单内')"
 
 # ---------- 5. 非法 semver 拒绝（此前会变成任意 npm spec） ----------
 check "5a 网页提交 file:/etc → 400" "400" "$(page_create '非法网页' 'file:/etc')"
@@ -138,8 +138,8 @@ check_contains "5e API 错误码为 invalid_harness_version" "invalid_harness_ve
 
 # ---------- 6. 设置页保存非法默认版本必须被拒且不落库 ----------
 check "6a 保存非法默认版本 → 400" "400" "$(save_settings 'not-a-version' '')"
-check "6b 非法默认版本未落库（仍是上一步的合法值）" "0.1.5-rc.2" "$(setting_value default_harness_version)"
-check "6c 保存非法白名单 → 400" "400" "$(save_settings '0.1.5-rc.2' 'file:/etc')"
+check "6b 非法默认版本未落库（仍是上一步的合法值）" "0.2.1-alpha.2" "$(setting_value default_harness_version)"
+check "6c 保存非法白名单 → 400" "400" "$(save_settings '0.2.1-alpha.2' 'file:/etc')"
 check "6d 清空默认版本后网页回落为镜像内置" "200" "$(save_settings '' '')"
 check "6e 网页建实例" "302" "$(page_create '清空后' '')"
 check "6f 无默认版本时为 null" "null" "$(ver_of '清空后')"

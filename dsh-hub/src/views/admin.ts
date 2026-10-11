@@ -4,7 +4,7 @@
  * 仪表盘 / 用户管理 / 实例总览 / 审计日志 / 全局设置
  */
 import { escapeHtml } from '../http.ts';
-import { layout, csrfField } from './layout.ts';
+import { layout, csrfField, statusAutoRefreshScript } from './layout.ts';
 import { adminNavItems } from './nav.ts';
 import { PASSWORD_MIN_LEN, PASSWORD_RULE_HINT, USERNAME_MAX_LEN, USERNAME_MIN_LEN, USERNAME_RULE_MESSAGE, type UserRow } from '../users.ts';
 import { DEFAULT_PRICES, type MembershipType } from '../membership.ts';
@@ -302,6 +302,7 @@ export function renderAdminInstancesPage(user: UserRow, instances: InstanceInfo[
       </div>
     </div>
     ${adminSidebarClose()}
+    ${statusAutoRefreshScript()}
   `;
 
   return layout('实例总览', content, user, undefined, csrf);
@@ -371,13 +372,13 @@ export function renderSettingsPage(user: UserRow, settings: Record<string, strin
         <div class="form-group">
           <label class="form-label" for="default_harness_version">默认 DSH 版本</label>
           <input type="text" id="default_harness_version" name="default_harness_version" class="form-control" style="max-width:300px"
-                 value="${escapeHtml(settings.default_harness_version ?? '')}" placeholder="例：0.1.5-rc.2；留空表示用镜像内置版本">
+                 value="${escapeHtml(settings.default_harness_version ?? '')}" placeholder="例：0.2.0-rc.2；留空表示用镜像内置版本">
           <p class="form-hint">用户新建实例时若未指定版本，使用此版本。修改后<b>只影响之后新建的实例</b>，已存在的实例保持自己的版本。</p>
         </div>
         <div class="form-group">
           <label class="form-label" for="allowed_harness_versions">允许的版本列表</label>
           <input type="text" id="allowed_harness_versions" name="allowed_harness_versions" class="form-control" style="max-width:400px"
-                 value="${escapeHtml(settings.allowed_harness_versions ?? '')}" placeholder="例：0.1.5-rc.2,0.2.0-rc.2；留空表示不限制">
+                 value="${escapeHtml(settings.allowed_harness_versions ?? '')}" placeholder="例：0.2.0-rc.2,0.2.1-alpha.2；留空表示不限制">
           <p class="form-hint">逗号分隔的显式 semver 白名单。填写后，用户自定义的版本必须落在其中。</p>
         </div>
         <button type="submit" class="btn btn-primary">保存设置</button>

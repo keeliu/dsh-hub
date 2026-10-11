@@ -113,7 +113,7 @@ PORT=$(echo "$RESP" | grep -o '"port":[0-9]*' | cut -d: -f2)
 CODE=$(code -b "$C" -X POST "$BASE/api/instances/$IID/start" -H "x-csrf-token: $CSRF_C")
 check "A1 启动 C 的实例（准备封禁场景）" 200 "$CODE"
 READY=0
-for _ in $(seq 1 120); do curl -sf --max-time 10 "http://127.0.0.1:$PORT/" -o /dev/null 2>/dev/null && { READY=1; break; }; sleep 0.5; done
+for _ in $(seq 1 600); do curl -sf --max-time 10 "http://127.0.0.1:$PORT/" -o /dev/null 2>/dev/null && { READY=1; break; }; sleep 0.5; done
 check "A1 实例就绪" 1 "$READY"
 
 CODE=$(code -b "$J" -X PATCH "$BASE/admin/api/users/$CID" -H 'content-type: application/json' \
@@ -169,7 +169,7 @@ echo "$ST" | grep -q failed && PASS=$((PASS+1)) || { FAIL=$((FAIL+1)); echo "[FA
 CODE=$(code -b "$C" -X POST "$BASE/api/instances/$IID/start" -H "x-csrf-token: $CSRF_C")
 check "B2 重新启动 C 的实例" 200 "$CODE"
 READY=0
-for _ in $(seq 1 120); do curl -sf --max-time 10 "http://127.0.0.1:$PORT/" -o /dev/null 2>/dev/null && { READY=1; break; }; sleep 0.5; done
+for _ in $(seq 1 240); do curl -sf --max-time 10 "http://127.0.0.1:$PORT/" -o /dev/null 2>/dev/null && { READY=1; break; }; sleep 0.5; done
 check "B2 实例再次就绪" 1 "$READY"
 VPID=$(curl -s --max-time 60 -b "$J" "$BASE/api/instances/$IID" | grep -o '"pid":[0-9]*' | cut -d: -f2)
 kill -9 "$VPID" 2>/dev/null

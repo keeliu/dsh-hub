@@ -25,13 +25,14 @@ import { resolveHarnessVersion } from './version.ts';
 
 import { shortId, type UserRow } from './users.ts';
 import type { InstanceRecord } from './supervisor/index.ts';
+import { trackPrep } from './supervisor/prep-guard.ts';
 
 /** 单个插件安装超时（原生编译需要更长时间）。 */
 const PLUGIN_INSTALL_TIMEOUT_MS = 120000;
 
 /**
  * 走 `npx @deepseek-ai/dsh@<版本>` 时的插件安装超时。
- * 首次调用 npx 要**下载整个 dsh 包**（实测 dsh@0.1.5-rc.2 的插件树含 510 个 tarball、
+ * 首次调用 npx 要**下载整个 dsh 包**（实测 dsh@0.1.5-rc.2 的插件树含 510 个 tarball，
  * 数百 MB；registry 有效带宽约 0.5 MB/s），慢网络下 20 分钟都下不完。给宽上限，
  * 避免把正在下载的进程掐死（生产实测 2 分钟超时的报错正是 `exited with null`）；
  * 下载完成后 tarball 进 npm 缓存，后续重试会很快收敛。
@@ -149,10 +150,12 @@ export async function createInstance(db: DatabaseSync, owner: UserRow, input: Cr
           
           const copied = copyPreinstalledPlugins(db, homePath, id, harnessVersion);
           if (!copied) {
-            // 模板复制失败/不完整，或实例固定了非内置版本 → 按当前清单用**实例自己的 dsh 版本**真装
-            installDefaultPlugins(db, homePath, workspacePath, id, harnessVersion).catch(err => {
+            // 模板复制失败/不完整，或实例固定了非内置版本 → 按当前清单用**实例自己的 dsh 版本**真装。
+            // 登记进 prep-guard：用户「建完实例立刻点启动」时，启动路径必须先 await 这次安装，
+            // 不能对着同一个 DSH_HOME 并发再装一遍（会装出互相踩踏的插件树）。
+            trackPrep(id, installDefaultPlugins(db, homePath, workspacePath, id, harnessVersion).catch(err => {
               console.error(`[instances] Plugin installation failed for instance ${id}:`, err);
-            });
+            }));
           }
         } catch (e) {
           rmSync(dir, { recursive: true, force: true }); // 目录补偿删除，不残留孤儿

@@ -37,7 +37,16 @@ export const DEFAULT_PRESET_PLUGINS: PresetPlugin[] = [
   { spec: 'dsh-better-sidebar', enabled: true, order: 1, allowBuild: true,  workspace: false }, // 依赖 node-pty（原生）
   { spec: '@xmanrui/dsh-im',    enabled: true, order: 2, allowBuild: false, workspace: true  },
   { spec: 'dsh-cost-meter',     enabled: true, order: 3, allowBuild: false, workspace: false },
-  { spec: 'dsh-visualize',      enabled: true, order: 4, allowBuild: false, workspace: false },
+  // 官方 `dsh-visualize@0.2.1` 的 peerDependencies 只到 `^0.1.0-rc.6`，在 dsh 0.2.0-rc.2 上
+  // 会被 dsh 拒绝安装；`@nagi-ovo/dsh-visualize` 声明 `^0.1.0-rc.6 || ^0.2.0-rc.1`，实测可装。
+  { spec: '@nagi-ovo/dsh-visualize', enabled: true, order: 4, allowBuild: false, workspace: false },
+  // 以下 4 个（2026-10 扩容）：分别提供「定时任务」「Skills 管理」「上下文洞察」「会话归档」面板。
+  // 均已在 dsh 0.2.0-rc.2 上实测安装成功（peerDependencies 明确列出 0.2.0-rc.2；
+  // dsh-context 用 `>=0.1.7-rc.2` 范围，0.2.0-rc.2 满足），且无需 pnpm 批准 build 脚本。
+  { spec: '@michengai/dsh-automation',     enabled: true, order: 5, allowBuild: false, workspace: false },
+  { spec: '@michengai/dsh-skills-manager', enabled: true, order: 6, allowBuild: false, workspace: false },
+  { spec: 'dsh-context',                   enabled: true, order: 7, allowBuild: false, workspace: false },
+  { spec: '@michengai/dsh-archive-manager', enabled: true, order: 8, allowBuild: false, workspace: false },
 ];
 
 /**

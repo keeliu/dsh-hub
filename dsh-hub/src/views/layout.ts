@@ -1090,6 +1090,21 @@ select.form-control {
 /* csrfField 已迁至 ./components.ts（单点实现），此处保留再导出避免改动既有导入 */
 export { csrfField };
 
+/**
+ * 实例处于 starting / stopping 时自动刷新页面。
+ * 启动的后半段可能很长（首次装插件树要经 npx 下载数百 MB，见 supervisor/spawn.ts::startInstance），
+ * 页面需要在后台准备期间自己跟上状态，而不是让用户手动刷新。
+ */
+export function statusAutoRefreshScript(): string {
+  return `<script>
+(function () {
+  var t = document.body ? (document.body.textContent || '') : '';
+  if (t.indexOf('starting') === -1 && t.indexOf('stopping') === -1) return;
+  setTimeout(function () { window.location.reload(); }, 3000);
+})();
+</script>`;
+}
+
 export function layout(title: string, content: string, user: UserRow | null, flash?: { type: string; message: string }, csrf?: string): string {
   const csrfMeta = csrf ? `<meta name="csrf-token" content="${escapeHtml(csrf)}">` : '';
 

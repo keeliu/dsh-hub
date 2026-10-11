@@ -1,11 +1,20 @@
 export type InstanceStatus = 'stopped' | 'starting' | 'running' | 'stopping' | 'failed';
 
+/**
+ * 合法状态转换表。
+ *
+ * `starting → stopping` / `failed → stopping`：启动已改为异步（首次装插件树要数分钟，
+ * 见 spawn.ts::startInstance），实例会**长时间停在 starting**；此时用户点「停止」必须
+ * 是合法操作（否则 transitionStatus 抛错 → API 500）。`failed → stopping` 覆盖
+ * 「实例失败后再停/重启/删除」的路径，同样是清停而非非法转换。
+ * 后台启动任务在真正 spawn 之前会检查取消标记（prep-guard），不会把实例再拉起来。
+ */
 export const VALID_TRANSITIONS: Readonly<Record<InstanceStatus, readonly InstanceStatus[]>> = {
   stopped:  ['starting'] as const,
-  starting: ['running', 'failed', 'stopped'] as const,
+  starting: ['running', 'failed', 'stopped', 'stopping'] as const,
   running:  ['stopping', 'failed'] as const,
   stopping: ['stopped', 'failed'] as const,
-  failed:   ['starting', 'stopped'] as const,
+  failed:   ['starting', 'stopped', 'stopping'] as const,
 };
 
 export interface InstanceRecord {

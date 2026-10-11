@@ -51,13 +51,15 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
     │   ├── proxy.ts / subdomain.ts
     │   ├── membership.ts / payment.ts / settings.ts / scheduler.ts / email.ts
     │   ├── version.ts / paths.ts / port.ts / pwd.ts
+    │   ├── npx-dsh.ts          # npx 指定版本的客户端补丁（patchNpxDsh：非内置版本启动前补缓存副本）
     │   ├── supervisor/         # 进程监管（拆分为子模块）
     │   │   ├── index.ts        # 公共 API + InstanceRecord + 状态机
     │   │   ├── probe.ts / lock.ts / pidfile.ts / log.ts / spawn.ts / stop.ts / reclaim.ts
     │   ├── pages.ts            # 页面路由（SSR）
     │   └── views/              # 页面视图（layout / auth / user / admin）
     ├── scripts/                # 应用内脚本
-    │   ├── patch-dsh-client.sh # DSH 客户端 loopback 补丁（镜像启动时执行）
+    │   ├── patch-dsh-client.sh # DSH 客户端补丁（loopback + 鉴权旁路；镜像启动补内置安装，
+    │   │                       #   非内置版本由 src/npx-dsh.ts 在启动前补 npx 缓存副本）
     │   ├── install-default-plugins.sh
     │   └── m1-smoke.sh / m2-smoke.sh / security-regression.sh 等
     ├── spikes/                 # 技术验证脚本（S1-S5）
@@ -85,7 +87,11 @@ DSH Hub（DeepSeek Harness 多租户多实例管理器）：在单台 Linux 服�
 - 启动：`cd dsh-hub && node --disable-warning=ExperimentalWarning src/index.ts`（相对仓库根）
 - 类型检查：`cd dsh-hub && npx tsc -p . --noEmit`
 - 冒烟测试：`dsh-hub/scripts/m1-smoke.sh`（24 项）、`m2-smoke.sh`（29 项）、`security-regression.sh`（38 项）
-- **沙箱限制**：`dsh` 二进制在本环境不可用，涉及 `dsh web` 实例的端到端测试无法在此运行。
+- **环境说明**：只有受限沙箱里 `dsh` 不可用（那种环境跑不了实例级端到端测试）。本项目当前开发机
+  （`node 24` + 全局 `dsh 0.2.0-rc.2`）**可以**跑：`m1-smoke.sh` 24/24、`m2-smoke.sh` 29/29、
+  `security-regression.sh` 38/38、`version-policy-regression.sh` 33/33、`version-tree-regression.sh` 24/24、
+  `page-admin-regression.sh` 14/14。跑这些脚本前必须 `export TMPDIR=<大数据目录>`
+  （默认 `/tmp` 是 256MB tmpfs，装不下插件树，会大量莫名 FAIL）。
 
 ## Docker 构建与部署
 
@@ -105,7 +111,10 @@ docker compose up --build -d
 > ⚠️ 不要从仓库根用 `-f dsh-hub/Dockerfile .` 之外的错误上下文，也不要 `cd` 到应用目录后直接 `docker build .`（COPY 路径会错位）。
 
 **多阶段构建**：
-1. `template-builder` 阶段：装 `git python3 build-essential` + pnpm + dsh，把 5 个默认插件预装进 `/opt/dsh-home-template/profiles/web`，并在构建期校验模板 `dependencies` 覆盖全部默认插件（缺任一即构建失败）。
+
+> 当前基线：`@deepseek-ai/dsh@0.2.0-rc.2`（= npm `latest`），pin 在 `dsh-hub/Dockerfile` 两处（template-builder + 最终镜像），**两处必须同版本**。
+
+1. `template-builder` 阶段：装 `git python3 build-essential` + pnpm + dsh，把默认插件（现 **9 个**，见「会员实例预置插件自动装载」）预装进 `/opt/dsh-home-template/profiles/web`，并在构建期做三项完整性校验（**任一不满足即构建失败**）：①模板 `dependencies` 覆盖 **`presets.ts` 里 `enabled` 的全部预置插件**（构建期直接 `COPY dsh-hub/src/presets.ts /tmp/presets.ts` 并解析，清单以代码为唯一真相源——加了插件却漏改安装链会**构建失败**）；②模板 profile 的 `dsh.profile.bundles` 声明了核心 bundle `@deepseek-ai/dsh-base` / `@deepseek-ai/dsh-web-app`（这两个包由 dsh 从**自己的安装目录**解析，profile 的 `node_modules` 里本来就没有它们）；③这两个核心 bundle 在全局 dsh 安装里真实存在，且**版本与 dsh 包版本一致**（否则实例按非内置版本启动时会 `plugin tree failed to load: @deepseek-ai/dsh-sandbox-local`）。
 2. 最终镜像阶段：装 `git python3 build-essential` + pnpm + dsh，`COPY --from=template-builder` 模板，**只复制 `dsh-hub/src` 与 `package*.json`/`tsconfig.json`**（不再整体 `COPY dsh-hub/`，避免把构建机的 `node_modules` 带进镜像产生覆盖冲突），再单独复制 `patch-dsh-client.sh` 到 `/usr/local/bin`。
 
 **构建期关键依赖（踩过的坑，务必保留）**：
@@ -153,8 +162,10 @@ docker compose up --build -d
 - **支付体验与价格管理已完成**（free-trial-and-pricing-display / payment-callback-and-pricing）：Migration v5/v6（membership_prices 表 + original_price）、双价格展示（原价删除线+优惠价）、零金额订单跳过支付、支付弹窗 10 分钟倒计时/取消/已支付按钮、/admin/prices 价格管理、订单超时取消（POST /api/payment/cancel/:orderId）。
 - **工作区/实例页修复**：fix-workspace-fullscreen（`/workspace` 满屏 + body 高度 `calc(100vh - 60px)`）、fix-duplicate-navbar（`/instances` 重复导航栏）。
 - **会员实例预置插件自动装载**（openspec/changes/member-instance-template/）：**代码已落地，待生产验证**
-  - Docker `template-builder` 预装 5 个默认插件到 `/opt/dsh-home-template`，最终镜像复制该模板。
-  - 默认清单（原 `DEFAULT_PLUGINS`，现为 `presets.ts::DEFAULT_PRESET_PLUGINS`）：`dshmarket`、`dsh-better-sidebar`、`@xmanrui/dsh-im`、`dsh-cost-meter`、`dsh-visualize`（**全部 npm 源**，规避 `github:` 源的构建期失败）。
+  - Docker `template-builder` 预装默认插件（现 **9 个**）到 `/opt/dsh-home-template`，最终镜像复制该模板。
+  - 默认清单（原 `DEFAULT_PLUGINS`，现为 `presets.ts::DEFAULT_PRESET_PLUGINS`，共 **9 项**）：`dshmarket`、`dsh-better-sidebar`、`@xmanrui/dsh-im`、`dsh-cost-meter`、`@nagi-ovo/dsh-visualize`、`@michengai/dsh-automation`、`@michengai/dsh-skills-manager`、`dsh-context`、`@michengai/dsh-archive-manager`（**全部 npm 源**，规避 `github:` 源的构建期失败）。
+  - 选型约束：**每个插件的 peerDependencies 必须覆盖当前基线 dsh 版本**——dsh 会硬拒绝不兼容插件（第 5 项因此用 `@nagi-ovo/dsh-visualize` 而不是官方 `dsh-visualize`，后者 0.2.1 的 peer 只到 `^0.1.0-rc.6`）。
+  - **单一真相源**：清单只在 `presets.ts` 维护；Dockerfile 构建期校验会直接解析 `presets.ts` 并与模板 `dependencies` 比对，加了插件却漏改安装链会**构建失败**。
   - `copyPreinstalledPlugins()`：复制整棵 `profiles/` 到 `homePath/profiles/`（DSH 真实布局），复制前用 `templateHasAllPlugins()` 校验模板 `dependencies` 覆盖全部插件；缺插件返回 `false` 走真装。
   - **标记乐观化**：`installDefaultPlugins()` / `spawn.ts` 只在**全部插件成功**后才写 `.plugins-installed`（失败不写、可重试），避免"空模板+完成标记"锁死补救路径。
   - `ensureProfileAllowBuilds()`（`config.ts`）：在 profile 的 `pnpm-workspace.yaml` 写入 `allowBuilds: node-pty: true`（pnpm v11 批准原生构建），运行时安装前调用。
@@ -173,7 +184,17 @@ docker compose up --build -d
   - **验证**：`tsc` 零错误；`m1-smoke.sh` 24/24；`m2-smoke.sh` 与改动前基线完全一致（13 项失败为沙箱实例环境问题）；`security-regression.sh` 对照 `HEAD` worktree 无「基线通过、改动后失败」用例；另用真实 HTTP 覆盖校验全部分支 + Node 虚拟时钟/DOM 仿真验证 loading 超时兜底 14 项。
   - **未完成**：真机输入法验证（鸿蒙/微信/百度 APP）、生产验证；`tasks.md` 4.5 归档待真机验收后执行。
   - **⚠️ 上游覆盖与重新应用（2026-09-22）**：远端 `4f54d3b` 解决 `gateway.ts` 冲突时整段采用了自己的 workspace 轮询逻辑，把工作流 1 全部移除（loading 页退回无终止条件的轮询）。已在新版 `gateway.ts` 上重新应用工作流 1，并**保留上游该提交新增的两项能力**：①非 Hub 路径的通用插件 API fallback（`/dsh-market/*`、`/weixin/*` 等免 `/i/` 前缀）；②loading 页 401 → `/login?redirect=...`。**注意**：`gateway.ts` 是易冲突文件，后续合并时勿再整段取一侧。
-- **CHANGELOG 自动更新已上线**：见上文「CHANGELOG 自动更新」。
+- **非内置版本的客户端补丁**（2026-10，详见 `docs/04-DSH版本升级与鉴权修复手册.md` §7.4）
+  - 症状：实例 `harness_version` 指定为镜像**非内置**版本时，`npx` 现下载的那份 dsh 是**原始包**，
+    镜像启动期的 `patch-dsh-client.sh` 只补内置安装 → 网关服务器端 fetch 拿不到 cookie，
+    实例**状态 running 但工作区首页 401**（`dsh web authentication required`）。
+  - 修复：新增 `dsh-hub/src/npx-dsh.ts`（`patchNpxDsh(version)` 按版本枚举 `~/.npm/_npx/*/node_modules`
+    并复用同一补丁脚本，幂等、失败只 warn）；`DshCommand` 增加 `kind: 'builtin' | 'npx'`；
+    `spawn.ts` 启动前对 npx 版本调一次。`patch-dsh-client.sh` 同时改为可传多个 node_modules 根目录。
+  - 残余边界：预置清单为空时 npx 包可能到 spawn 才落地，那一次仍会 401；重启实例即补上。
+- **预置插件生态会漂移**（2026-10 实测）：`version-tree-regression.sh` 的 T3 样本不再是上一基线
+  `0.1.5-rc.2` —— `dshmarket` latest 的 peer 已不覆盖它，装树后实例 running 但端口不可访问。
+  样本改为 `T3_VERSION="${T3_VERSION:-0.2.0-rc.1}"`；**给基线加插件前务必核对 peer 范围**。
 
 ### OpenSpec 变更状态（对账 2026-09-22）
 
@@ -249,4 +270,4 @@ docker compose up --build -d
 - **`.dockerignore`**：仓库根那份是**构建上下文根**的忽略规则（docker 只读上下文根的），应用目录那份只在"从应用目录构建"时生效。
 - **部署环境差异**：生产 `hub.wuyajun.cn` 的容器可能落后于仓库 HEAD（例如缺少新路由 → 404）。改完代码要**重建镜像/重启**才生效；仅 `git pull` 不更新已运行的容器。
 - 项目原始使用 npm，工作区规范要求 pnpm；已有 `package-lock.json`，迁移需与用户确认。
-- `dsh` 二进制在沙箱环境中不可用，涉及 `dsh web` 实例的测试无法在此环境运行。
+- `dsh` 二进制在受限沙箱中不可用；本机（开发机）可用，实例级回归脚本见「运行与预览」的环境说明。

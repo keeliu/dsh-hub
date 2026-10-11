@@ -58,8 +58,12 @@ say "实例1 id=$I1 port=$P1"
 CODE=$(curl -sS -o "$D.start1" -w '%{http_code}' -b "$J" -X POST "$BASE/api/instances/$I1/start" \
   -H "x-csrf-token: $CSRF")
 check "start 实例1" 200 "$CODE"
+# 启动接口已异步化（装树期间立即 200），因此「就绪」必须靠这里等：默认清单现在是 9 个插件，
+# 冷 npm/pnpm 缓存下一次装树在本机实测达 10 分钟量级；给足 1800×0.5s=15 分钟（与网关
+# WORKSPACE_START_TIMEOUT_MS=900_000 同量级），避免把「装树慢」误判成「实例起不来」。
+READY_TICKS=1800
 READY=0
-for _ in $(seq 1 180); do
+for _ in $(seq 1 $READY_TICKS); do
   if curl -sf "http://127.0.0.1:$P1/" -o "$D.shell1" 2>/dev/null; then READY=1; break; fi
   sleep 0.5
 done
@@ -81,7 +85,7 @@ CODE=$(curl -sS -o "$D.start2" -w '%{http_code}' -b "$J" -X POST "$BASE/api/inst
   -H "x-csrf-token: $CSRF")
 check "start 实例2" 200 "$CODE"
 READY=0
-for _ in $(seq 1 180); do
+for _ in $(seq 1 $READY_TICKS); do
   if curl -sf "http://127.0.0.1:$P2/" -o /dev/null 2>/dev/null; then READY=1; break; fi
   sleep 0.5
 done

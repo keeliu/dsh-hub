@@ -4,6 +4,7 @@ import { PORT_FREE_WAIT_MS, STOP_GRACE_MS, transitionStatus } from './index.ts';
 import { groupAlive, isAlive, procMatches, sleep, tcpConnectable } from './probe.ts';
 import { releaseLock } from './lock.ts';
 import { clearPidfile, readPidfile } from './pidfile.ts';
+import { isStartInFlight, cancelStart } from './prep-guard.ts';
 
 export async function stopProcessGroup(pid: number, graceMs: number): Promise<void> {
   try { process.kill(-pid, 'SIGTERM'); } catch { try { process.kill(pid, 'SIGTERM'); } catch { return; } }
@@ -28,8 +29,13 @@ export async function waitPortFree(port: number, timeoutMs: number): Promise<boo
 /** 停止实例：TERM 进程组 → 8s → KILL；释放锁并确认端口释放。 */
 export async function stopInstance(db: DatabaseSync, record: InstanceRecord, opts: { force?: boolean } = {}): Promise<void> {
   if (record.status === 'stopped' && !isAlive(record.pid)) return;
+  // 异步启动在途（首次装插件树可能数分钟，实例一直显示 starting）→ 先登记取消，
+  // 后台任务随后在 spawn 前后看到标记就放弃拉起，避免「点了停止又自己跑起来」。
+  if (isStartInFlight(record.id)) cancelStart(record.id);
   transitionStatus(db, record.id, 'stopping');
-  const pid = record.pid ?? readPidfile(record);
+  // 重新读一次 pid：异步启动可能刚好把进程拉起并写入 pid/pidfile（上面那次读的是旧快照）
+  const fresh = db.prepare('SELECT pid FROM instances WHERE id = ?').get(record.id) as { pid: number | null } | undefined;
+  const pid = fresh?.pid ?? record.pid ?? readPidfile(record);
   if (pid && isAlive(pid) && procMatches(pid, record.port)) {
     await stopProcessGroup(pid, STOP_GRACE_MS);
   }

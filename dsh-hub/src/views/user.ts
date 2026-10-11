@@ -4,7 +4,7 @@
  * 实例列表 / 实例详情 页面渲染
  */
 import { escapeHtml } from '../http.ts';
-import { layout, csrfField } from './layout.ts';
+import { layout, csrfField, statusAutoRefreshScript } from './layout.ts';
 import { buildInstanceUrl } from '../subdomain.ts';
 import { config } from '../config.ts';
 import type { UserRow } from '../users.ts';
@@ -108,6 +108,7 @@ export function renderInstancesPage(user: UserRow, instances: InstanceInfo[], fl
       <div class="card-title">配额信息</div>
       <p>最大实例数：${user.max_instances} | 最大并发运行：${user.max_running}</p>
     </div>
+    ${statusAutoRefreshScript()}
   `;
 
   return layout('我的实例', content, user, flash, csrf);
@@ -208,6 +209,7 @@ export function renderInstanceDetailPage(user: UserRow, instance: InstanceInfo, 
       <div class="log-viewer">${escapeHtml(logs) || '(暂无日志)'}</div>
     </div>
     ` : ''}
+    ${statusAutoRefreshScript()}
   `;
 
   return layout(instance.name, content, user, undefined, csrf);

@@ -18,6 +18,14 @@
 # 用法：cd dsh-hub && TMPDIR=<大容量盘，勿用 /tmp> bash scripts/version-tree-regression.sh
 # 【必须】TMPDIR 指向大容量盘：/tmp 常是 256M tmpfs，一个实例的插件树就近 250M。
 set -u
+# T3 的「非内置版本」样本。要求：①合法且已发布；②与镜像内置版本不同（否则退化成内置路径）；
+# ③其 peer 面在当前 npm registry 状态下**装得起来**。
+# 原用 0.1.5-rc.2（上一基线），2026-10 起该组合已跑不通：测试期插件清单里的 dshmarket 装的是
+# **latest**（1.66.17），它声明 `@deepseek-ai/dsh-settings: ^0.1.0-rc.7 || ^0.1.1-rc.2 ||
+# ^0.1.2-alpha.2 || ^0.2.0-rc.1`；按 semver 预发布规则，0.1.5-rc.2 不被其中任何一段覆盖
+# → 插件树加载失败、实例虽 running 但端口不可访问（T3i 实测失败）。
+# 改用 0.2.0-rc.1：与内置 0.2.0-rc.2 同线但不同版本，且满足上述 `^0.2.0-rc.1`。
+T3_VERSION="${T3_VERSION:-0.2.0-rc.1}"
 
 BASE="http://127.0.0.1:3086"
 HUB_DIR="$(mktemp -d)"
@@ -111,8 +119,9 @@ check "准备：取到 CSRF" "yes" "$([ -n "$CSRF" ] && echo yes || echo no)"
 curl -sS -c "$JAR" -b "$JAR" -X PATCH "$BASE/admin/api/users/1" \
   -H 'content-type: application/json' -H "x-csrf-token: $CSRF" \
   -d '{"max_instances":10,"max_running":10}' -o /dev/null
-# `dsh-visualize` 在 0.2.0-rc.2 上会被 dsh 拒绝（peerDependencies 仅 ^0.1.0-rc.6），
-# 会让「全部成功才写标记」永远不成立，干扰本回归；缩到 dshmarket 单插件。
+# 默认清单里的 `@nagi-ovo/dsh-visualize` 在 0.2.0-rc.2 上可装，但整棵 5 插件模板安装耗时太长，
+# 会让「全部成功才写标记」的等待变得很慢，干扰本回归；缩到 dshmarket 单插件。
+# （注意：官方 `dsh-visualize@0.2.1` 在 0.2.0-rc.2 上会被 dsh **拒绝安装**，已从默认清单移除。）
 curl -sS -c "$JAR" -b "$JAR" -X PUT "$BASE/admin/api/preset-plugins" \
   -H 'content-type: application/json' -H "x-csrf-token: $CSRF" \
   -d '{"plugins":[{"spec":"dshmarket","enabled":true,"order":0,"allowBuild":false,"workspace":false}]}' -o /dev/null
@@ -154,18 +163,19 @@ check_contains "T2d 日志出现重建" "重建插件树" "$(cat "$HUB_DIR/hub.l
 check_contains "T2e 标记被恢复为 $BUILTIN" "\"version\":\"$BUILTIN\"" "$(marker_of '内置版')"
 
 # ---------- T3 指定非内置版本：跳过模板 + npx 该版本装树 + 同版本启动 ----------
-check "T3a 建实例（指定 0.1.5-rc.2）" "200" "$(api_create '指定版' '0.1.5-rc.2')"
+# 样本版本见文件头部 T3_VERSION 的说明（可用环境变量覆盖，便于验证其他版本）。
+check "T3a 建实例（指定 $T3_VERSION）" "200" "$(api_create '指定版' "$T3_VERSION")"
 IP3="$(inst_field '指定版' id)"; P3="$(inst_field '指定版' port)"
 check_contains "T3b 跳过模板（版本与内置不一致）" "跳过模板" "$(cat "$HUB_DIR/hub.log")"
-check_contains "T3c 安装器用 npx 指定版本" "npx --yes @deepseek-ai/dsh@0.1.5-rc.2" "$(cat "$HUB_DIR/hub.log")"
+check_contains "T3c 安装器用 npx 指定版本" "npx --yes @deepseek-ai/dsh@$T3_VERSION" "$(cat "$HUB_DIR/hub.log")"
 if wait_marker '指定版' 1200; then echo "[PASS] T3d 该版本装树完成并写入标记"; PASS=$((PASS + 1));
 else echo "[FAIL] T3d 1200s 内未见 .plugins-installed"; FAIL=$((FAIL + 1)); fi
-check_contains "T3e 标记记录 0.1.5-rc.2" "\"version\":\"0.1.5-rc.2\"" "$(marker_of '指定版')"
+check_contains "T3e 标记记录 $T3_VERSION" "\"version\":\"$T3_VERSION\"" "$(marker_of '指定版')"
 check "T3f 启动" "200" "$(api_start "$IP3")"
 check "T3g 状态 running" "0" "$(wait_status '指定版' running 300 && echo 0 || echo 1)"
 PID3="$(inst_field '指定版' pid)"
 CMDLINE="$(tr '\0' ' ' < "/proc/$PID3/cmdline" 2>/dev/null)"
-check_contains "T3h 进程命令行用的是同一版本（npx @0.1.5-rc.2）" "@deepseek-ai/dsh@0.1.5-rc.2" "$CMDLINE"
+check_contains "T3h 进程命令行用的是同一版本（npx @$T3_VERSION）" "@deepseek-ai/dsh@$T3_VERSION" "$CMDLINE"
 check "T3i 实例端口可访问" "0" "$(wait_http "$P3" 300 && echo 0 || echo 1)"
 
 echo "===== 版本一致性回归：PASS=$PASS FAIL=$FAIL ====="

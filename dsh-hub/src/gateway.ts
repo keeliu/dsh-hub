@@ -355,8 +355,13 @@ const WORKSPACE_PREFIX = '/workspace';
 
 /** Workspace loading 页轮询实例状态的间隔 */
 const WORKSPACE_POLL_INTERVAL_MS = 2_000;
-/** Workspace 等待实例就绪的最长时间；超过则停止轮询并进入超时兜底态（用户口径：超过 1 分钟） */
-const WORKSPACE_START_TIMEOUT_MS = 60_000;
+/**
+ * Workspace 等待实例就绪的最长时间。
+ * 15 分钟：首次以非内置版本启动时，后台要经 npx 下载整棵插件树（数百 MB，实测慢网络下数分钟），
+ * 60 秒必然误报超时（用户口径的「启动超过了 60 秒」）。页面在此期间显示已等待秒数，
+ * 实例真正 failed 时会立刻切到失败态，不必等满超时。
+ */
+const WORKSPACE_START_TIMEOUT_MS = 900_000;
 
 // HTML 中需要重写路径的标签属性
 const HTML_PATH_ATTRS = [
@@ -650,12 +655,13 @@ ${renderHubNavBar(auth.user, '/instances')}
   <div class="container" id="state-loading">
     <h1>正在启动 Workspace...</h1>
     <div class="loading"></div>
-    <p>正在准备你的工作环境</p>
+    <p id="loading-elapsed">正在准备你的工作环境（已等待 0 秒）</p>
+    <p class="tip">首次启动或首次指定新版本时，后台需要下载并安装插件树，可能持续几分钟，请保持页面打开</p>
   </div>
 
   <div class="container" id="state-timeout" hidden>
     <h1>工作区启动超时</h1>
-    <p>已等待超过 ${WORKSPACE_START_TIMEOUT_MS / 1000} 秒，实例仍未就绪。<br>可能仍在启动中，也可能启动失败需要排查。</p>
+    <p>已等待超过 ${WORKSPACE_START_TIMEOUT_MS / 1000 / 60} 分钟，实例仍未就绪。<br>可能仍在启动中，也可能启动失败需要排查。</p>
     <div class="actions">
       <a class="btn btn-primary" href="/workspace">重试</a>
       <a class="btn btn-secondary" href="/instances">实例管理</a>
@@ -683,6 +689,14 @@ ${renderHubNavBar(auth.user, '/instances')}
   var settled = false;
   var csrfMeta = document.querySelector('meta[name="csrf-token"]');
   var csrfToken = csrfMeta ? csrfMeta.getAttribute('content') : '';
+  var elapsedEl = document.getElementById('loading-elapsed');
+
+  // 已等待秒数：让「正在准备」可见，避免用户以为卡死
+  setInterval(function () {
+    if (settled || !elapsedEl) return;
+    var s = Math.round((Date.now() - startedAt) / 1000);
+    elapsedEl.textContent = '正在准备你的工作环境（已等待 ' + s + ' 秒）';
+  }, 1000);
 
   function switchTo(id) {
     settled = true;

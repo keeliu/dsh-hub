@@ -1,7 +1,7 @@
 # 实例管理规范
 
-> 状态：已实现（M2 + M2.1 安全修复）
-> 模块：`src/instances.ts`、`src/supervisor.ts`、`src/port.ts`、`src/paths.ts`
+> 状态：已实现（M2 + M2.1 安全修复 + 启动异步化/停止握手）
+> 模块：`src/instances.ts`、`src/supervisor/index.ts`、`src/supervisor/spawn.ts`、`src/supervisor/stop.ts`、`src/supervisor/prep-guard.ts`、`src/port.ts`、`src/paths.ts`
 
 ## Requirement: 实例目录布局
 
@@ -118,10 +118,18 @@ Scenario: 子进程早退
 - THEN 立即中止探活（不白等 180s）
 - AND 按退出码生成失败快照
 
-Scenario: 启动并发互斥
-- GIVEN 同一实例正在启动中
-- WHEN 第二个 start 请求到达
-- THEN 返回 409 `instance_busy`
+Scenario: 需要装树时异步启动
+- GIVEN 实例需要按目标版本重建插件树（首次启动，或标记版本与目标版本不一致）
+- WHEN 发送 `POST /api/instances/:id/start`
+- THEN 立即返回 200 且 status=starting（**不在请求内**等待 npx 装树）
+- AND 后台完成「装树 → spawn → 探活」，成功转 running、失败转 failed（写失败快照）
+- AND 页面在出现 starting/stopping 期间每 3 秒自动刷新
+- AND 插件树已就绪时仍走同步快路径（返回即 running）
+
+Scenario: 建实例装树与启动接力
+- GIVEN 创建实例时已触发后台装树（在途）
+- WHEN 用户立即点启动
+- THEN 启动等待该在途任务完成，不并发执行第二套装树
 
 Scenario: max_running 配额
 - GIVEN 用户已有 max_running 个运行中实例
@@ -158,10 +166,17 @@ Scenario: 进程身份校验
 - THEN 检查 /proc/<pid>/cmdline 包含 "dsh" 和 "--port <port>"
 - AND 不匹配则视为死实例，不 kill
 
-Scenario: 停止并发互斥
-- GIVEN 同一实例正在停止中
-- WHEN 第二个 stop 请求到达
-- THEN 返回 409 `instance_busy`
+Scenario: starting 期间停止（取消而非等待）
+- GIVEN 实例 status=starting（后台装树中）
+- WHEN 发送 `POST /api/instances/:id/stop`
+- THEN 返回 200（`starting → stopping` 是合法转换）
+- AND 后台任务被取消：不再 spawn；若已 spawn 则回收进程并清 pidfile
+- AND 最终 status=stopped 且 pid 为空（不留孤儿进程）
+
+Scenario: failed 实例可停止 / 重启 / 删除
+- GIVEN 实例 status=failed
+- WHEN 发送 stop / restart / delete
+- THEN 均不因非法状态转换返回 500（`failed → stopping` 合法）
 
 ## Requirement: 实例重启
 
@@ -255,22 +270,22 @@ Scenario: 未指定版本，或版本等于镜像内置版本
 `dsh.profile.bundles`、`cordis.yml`、`compatibility.json` 都记着旧版本的 bundle。
 
 Scenario: 指定非内置版本时跳过模板
-- GIVEN 实例 harness_version = "0.2.0-rc.2"，镜像内置为 "0.1.5-rc.2"
+- GIVEN 实例 harness_version = "0.2.1-alpha.2"，镜像内置为 "0.2.0-rc.2"
 - WHEN 建实例
 - THEN 不复制模板 profile
-- AND 用 `npx @deepseek-ai/dsh@0.2.0-rc.2` 按清单真装预置插件
+- AND 用 `npx @deepseek-ai/dsh@0.2.1-alpha.2` 按清单真装预置插件
 
 Scenario: 标记版本与目标版本一致时不重装
-- GIVEN 标记记录 "0.1.5-rc.2"，实例将用 "0.1.5-rc.2" 启动
+- GIVEN 标记记录 "0.2.0-rc.2"，实例将用 "0.2.0-rc.2" 启动
 - WHEN 启动
 - THEN 直接启动，不重装插件树
 
 Scenario: 标记版本与目标版本不一致时自愈重装
-- GIVEN 标记记录 "0.1.5-rc.2"，实例将用 "0.2.0-rc.2" 启动
+- GIVEN 标记记录 "0.2.0-rc.2"，实例将用 "0.2.1-alpha.2" 启动
 - WHEN 启动
 - THEN 整棵删除 profiles/ 与标记
-- AND 用 "0.2.0-rc.2" 重新安装预置插件后再启动
-- AND 完成后标记记录的版本为 "0.2.0-rc.2"
+- AND 用 "0.2.1-alpha.2" 重新安装预置插件后再启动
+- AND 完成后标记记录的版本为 "0.2.1-alpha.2"
 
 Scenario: 旧格式标记按内置版本解读
 - GIVEN 标记内容是 ISO 时间字符串（旧版本只写时间戳，且只用内置 dsh 装树）
@@ -282,6 +297,27 @@ Scenario: 装树失败不写标记
 - WHEN 装树结束
 - THEN 不写 `.plugins-installed`，下次启动重试
 
+## Requirement: 非内置版本的客户端补丁
+
+内置 dsh 在镜像启动时由 `scripts/patch-dsh-client.sh` 打补丁（客户端 loopback 判定 +
+浏览器鉴权旁路 `ONEPANEL_DSH_AUTH_PROXY`）；而 `npx` 现下载的指定版本是**原始包**，
+不补就会「实例状态 running、工作区首页 401
+`dsh web authentication required; reopen the URL printed by dsh web.`」。
+因此启动前必须按目标版本给 npx 缓存里的副本补一遍（`src/npx-dsh.ts`，复用同一脚本，幂等）。
+
+Scenario: 指定非内置版本启动前补 npx 副本
+- GIVEN 实例 harness_version = "0.2.0-rc.1"，npm 缓存里存在
+  `~/.npm/_npx/<hash>/node_modules/@deepseek-ai/dsh`（version = 0.2.0-rc.1）
+- WHEN 启动
+- THEN 以该 `node_modules` 为根调用 `patch-dsh-client.sh`
+- AND 实例首页经网关访问返回 200（而非 401）
+
+Scenario: 补丁失败不阻塞启动
+- GIVEN 缓存里还没有目标版本的 dsh（首次启动、npx 尚未下载），或补丁脚本缺失
+- WHEN 启动
+- THEN 打 warn 日志并照常拉起实例
+- AND 该次可能仍 401，重启后已落地的副本会被补上
+
 ## Requirement: 版本解析的单一真相源
 
 建实例时的版本策略只有一处实现（`instances.createInstance` 调用
@@ -291,18 +327,18 @@ Scenario: 装树失败不写标记
 且网页路径不校验 `allowed_harness_versions` 白名单。
 
 Scenario: 网页表单与 API 的默认版本一致
-- GIVEN 管理员把 `default_harness_version` 设为 "0.1.5-rc.2"
+- GIVEN 管理员把 `default_harness_version` 设为 "0.2.0-rc.2"
 - WHEN 用户分别在网页表单与 `POST /api/instances` 建实例，都留空版本
-- THEN 两个实例的 `harness_version` 都是 "0.1.5-rc.2"
+- THEN 两个实例的 `harness_version` 都是 "0.2.0-rc.2"
 
 Scenario: 显式版本优先于默认版本
-- GIVEN 管理员把 `default_harness_version` 设为 "0.1.5-rc.2"
-- WHEN 用户建实例时显式指定 "0.2.0-rc.2"
-- THEN 实例的 `harness_version` 是 "0.2.0-rc.2"
+- GIVEN 管理员把 `default_harness_version` 设为 "0.2.0-rc.2"
+- WHEN 用户建实例时显式指定 "0.2.1-alpha.2"
+- THEN 实例的 `harness_version` 是 "0.2.1-alpha.2"
 
 Scenario: 白名单对网页表单同样生效
-- GIVEN 管理员把 `allowed_harness_versions` 设为 "0.1.5-rc.2"
-- WHEN 用户经网页表单提交 "0.2.0-rc.2"
+- GIVEN 管理员把 `allowed_harness_versions` 设为 "0.2.0-rc.2"
+- WHEN 用户经网页表单提交 "0.2.1-alpha.2"
 - THEN 返回 400 且提示不在允许的版本列表中
 - AND 实例未被创建
 
@@ -318,7 +354,7 @@ Scenario: 默认版本本身非法时不静默忽略
 - THEN 返回 400 且该值不落库（静默忽略正是本次修复的缺陷）
 
 Scenario: 修改默认版本不追溯已存在的实例
-- GIVEN 某实例已以 "0.1.5-rc.2" 创建
-- WHEN 管理员把 `default_harness_version` 改成 "0.2.0-rc.2"
-- THEN 该实例的 `harness_version` 仍是 "0.1.5-rc.2"
+- GIVEN 某实例已以 "0.2.0-rc.2" 创建
+- WHEN 管理员把 `default_harness_version` 改成 "0.2.1-alpha.2"
+- THEN 该实例的 `harness_version` 仍是 "0.2.0-rc.2"
 - AND 设置页明示「只影响之后新建的实例」

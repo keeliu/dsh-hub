@@ -10,7 +10,11 @@ DEFAULT_PLUGINS=(
   "github:omdsh-dev/DSH-better-sidebar#main"
   "@xmanrui/dsh-im"
   "github:Han-1413141/dsh-cost-meter#main"
-  "dsh-visualize"
+  "@nagi-ovo/dsh-visualize"
+  "@michengai/dsh-automation"
+  "@michengai/dsh-skills-manager"
+  "dsh-context"
+  "@michengai/dsh-archive-manager"
 )
 
 # DSH 二进制路径

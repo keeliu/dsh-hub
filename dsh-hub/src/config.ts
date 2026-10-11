@@ -112,6 +112,11 @@ export interface DshCommand {
   argvPrefix: string[];
   /** 实际使用的 dsh 版本；null = 未能判定（按内置/未知处理） */
   version: string | null;
+  /**
+   * builtin = 镜像内置 dsh（启动期已打过客户端补丁）；
+   * npx     = npx 现下载的指定版本（**原始包**，启动前必须按版本补丁，见 npx-dsh.ts）。
+   */
+  kind: 'builtin' | 'npx';
 }
 
 /**
@@ -120,7 +125,7 @@ export interface DshCommand {
  *   - 未指定版本，或指定版本 === 内置版本 → 直接用镜像内置 dsh（与模板同源，且省一次 npx 下载）
  *   - 其他版本 → `npx --yes @deepseek-ai/dsh@<version>`
  *
- * 反例（本函数修的缺陷）：插件用内置 0.1.5-rc.2 装，进程用 npx 0.2.0-rc.2 启动 →
+ * 反例（本函数修的缺陷）：插件用内置 0.2.0-rc.2 装，进程用 npx 0.2.1-alpha.2 启动 →
  * `plugin tree failed to load: @deepseek-ai/dsh-sandbox-local`。
  */
 export function resolveDshCommand(harnessVersion?: string | null): DshCommand {
@@ -129,11 +134,11 @@ export function resolveDshCommand(harnessVersion?: string | null): DshCommand {
   const bin = getDshBin();
   if (!requested || (builtin !== null && requested === builtin)) {
     // 内置二进制经 node 执行（bin.js 未必有可执行位）
-    if (bin) return { bin: process.execPath, argvPrefix: [bin], version: builtin };
-    return { bin: 'dsh', argvPrefix: [], version: builtin };
+    if (bin) return { bin: process.execPath, argvPrefix: [bin], version: builtin, kind: 'builtin' };
+    return { bin: 'dsh', argvPrefix: [], version: builtin, kind: 'builtin' };
   }
   const npx = join(dirname(process.execPath), 'npx');
-  return { bin: process.execPath, argvPrefix: [npx, '--yes', `@deepseek-ai/dsh@${requested}`], version: requested };
+  return { bin: process.execPath, argvPrefix: [npx, '--yes', `@deepseek-ai/dsh@${requested}`], version: requested, kind: 'npx' };
 }
 
 /** 获取预置插件模板目录（Docker 构建期产出），默认 /opt/dsh-home-template。 */
